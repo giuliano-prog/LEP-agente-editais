@@ -1,0 +1,38 @@
+{
+  "name": "lep-plataforma",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @lep/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:status": "supabase status",
+    "db:types": "supabase gen types typescript --local --schema core > packages/db/src/database.types.ts && prettier --write packages/db/src/database.types.ts",
+    "db:test": "bash scripts/db-test.sh",
+    "members:invite": "pnpm --filter @lep/web members:invite"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "supabase": "^2.40.0",
+    "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "supabase",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

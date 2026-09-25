@@ -1,0 +1,26 @@
+# dependências
+node_modules/
+
+# builds
+.next/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# variáveis de ambiente (NUNCA versionar segredos)
+.env
+.env.*
+!.env.example
+
+# supabase local
+supabase/.temp/
+supabase/.branches/
+
+# sistema / editores
+.DS_Store
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea/
