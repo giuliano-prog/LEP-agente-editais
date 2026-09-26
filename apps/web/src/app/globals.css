@@ -1,9 +1,37 @@
 @import "tailwindcss";
 
+/*
+ * Identidade visual LEP Filmes (paleta da logomarca).
+ * Use sempre os tokens (bg-surface, bg-card, text-fg, text-muted, text-brand...)
+ * em vez de cores soltas, para manter a consistência.
+ */
+@theme {
+  --color-brand: #f5821f; /* laranja LEP — destaque, ações principais */
+  --color-brand-strong: #ff9a40; /* hover do laranja */
+  --color-surface: #121212; /* fundo principal (grafite) */
+  --color-card: #1e1e1e; /* cartões e contentores */
+  --color-card-raised: #262626; /* elementos sobre cartões (inputs, hover) */
+  --color-line: #2f2f2f; /* bordas e divisórias */
+  --color-fg: #eeeeee; /* texto principal */
+  --color-muted: #a0a0a0; /* texto secundário */
+
+  /* Estados do Match e mensagens (legíveis sobre fundo escuro) */
+  --color-ok: #4ade80;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
-  @apply bg-zinc-50 text-zinc-900 antialiased;
+  @apply bg-surface text-fg antialiased;
+}
+
+::selection {
+  @apply bg-brand text-surface;
 }

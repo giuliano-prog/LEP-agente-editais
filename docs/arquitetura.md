@@ -8,6 +8,8 @@ apps/web (Next.js) ──► Supabase (Postgres + Auth + Storage)
 packages/core  → papéis e permissões (regras puras, testadas)
 packages/db    → tipos do banco (gerados)
 packages/ai    → contrato de IA independente de fornecedor + registro de custos
+packages/modules/projects → vocabulário e validação de projetos
+packages/modules/funding  → modelo do edital (toEdital) e motor de Match explicável
 supabase/      → migrações, seed, testes de RLS, templates de e-mail
 ```
 
@@ -20,6 +22,8 @@ apps/
       app/                      rotas (App Router)
         (app)/                  área autenticada (layout exige login + organização)
           page.tsx              início
+          editais/              listagem e detalhe (com painel de Match)
+          projetos/             cadastro e listagem de projetos
           conta/senha/          definir/trocar senha
           configuracoes/membros lista de membros (somente admin)
         login/                  tela de login

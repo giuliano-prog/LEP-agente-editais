@@ -104,6 +104,89 @@ export type Database = {
         };
         Relationships: [];
       };
+      editais: {
+        Row: {
+          accepted_formats: string[];
+          accepted_genres: string[];
+          accepted_stages: string[];
+          agency: string | null;
+          categories: string[];
+          created_at: string;
+          deadline: string | null;
+          eligibility_criteria: string[];
+          id: string;
+          max_amount_per_project: number | null;
+          max_budget: number | null;
+          min_budget: number | null;
+          official_links: Json;
+          official_url: string | null;
+          org_id: string | null;
+          required_documents: string[];
+          review_status: string;
+          status: string | null;
+          summary: string | null;
+          title: string | null;
+          total_amount: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          accepted_formats?: string[];
+          accepted_genres?: string[];
+          accepted_stages?: string[];
+          agency?: string | null;
+          categories?: string[];
+          created_at?: string;
+          deadline?: string | null;
+          eligibility_criteria?: string[];
+          id?: string;
+          max_amount_per_project?: number | null;
+          max_budget?: number | null;
+          min_budget?: number | null;
+          official_links?: Json;
+          official_url?: string | null;
+          org_id?: string | null;
+          required_documents?: string[];
+          review_status?: string;
+          status?: string | null;
+          summary?: string | null;
+          title?: string | null;
+          total_amount?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          accepted_formats?: string[];
+          accepted_genres?: string[];
+          accepted_stages?: string[];
+          agency?: string | null;
+          categories?: string[];
+          created_at?: string;
+          deadline?: string | null;
+          eligibility_criteria?: string[];
+          id?: string;
+          max_amount_per_project?: number | null;
+          max_budget?: number | null;
+          min_budget?: number | null;
+          official_links?: Json;
+          official_url?: string | null;
+          org_id?: string | null;
+          required_documents?: string[];
+          review_status?: string;
+          status?: string | null;
+          summary?: string | null;
+          title?: string | null;
+          total_amount?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "editais_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       memberships: {
         Row: {
           created_at: string;
@@ -193,6 +276,53 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      projetos: {
+        Row: {
+          budget: number | null;
+          created_at: string;
+          format: string;
+          genre: string | null;
+          id: string;
+          org_id: string;
+          stage: string;
+          synopsis: string | null;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          budget?: number | null;
+          created_at?: string;
+          format: string;
+          genre?: string | null;
+          id?: string;
+          org_id: string;
+          stage: string;
+          synopsis?: string | null;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          budget?: number | null;
+          created_at?: string;
+          format?: string;
+          genre?: string | null;
+          id?: string;
+          org_id?: string;
+          stage?: string;
+          synopsis?: string | null;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "projetos_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ROLE_LABELS } from "@lep/core";
+import { PageHeader } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,20 +19,17 @@ export default async function MembersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Membros</h1>
-        <p className="text-sm text-zinc-600">
-          Somente leitura nesta etapa. Convites e alteração de papéis são feitos pelo script de
-          administração (ver README) e ganharão tela própria em etapa futura.
-        </p>
-      </div>
+      <PageHeader
+        title="Membros"
+        description="Somente leitura nesta etapa. Convites e papéis são definidos pelo script `pnpm members:invite` (ver README)."
+      />
 
       {error ? (
-        <p className="text-sm text-red-700">Não foi possível carregar os membros.</p>
+        <p className="text-sm text-bad">Não foi possível carregar os membros.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-line bg-card">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+            <thead className="border-b border-line text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">E-mail</th>
@@ -41,7 +39,7 @@ export default async function MembersPage() {
             </thead>
             <tbody>
               {members?.map((member) => (
-                <tr key={member.id} className="border-b border-zinc-100 last:border-0">
+                <tr key={member.id} className="border-b border-line last:border-0">
                   <td className="px-4 py-3">{member.profiles?.full_name ?? "—"}</td>
                   <td className="px-4 py-3">{member.profiles?.email}</td>
                   <td className="px-4 py-3">{ROLE_LABELS[member.role]}</td>

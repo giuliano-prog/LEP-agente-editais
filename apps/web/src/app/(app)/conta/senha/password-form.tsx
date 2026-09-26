@@ -23,7 +23,7 @@ export function PasswordForm() {
         autoComplete="new-password"
         required
       />
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-muted">
         Mínimo de 10 caracteres, com letras maiúsculas, minúsculas e números.
       </p>
       <FormError message={state.error} />

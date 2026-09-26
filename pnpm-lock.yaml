@@ -26,6 +26,12 @@ importers:
       '@lep/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@lep/funding':
+        specifier: workspace:*
+        version: link:../../packages/modules/funding
+      '@lep/projects':
+        specifier: workspace:*
+        version: link:../../packages/modules/projects
       '@supabase/ssr':
         specifier: ^0.12.0
         version: 0.12.7(@supabase/supabase-js@2.117.2)
@@ -102,6 +108,35 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/modules/funding:
+    dependencies:
+      '@lep/projects':
+        specifier: workspace:*
+        version: link:../projects
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.4
+        version: 22.20.4
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.11(@types/node@22.20.4)(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/modules/projects:
+    dependencies:
+      zod:
+        specifier: ^4.1.0
+        version: 4.6.5
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.11(@types/node@22.20.4)(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
 packages:
 

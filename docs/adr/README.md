@@ -14,5 +14,6 @@ Decisões não são apagadas; quando mudam, um novo ADR "substitui" o anterior.
 | 0007 | [Idioma e convenções](0007-idioma-convencoes.md)                                | Aceita |
 | 0008 | [Sem Python inicialmente](0008-sem-python.md)                                   | Aceita |
 | 0009 | [Revisão humana, histórico e sites com login](0009-revisao-humana-historico.md) | Aceita |
+| 0010 | [Tabelas `core.editais` e `core.projetos`](0010-tabelas-editais-projetos.md)    | Aceita |
 
 Modelo para novos ADRs: copie um existente e mantenha as seções.

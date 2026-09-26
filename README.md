@@ -3,8 +3,9 @@
 Plataforma de inteligência e automação da **LEP Filmes** para o setor audiovisual.
 Arquitetura modular: o primeiro módulo será **Captação de Recursos / Editais**.
 
-> **Status: Etapa 0 — Fundação.** Monorepo, app Next.js, banco Supabase, autenticação,
-> permissões e documentação. Nenhum módulo de negócio implementado ainda.
+> **Status: Etapa 1.** Fundação (autenticação, permissões, RLS) + identidade visual LEP,
+> módulo de **Editais** (listagem e detalhe), **Projetos LEP** (cadastro e listagem) e
+> **Match explicável** edital × projeto.
 
 ## Tecnologias
 
@@ -80,16 +81,56 @@ Painel do banco local (Supabase Studio): http://127.0.0.1:54323
 6. Convidar outra pessoa com `--role viewer`, entrar com ela → menu **Membros** some e
    `/configuracoes/membros` mostra "Permissão insuficiente".
 
+## Identidade visual
+
+A paleta da LEP Filmes está em `apps/web/src/app/globals.css` (bloco `@theme`) e é usada por tokens:
+`bg-surface` (#121212), `bg-card` (#1E1E1E), `text-fg` (#EEEEEE), `text-muted` (#A0A0A0) e
+`text-brand`/`bg-brand` (laranja #F5821F).
+
+A logomarca é lida de **`apps/web/public/logo.jpg`**. Enquanto o arquivo não estiver no
+repositório, o cabeçalho exibe o nome "LEP FILMES" em texto.
+
+## Aplicando as migrações no Supabase remoto
+
+As migrações ficam em `supabase/migrations/`. Para aplicá-las no projeto remoto:
+
+```bash
+pnpm exec supabase link --project-ref <ref-do-projeto>   # uma vez
+pnpm exec supabase db push --dry-run                      # confira o que será aplicado
+pnpm exec supabase db push
+```
+
+A migração `20260926120000_editais_projetos.sql` é **conciliadora** para `core.editais`
+(tabela criada originalmente no painel): cria só o que falta e **não apaga nem altera** colunas
+existentes. Depois de aplicar, revise as políticas de acesso da tabela — políticas antigas
+criadas manualmente continuam valendo e podem liberar acesso além do desejado:
+
+```sql
+select policyname, cmd, roles, qual from pg_policies
+where schemaname = 'core' and tablename in ('editais', 'projetos');
+```
+
+As políticas esperadas são `editais_*` / `projetos_*` (ver migração). Remova as demais após conferência.
+
 ## Estrutura
 
 ```
-apps/web/          Next.js (interface, autenticação)
+apps/web/          Next.js (interface, autenticação, Editais, Projetos, Match)
 packages/core/     papéis e permissões
+packages/modules/projects/  vocabulário (formato, gênero, estágio) e validação de projetos
+packages/modules/funding/   modelo do edital e motor de Match explicável
 packages/db/       tipos do banco
 packages/ai/       contrato de IA independente de fornecedor + registro de custos
 supabase/          migrações, seed, testes SQL, templates de e-mail
 docs/              arquitetura e ADRs
 ```
+
+## Match explicável
+
+O Match (`packages/modules/funding/src/match.ts`) compara regras **registradas** do edital com os dados
+do projeto, sem IA: prazo/status, formato, gênero, estágio e faixa de orçamento. Critérios em texto e
+documentos exigidos viram **pontos de atenção** para verificação humana. O resultado nunca afirma
+aprovação — apenas compatibilidade técnica com os critérios cadastrados.
 
 ## Segurança
 

@@ -1,5 +1,8 @@
+import Link from "next/link";
 import { can, PERMISSIONS, ROLE_LABELS, type Permission } from "@lep/core";
+import { Card, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 
 const PERMISSION_LABELS: Record<Permission, string> = {
   "content.read": "Visualizar conteúdo",
@@ -18,51 +21,72 @@ export default async function HomePage({
 }) {
   const { email, fullName, membership } = await requireMembership();
   const { senha } = await searchParams;
+  const supabase = await createClient();
+
+  const [editais, projetos] = await Promise.all([
+    supabase.from("editais").select("*", { count: "exact", head: true }),
+    supabase.from("projetos").select("*", { count: "exact", head: true }),
+  ]);
+
+  const modules = [
+    {
+      href: "/editais",
+      title: "Editais",
+      count: editais.count,
+      text: "Oportunidades de financiamento e Match com os projetos.",
+    },
+    {
+      href: "/projetos",
+      title: "Projetos LEP",
+      count: projetos.count,
+      text: "Cadastro dos projetos usados na análise de compatibilidade.",
+    },
+  ];
 
   return (
     <div className="space-y-8">
       {senha === "atualizada" && (
-        <p className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-800">
+        <p className="rounded-md border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok">
           Senha atualizada com sucesso.
         </p>
       )}
 
       <section className="space-y-1">
-        <h1 className="text-2xl font-semibold">Olá, {fullName ?? email}</h1>
-        <p className="text-zinc-600">
-          Fundação da plataforma ativa. Os módulos (Captação de Recursos, Projetos…) serão
-          adicionados nas próximas etapas.
-        </p>
+        <p className="text-sm uppercase tracking-[0.2em] text-brand">{membership.orgName}</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Olá, {fullName ?? email}</h1>
+        <p className="text-muted">Inteligência para captação de recursos no audiovisual.</p>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        <Card title="Organização" value={membership.orgName} />
-        <Card title="Seu papel" value={ROLE_LABELS[membership.role]} />
-        <Card title="E-mail" value={email} />
+      <section className="grid gap-4 md:grid-cols-2">
+        {modules.map((module) => (
+          <Link
+            key={module.href}
+            href={module.href}
+            className="group rounded-xl border border-line bg-card p-6 transition hover:border-brand/60"
+          >
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-lg font-semibold group-hover:text-brand">{module.title}</h2>
+              <span className="text-3xl font-semibold text-brand">{module.count ?? "—"}</span>
+            </div>
+            <p className="mt-2 text-sm text-muted">{module.text}</p>
+          </Link>
+        ))}
       </section>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-6">
-        <h2 className="mb-4 font-semibold">O que você pode fazer</h2>
+      <Card>
+        <SectionTitle>Seu acesso — {ROLE_LABELS[membership.role]}</SectionTitle>
         <ul className="grid gap-2 text-sm sm:grid-cols-2">
           {(Object.keys(PERMISSIONS) as Permission[]).map((permission) => {
             const allowed = can(membership.role, permission);
             return (
-              <li key={permission} className={allowed ? "text-zinc-900" : "text-zinc-400"}>
-                {allowed ? "✓" : "✕"} {PERMISSION_LABELS[permission]}
+              <li key={permission} className={allowed ? "text-fg" : "text-muted/60"}>
+                <span className={allowed ? "text-ok" : "text-muted/60"}>{allowed ? "✓" : "✕"}</span>{" "}
+                {PERMISSION_LABELS[permission]}
               </li>
             );
           })}
         </ul>
-      </section>
-    </div>
-  );
-}
-
-function Card({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4">
-      <p className="text-xs uppercase tracking-wide text-zinc-500">{title}</p>
-      <p className="mt-1 truncate font-medium">{value}</p>
+      </Card>
     </div>
   );
 }
