@@ -15,10 +15,13 @@ parcial (erro "column review_status of relation core.editais does not exist" ao 
    (`supabase/tests/scenarios/`).
 2. **Produção só por automação:** o workflow `.github/workflows/supabase-migrations.yml` roda em cada push no branch
    de produção (variável `SUPABASE_MIGRATIONS_BRANCH`, padrão `main`) que altere `supabase/migrations/`, e
-   manualmente (Run workflow). Etapas: testar migrações em banco descartável → `supabase link` →
-   `supabase db push --dry-run` → `supabase db push --include-all`. Nunca roda duas vezes em paralelo nem é cancelado.
-3. **Credenciais** ficam só nos segredos do GitHub (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
-   `SUPABASE_PROJECT_REF`), no ambiente `production` (permite exigir aprovação manual).
+   manualmente (Run workflow). Etapas: testar migrações em banco descartável →
+   `supabase db push --db-url … --dry-run` → `supabase db push --db-url … --include-all` → `supabase migration list`.
+   Nunca roda duas vezes em paralelo nem é cancelado.
+3. **Conexão direta ao PostgreSQL, sem Management API** (revisado em 2026-09-26): `supabase link` exigia
+   permissões crescentes do token pessoal (`project_admin_read`, `api_gateway_keys_read`). A única credencial é
+   `SUPABASE_DB_URL` (Session pooler, porta 5432), guardada como segredo do ambiente `production`
+   (permite exigir aprovação manual). O workflow valida o formato e mascara a senha nos logs.
 4. O `seed.sql` (dados fictícios) **nunca** é aplicado em produção.
 
 ## Consequências

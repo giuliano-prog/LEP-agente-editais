@@ -99,26 +99,33 @@ no branch de produção que altere migrações, o workflow testa tudo em um banc
 `supabase db push`. **Não use o SQL Editor para migrações.** Todas as migrações são idempotentes (podem ser
 reaplicadas com segurança, inclusive sobre um banco parcialmente migrado).
 
-**Configuração única** (GitHub → repositório → Settings):
+**Configuração única** (GitHub → repositório → Settings). O workflow conecta **direto ao PostgreSQL**
+(`supabase db push --db-url`) — não usa `supabase link` nem token da Management API.
 
-1. **Secrets and variables → Actions → New repository secret:**
+1. **Environments → production → Environment secrets → Add secret:**
 
-   | Segredo                 | Onde encontrar                                                         |
-   | ----------------------- | ---------------------------------------------------------------------- |
-   | `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → **Access Tokens** → Generate new token        |
-   | `SUPABASE_DB_PASSWORD`  | Project Settings → **Database** → senha do banco (redefina se preciso) |
-   | `SUPABASE_PROJECT_REF`  | Project Settings → **General** → Project ID                            |
+   | Segredo           | Valor                                                                                  |
+   | ----------------- | -------------------------------------------------------------------------------------- |
+   | `SUPABASE_DB_URL` | Supabase → Project Settings → Database → **Connect** → **Session pooler** (porta 5432) |
 
-2. **Variables** (opcional): `SUPABASE_MIGRATIONS_BRANCH` = branch que a Vercel publica em produção
-   (padrão: `main`).
-3. **Environments → production** (criado na primeira execução): opcionalmente exija aprovação manual.
+   Formato: `postgresql://postgres.<ref>:<senha>@aws-0-<região>.pooler.supabase.com:5432/postgres`.
+   - Use o **Session pooler**: a conexão direta (`db.<ref>.supabase.co`) é só IPv6 e não funciona no GitHub
+     Actions; o **Transaction pooler (porta 6543) não é aceito** para migrações.
+   - Caracteres especiais da senha devem ser _percent-encoded_ (ex.: `@` → `%40`, `/` → `%2F`).
+   - O workflow mascara a senha nos logs. Os antigos segredos `SUPABASE_ACCESS_TOKEN`,
+     `SUPABASE_DB_PASSWORD` e `SUPABASE_PROJECT_REF` **não são mais usados** e podem ser removidos
+     (revogue também o token no Supabase).
+
+2. **Secrets and variables → Actions → Variables** (opcional): `SUPABASE_MIGRATIONS_BRANCH` = branch que a
+   Vercel publica em produção (padrão: `main`).
+3. **Environments → production**: opcionalmente exija aprovação manual antes de aplicar.
 
 **Alinhar o banco agora:** Actions → **Migrações Supabase (produção)** → **Run workflow**. O passo
 "Migrações pendentes (simulação)" lista o que será aplicado antes de aplicar.
 
 Se o workflow acusar `Remote migration versions not found in local migrations directory` (migrações antigas
 criadas pelo painel), marque-as como revertidas uma única vez com
-`supabase migration repair --status reverted <versão>` e rode o workflow de novo.
+`supabase migration repair --db-url "$SUPABASE_DB_URL" --status reverted <versão>` e rode o workflow de novo.
 
 ## Estrutura
 

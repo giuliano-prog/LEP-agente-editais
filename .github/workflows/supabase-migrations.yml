@@ -1,16 +1,18 @@
 name: Migrações Supabase (produção)
 
-# Aplica automaticamente as migrações de supabase/migrations/ no projeto Supabase de produção.
+# Aplica automaticamente as migrações de supabase/migrations/ no banco Supabase de produção,
+# conectando DIRETO ao PostgreSQL (`supabase db push --db-url`) — sem `supabase link` e sem
+# token da Management API (ADR-0014).
 #
 # Quando roda:
 #   • a cada push no branch de produção (variável SUPABASE_MIGRATIONS_BRANCH; padrão: main)
 #     que altere supabase/migrations/;
 #   • manualmente: Actions → "Migrações Supabase (produção)" → Run workflow.
 #
-# Segredos necessários (GitHub → Settings → Secrets and variables → Actions):
-#   SUPABASE_ACCESS_TOKEN  token pessoal (supabase.com → Account → Access Tokens)
-#   SUPABASE_DB_PASSWORD   senha do banco (Project Settings → Database)
-#   SUPABASE_PROJECT_REF   id do projeto (Project Settings → General → Project ID)
+# Segredo necessário (recomendado como Environment secret do ambiente "production"):
+#   SUPABASE_DB_URL  connection string do Session pooler (porta 5432), com a senha percent-encoded:
+#                    Supabase → Project Settings → Database → Connect → Session pooler.
+#                    Ex.: postgresql://postgres.<ref>:<senha>@aws-0-<região>.pooler.supabase.com:5432/postgres
 
 on:
   push:
@@ -54,29 +56,41 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
       - uses: actions/checkout@v5
-      - name: Conferir segredos
+      - name: Conferir segredo e proteger a senha nos logs
         run: |
-          missing=""
-          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
-            [ -n "${!name}" ] || missing="$missing $name"
-          done
-          if [ -n "$missing" ]; then
-            echo "::error::Segredos ausentes:$missing. Configure em Settings → Secrets and variables → Actions (ver README)."
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Segredo SUPABASE_DB_URL ausente. Configure em Settings → Environments → production (ver README)."
             exit 1
           fi
+          # Mascara a senha (original e decodificada) caso alguma ferramenta imprima partes da URL.
+          python3 - <<'PY'
+          import os, sys
+          from urllib.parse import urlsplit, unquote
+          url = urlsplit(os.environ["SUPABASE_DB_URL"])
+          # Comandos do GitHub Actions precisam sair na saída padrão (stdout).
+          for value in {url.password or "", unquote(url.password or "")}:
+              if value:
+                  print(f"::add-mask::{value}")
+          def fail(message):
+              print(f"::error::{message}")
+              sys.exit(1)
+          if url.scheme not in ("postgresql", "postgres"):
+              fail("SUPABASE_DB_URL deve começar com postgresql://")
+          if not url.password:
+              fail("SUPABASE_DB_URL sem senha.")
+          if url.port == 6543:
+              fail("Porta 6543 (transaction pooler) não é compatível com migrações. Use o Session pooler (porta 5432).")
+          print("Connection string válida (senha mascarada nos logs).")
+          PY
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
-      - name: Vincular projeto
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          version: 2.118.0
       - name: Migrações pendentes (simulação)
-        run: supabase db push --dry-run --include-all --password "$SUPABASE_DB_PASSWORD"
-      - name: Aplicar migrações
-        run: supabase db push --include-all --password "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --dry-run --include-all
+      - name: Aplicar migrações (sem seed)
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
       - name: Histórico de migrações no banco
-        run: supabase migration list --password "$SUPABASE_DB_PASSWORD"
+        run: supabase migration list --db-url "$SUPABASE_DB_URL"
