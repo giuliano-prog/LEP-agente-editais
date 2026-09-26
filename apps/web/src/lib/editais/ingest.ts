@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import {
   decodeHtml,
   detectKind,
+  extractDescription,
   extractHtmlMetadata,
+  htmlToText,
   FetchError,
   isPdf,
   safeFetch,
@@ -13,10 +15,12 @@ import {
   UnsafeUrlError,
 } from "@lep/ingestion";
 import type { Json } from "@lep/db";
+import type { createAdminClient } from "@/lib/supabase/admin";
 import type { createClient } from "@/lib/supabase/server";
 import { DOCUMENTS_BUCKET, isValidUploadPath, MAX_DOCUMENT_BYTES } from "./constants";
 
-type Supabase = Awaited<ReturnType<typeof createClient>>;
+/** Cliente com sessão do usuário (RLS) ou cliente de serviço (varredura automática). */
+type Supabase = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>;
 
 /** Documento pronto para ser registrado em core.edital_documents. */
 export type IngestedDocument = {
@@ -30,7 +34,13 @@ export type IngestedDocument = {
   sha256: string;
   httpStatus: number | null;
   suggestedTitle: string;
-  metadata: { page_title?: string | null; pdf_links?: { label: string; url: string }[] };
+  metadata: {
+    page_title?: string | null;
+    description?: string | null;
+    pdf_links?: { label: string; url: string }[];
+  };
+  /** Texto legível da página (somente HTML; não é gravado). Usado pela varredura. */
+  text?: string;
 };
 
 export class IngestError extends Error {}
@@ -67,13 +77,17 @@ export async function ingestFromUrl(
 
   let metadata: IngestedDocument["metadata"] = {};
   let suggestedTitle = titleFromFileName(lastSegment || new URL(fetched.finalUrl).hostname);
+  let text: string | undefined;
   if (kind === "html") {
-    const html = extractHtmlMetadata(
-      decodeHtml(fetched.contentType, fetched.body),
-      fetched.finalUrl,
-    );
-    metadata = { page_title: html.title, pdf_links: html.pdfLinks };
+    const source = decodeHtml(fetched.contentType, fetched.body);
+    const html = extractHtmlMetadata(source, fetched.finalUrl);
+    metadata = {
+      page_title: html.title,
+      description: extractDescription(source),
+      pdf_links: html.pdfLinks,
+    };
     if (html.title) suggestedTitle = html.title.slice(0, 300);
+    text = htmlToText(source).slice(0, 200_000);
   }
 
   await upload(supabase, storagePath, fetched.body, mimeType);
@@ -90,6 +104,7 @@ export async function ingestFromUrl(
     httpStatus: fetched.status,
     suggestedTitle,
     metadata,
+    text,
   };
 }
 

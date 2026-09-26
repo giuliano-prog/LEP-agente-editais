@@ -25,6 +25,9 @@ apps/
           page.tsx              início
           editais/              listagem, detalhe (documentos + Match), novo/, [id]/editar/
             documentos/[docId]/ abre documento guardado (link temporário do Storage)
+            fontes/             fontes monitoradas, "Verificar agora", histórico de varreduras
+          configuracoes/diagnostico  checagem de configuração (admin)
+        api/cron/monitor/       varredura diária (Vercel Cron, protegido por CRON_SECRET)
           projetos/             cadastro e listagem de projetos
           conta/senha/          definir/trocar senha
           configuracoes/membros lista de membros (somente admin)
@@ -35,7 +38,8 @@ apps/
       components/               componentes de interface compartilhados
       lib/
         auth/                   sessão, ações (login/logout/senha), validações
-        supabase/               clientes Supabase (servidor e proxy)
+        supabase/               clientes Supabase (servidor, proxy, navegador, admin) e tradução de erros
+        monitor/                motor da varredura automática (ADR-0012)
         env.ts                  variáveis de ambiente validadas
       proxy.ts                  (antigo middleware) proteção de rotas
     scripts/invite-member.ts    convite/papel de membros (usa chave secreta)

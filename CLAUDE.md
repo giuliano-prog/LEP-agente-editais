@@ -19,5 +19,7 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 - Tabelas `core.editais`/`core.projetos` (ADR-0010). Vocabulário de projetos em `packages/modules/projects/src/vocabulary.ts` = CHECK constraints da migração.
 - Match (`packages/modules/funding`): regras determinísticas; nunca afirmar aprovação (`MATCH_DISCLAIMER`).
 - Documentos de editais: bucket privado `edital-documents` (`<org_id>/...`), `core.edital_documents` com SHA-256 imutável (ADR-0011). Buscar URLs externas só via `safeFetch` de `@lep/ingestion` (anti-SSRF).
+- Varredura (ADR-0012): `lib/monitor/run.ts` com cliente admin (`lib/supabase/admin.ts`) — uso restrito a varredura/cron/diagnóstico, sempre filtrando `org_id`. Importados entram com revisão pendente.
+- Erros do banco na UI: use `DbErrorNotice` (causa + correção), nunca mensagem genérica.
 - Tema: use tokens de `globals.css` (`bg-surface`, `bg-card`, `text-fg`, `text-muted`, `text-brand`), nunca cores soltas.
 - Dados da LEP são sigilosos: nada de dados reais em seeds, fixtures ou logs.

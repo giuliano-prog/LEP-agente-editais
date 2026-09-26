@@ -6,6 +6,7 @@ import { can } from "@lep/core";
 import { labelOf, PROJECT_FORMATS, PROJECT_GENRES, PROJECT_STAGES } from "@lep/projects";
 import { Deadline, EditalStatusBadge, ReviewBadge } from "@/components/edital-badges";
 import { DocumentsSection, type EditalDocument } from "@/components/editais/documents-section";
+import { setEditalTriage } from "../actions";
 import { MatchPanel } from "@/components/match-panel";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
@@ -75,16 +76,42 @@ export default async function EditalPage({
             <ReviewBadge reviewStatus={edital.reviewStatus} />
           </div>
           {canEdit && (
-            <Link
-              href={`/editais/${edital.id}/editar`}
-              className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand"
-            >
-              {edital.reviewStatus === "validated" ? "Editar" : "Editar e revisar"}
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <form
+                action={setEditalTriage.bind(
+                  null,
+                  edital.id,
+                  edital.reviewStatus === "discarded" ? "pending" : "discarded",
+                )}
+              >
+                <button className="rounded-md border border-line px-3 py-1.5 text-sm text-muted hover:border-brand hover:text-brand">
+                  {edital.reviewStatus === "discarded" ? "Restaurar" : "Descartar"}
+                </button>
+              </form>
+              <Link
+                href={`/editais/${edital.id}/editar`}
+                className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand"
+              >
+                {edital.reviewStatus === "validated" ? "Editar" : "Editar e revisar"}
+              </Link>
+            </div>
           )}
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{edital.title}</h1>
         {edital.agency && <p className="text-muted">{edital.agency}</p>}
+        {edital.origin === "monitor" && (
+          <p className="text-xs text-muted">
+            Encontrado pela varredura automática
+            {edital.discoveredAt &&
+              ` em ${new Date(edital.discoveredAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`}
+            . Prazo e valor foram sugeridos a partir da página e precisam ser conferidos na revisão.
+          </p>
+        )}
+        {edital.reviewStatus === "discarded" && (
+          <p className="text-sm text-warn">
+            Edital descartado na triagem: não aparece na lista principal nem é importado de novo.
+          </p>
+        )}
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

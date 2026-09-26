@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { can } from "@lep/core";
 import { labelOf, PROJECT_FORMATS, PROJECT_GENRES, PROJECT_STAGES } from "@lep/projects";
+import { DbErrorNotice } from "@/components/db-error-notice";
 import { Badge, Card, EmptyState, PageHeader, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
 import { formatBRL, formatDate } from "@/lib/format";
@@ -32,9 +33,11 @@ export default async function ProjetosPage() {
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="space-y-3 lg:col-span-3">
           {error ? (
-            <p className="rounded-md border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
-              Não foi possível carregar os projetos. Verifique se as migrações foram aplicadas.
-            </p>
+            <DbErrorNotice
+              error={error}
+              isAdmin={can(membership.role, "org.manage")}
+              context="os projetos"
+            />
           ) : !projects || projects.length === 0 ? (
             <EmptyState title="Nenhum projeto cadastrado">
               {canEdit

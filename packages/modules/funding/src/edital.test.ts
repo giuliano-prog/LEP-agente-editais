@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { asStringArray, editalStatusLabel, parseDeadline, toEdital } from "./edital";
+import {
+  asStringArray,
+  compareEditais,
+  editalStatusLabel,
+  parseDeadline,
+  toEdital,
+} from "./edital";
 
 describe("toEdital", () => {
   it("normaliza tipos variados vindos do banco", () => {
@@ -58,5 +64,33 @@ describe("parseDeadline / editalStatusLabel", () => {
     expect(editalStatusLabel("open")).toBe("Inscrições abertas");
     expect(editalStatusLabel("aberto")).toBe("aberto");
     expect(editalStatusLabel(null)).toBe("Não informado");
+  });
+});
+
+describe("compareEditais", () => {
+  it("abertos por prazo, depois sem prazo, depois encerrados", () => {
+    const now = new Date("2026-09-26T12:00:00-03:00");
+    const editais = [
+      toEdital({ id: "encerrado", deadline: "2026-09-01" }),
+      toEdital({ id: "sem-prazo" }),
+      toEdital({ id: "longe", deadline: "2026-12-01" }),
+      toEdital({ id: "perto", deadline: "2026-10-01" }),
+      toEdital({ id: "fechado", status: "closed", deadline: "2026-12-31" }),
+    ];
+    expect(editais.sort((a, b) => compareEditais(a, b, now)).map((e) => e.id)).toEqual([
+      "perto",
+      "longe",
+      "sem-prazo",
+      "fechado",
+      "encerrado",
+    ]);
+  });
+
+  it("origem padrão é manual; lê origem da varredura", () => {
+    expect(toEdital({ id: 1 }).origin).toBe("manual");
+    expect(toEdital({ id: 1, origin: "monitor", review_status: "Descartado" })).toMatchObject({
+      origin: "monitor",
+      reviewStatus: "discarded",
+    });
   });
 });

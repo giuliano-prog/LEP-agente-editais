@@ -16,5 +16,6 @@ Decisões não são apagadas; quando mudam, um novo ADR "substitui" o anterior.
 | 0009 | [Revisão humana, histórico e sites com login](0009-revisao-humana-historico.md) | Aceita |
 | 0010 | [Tabelas `core.editais` e `core.projetos`](0010-tabelas-editais-projetos.md)    | Aceita |
 | 0011 | [Cadastro de editais por URL/PDF](0011-cadastro-editais-url-pdf.md)             | Aceita |
+| 0012 | [Monitoramento automático de fontes](0012-monitoramento-automatico.md)          | Aceita |
 
 Modelo para novos ADRs: copie um existente e mantenha as seções.

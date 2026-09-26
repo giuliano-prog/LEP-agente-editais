@@ -28,6 +28,10 @@ export type Edital = {
   minBudget: number | null;
   maxBudget: number | null;
   reviewStatus: string | null;
+  /** manual | monitor (importado pela varredura automática). */
+  origin: string;
+  sourceId: string | null;
+  discoveredAt: string | null;
 };
 
 export const EDITAL_STATUS_LABELS: Record<string, string> = {
@@ -56,6 +60,7 @@ const STATUS_ALIASES: Record<string, string> = {
   "resultado publicado": "result_published",
   validado: "validated",
   pendente: "pending",
+  descartado: "discarded",
 };
 
 export function normalizeCode(value: string | null): string | null {
@@ -177,5 +182,23 @@ export function toEdital(row: Row): Edital {
     minBudget: asNumber(row.min_budget),
     maxBudget: asNumber(row.max_budget),
     reviewStatus: normalizeCode(asText(row.review_status)),
+    origin: asText(row.origin) ?? "manual",
+    sourceId: asText(row.source_id),
+    discoveredAt: asText(row.discovered_at),
   };
+}
+
+/** Ordem da listagem: abertos por prazo mais próximo → sem prazo → encerrados (mais recentes primeiro). */
+export function compareEditais(a: Edital, b: Edital, now: Date = new Date()): number {
+  const group = (edital: Edital) => {
+    const deadline = parseDeadline(edital.deadline);
+    if ((edital.status && CLOSED_STATUSES.has(edital.status)) || (deadline && deadline < now))
+      return 2;
+    return deadline ? 0 : 1;
+  };
+  const byGroup = group(a) - group(b);
+  if (byGroup !== 0) return byGroup;
+  const da = parseDeadline(a.deadline)?.getTime() ?? 0;
+  const db = parseDeadline(b.deadline)?.getTime() ?? 0;
+  return group(a) === 2 ? db - da : da - db;
 }

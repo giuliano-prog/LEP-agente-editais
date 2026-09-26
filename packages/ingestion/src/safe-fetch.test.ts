@@ -65,3 +65,18 @@ describe("safeFetch", () => {
     await expect(safeFetch(`${base}/nao-existe`, test)).rejects.toThrow("HTTP 404");
   });
 });
+
+describe("liberação de rede local para testes", () => {
+  it("exige NODE_ENV=test e a variável explícita", async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.LEP_TEST_ALLOW_PRIVATE_NETWORK = "1";
+    try {
+      await expect(safeFetch(`${base}/pagina`)).resolves.toMatchObject({ status: 200 });
+      process.env.NODE_ENV = "production";
+      await expect(safeFetch(`${base}/pagina`)).rejects.toBeInstanceOf(UnsafeUrlError);
+    } finally {
+      process.env.NODE_ENV = previous;
+      delete process.env.LEP_TEST_ALLOW_PRIVATE_NETWORK;
+    }
+  });
+});

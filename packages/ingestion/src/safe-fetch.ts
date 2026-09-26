@@ -70,7 +70,10 @@ export async function safeFetch(
 ): Promise<FetchedResource> {
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const maxRedirects = options.maxRedirects ?? 5;
-  const allowPrivate = options.allowPrivateNetworkForTests === true;
+  // Rede local só em testes automatizados: exige NODE_ENV=test E a variável explícita.
+  const allowPrivate =
+    options.allowPrivateNetworkForTests === true ||
+    (process.env.NODE_ENV === "test" && process.env.LEP_TEST_ALLOW_PRIVATE_NETWORK === "1");
   const dispatcher = createDispatcher(allowPrivate);
   const signal = AbortSignal.timeout(options.timeoutMs ?? 20_000);
 

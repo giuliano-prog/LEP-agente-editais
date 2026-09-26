@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getPublicEnv } from "@/lib/env";
 
 /** Rotas acessíveis sem login. */
-const PUBLIC_PATHS = ["/login", "/auth/confirm", "/api/health"];
+// /api/cron: autenticado pelo CRON_SECRET na própria rota (sem sessão de usuário).
+const PUBLIC_PATHS = ["/login", "/auth/confirm", "/api/health", "/api/cron"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));

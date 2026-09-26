@@ -3,9 +3,10 @@
 Plataforma de inteligência e automação da **LEP Filmes** para o setor audiovisual.
 Arquitetura modular: o primeiro módulo será **Captação de Recursos / Editais**.
 
-> **Status: Etapa 2.** Fundação (autenticação, permissões, RLS), identidade visual LEP,
-> **Editais** (cadastro por link, PDF ou manual, com cópia original guardada e revisão humana),
-> **Projetos LEP** e **Match explicável** edital × projeto.
+> **Status:** fundação (autenticação, permissões, RLS), identidade visual LEP, **Editais** (cadastro por link,
+> PDF ou manual, com cópia original e revisão humana), **varredura diária automática de fontes**, tabela de
+> monitoramento com **aderência (Match)**, **Projetos LEP** e **Diagnóstico** de configuração.
+> A extração por IA (Etapa 3) aguarda a escolha do fornecedor.
 
 ## Tecnologias
 
@@ -119,7 +120,7 @@ apps/web/          Next.js (interface, autenticação, Editais, Projetos, Match)
 packages/core/     papéis e permissões
 packages/modules/projects/  vocabulário (formato, gênero, estágio) e validação de projetos
 packages/modules/funding/   modelo do edital, validação do formulário e motor de Match explicável
-packages/ingestion/         download seguro de URLs (anti-SSRF), hash, leitura de HTML
+packages/ingestion/         download seguro de URLs (anti-SSRF), hash, leitura de HTML, robots.txt
 packages/db/       tipos do banco
 packages/ai/       contrato de IA independente de fornecedor + registro de custos
 supabase/          migrações, seed, testes SQL, templates de e-mail
@@ -142,6 +143,33 @@ Detalhes e proteções de segurança: [ADR-0011](docs/adr/0011-cadastro-editais-
 
 > **Deploy (Vercel):** defina `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` antes do build —
 > o navegador usa essas variáveis para enviar PDFs.
+
+## Monitoramento automático (varredura diária)
+
+Em **Editais → Fontes monitoradas**, administradores cadastram as páginas de editais dos órgãos (ou usam as
+sugeridas: RioFilme, Spcine, ANCINE/FSA — confira os endereços). Todo dia às 7h (Brasília) a Vercel executa a
+varredura: links novos que parecem editais de audiovisual são importados como **revisão pendente**, com cópia da
+página e prazo/valor **sugeridos** pelo texto. A equipe faz a triagem em **Editais → Novos da varredura**
+(revisar ou descartar). Detalhes: [ADR-0012](docs/adr/0012-monitoramento-automatico.md).
+
+Variáveis necessárias na Vercel (Settings → Environment Variables), além das públicas:
+
+| Variável              | Valor                                                                   |
+| --------------------- | ----------------------------------------------------------------------- |
+| `SUPABASE_SECRET_KEY` | Supabase → Project Settings → API Keys → **Secret key** (nunca pública) |
+| `CRON_SECRET`         | Texto aleatório com 16+ caracteres (ex.: `openssl rand -hex 32`)        |
+
+O agendamento está em `apps/web/vercel.json` (o projeto na Vercel deve usar `apps/web` como Root Directory).
+
+## Solução de problemas (erros ao carregar)
+
+1. Entre como administrador e abra **Diagnóstico** (menu superior): cada item mostra ✓/✕ e como corrigir.
+2. Causas mais comuns:
+   - **Schema `core` não liberado:** Supabase → Project Settings → Data API → Exposed schemas → adicione `core`.
+   - **Migrações não aplicadas:** `supabase link --project-ref <ref>` e `supabase db push`.
+   - **Usuário sem vínculo/papel:** `pnpm members:invite --email ... --role admin|editor|viewer`
+     (o botão "Novo edital" só aparece para Editor/Revisor e Administrador).
+3. Para ver o que só o banco mostra, rode `supabase/scripts/diagnostico.sql` (somente leitura) no SQL Editor.
 
 ## Match explicável
 

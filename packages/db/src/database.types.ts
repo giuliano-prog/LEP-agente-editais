@@ -179,6 +179,65 @@ export type Database = {
           },
         ];
       };
+      edital_sources: {
+        Row: {
+          active: boolean;
+          agency: string | null;
+          audiovisual_only: boolean;
+          created_at: string;
+          id: string;
+          last_error: string | null;
+          last_imported: number | null;
+          last_run_at: string | null;
+          last_status: string | null;
+          link_contains: string | null;
+          list_url: string;
+          name: string;
+          org_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          agency?: string | null;
+          audiovisual_only?: boolean;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          last_imported?: number | null;
+          last_run_at?: string | null;
+          last_status?: string | null;
+          link_contains?: string | null;
+          list_url: string;
+          name: string;
+          org_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          agency?: string | null;
+          audiovisual_only?: boolean;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          last_imported?: number | null;
+          last_run_at?: string | null;
+          last_status?: string | null;
+          link_contains?: string | null;
+          list_url?: string;
+          name?: string;
+          org_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "edital_sources_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       editais: {
         Row: {
           accepted_formats: string[];
@@ -188,6 +247,7 @@ export type Database = {
           categories: string[];
           created_at: string;
           deadline: string | null;
+          discovered_at: string | null;
           eligibility_criteria: string[];
           id: string;
           max_amount_per_project: number | null;
@@ -195,9 +255,11 @@ export type Database = {
           min_budget: number | null;
           official_links: Json;
           official_url: string | null;
+          origin: string;
           org_id: string | null;
           required_documents: string[];
           review_status: string;
+          source_id: string | null;
           status: string | null;
           summary: string | null;
           title: string | null;
@@ -212,6 +274,7 @@ export type Database = {
           categories?: string[];
           created_at?: string;
           deadline?: string | null;
+          discovered_at?: string | null;
           eligibility_criteria?: string[];
           id?: string;
           max_amount_per_project?: number | null;
@@ -219,9 +282,11 @@ export type Database = {
           min_budget?: number | null;
           official_links?: Json;
           official_url?: string | null;
+          origin?: string;
           org_id?: string | null;
           required_documents?: string[];
           review_status?: string;
+          source_id?: string | null;
           status?: string | null;
           summary?: string | null;
           title?: string | null;
@@ -236,6 +301,7 @@ export type Database = {
           categories?: string[];
           created_at?: string;
           deadline?: string | null;
+          discovered_at?: string | null;
           eligibility_criteria?: string[];
           id?: string;
           max_amount_per_project?: number | null;
@@ -243,9 +309,11 @@ export type Database = {
           min_budget?: number | null;
           official_links?: Json;
           official_url?: string | null;
+          origin?: string;
           org_id?: string | null;
           required_documents?: string[];
           review_status?: string;
+          source_id?: string | null;
           status?: string | null;
           summary?: string | null;
           title?: string | null;
@@ -300,6 +368,66 @@ export type Database = {
             columns: ["user_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      monitor_runs: {
+        Row: {
+          candidates: number;
+          error: string | null;
+          finished_at: string | null;
+          id: number;
+          imported: number;
+          links_found: number;
+          org_id: string;
+          skipped: number;
+          source_id: string | null;
+          started_at: string;
+          status: string;
+          trigger: string;
+        };
+        Insert: {
+          candidates?: number;
+          error?: string | null;
+          finished_at?: string | null;
+          id?: number;
+          imported?: number;
+          links_found?: number;
+          org_id: string;
+          skipped?: number;
+          source_id?: string | null;
+          started_at?: string;
+          status: string;
+          trigger: string;
+        };
+        Update: {
+          candidates?: number;
+          error?: string | null;
+          finished_at?: string | null;
+          id?: number;
+          imported?: number;
+          links_found?: number;
+          org_id?: string;
+          skipped?: number;
+          source_id?: string | null;
+          started_at?: string;
+          status?: string;
+          trigger?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "monitor_runs_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "monitor_runs_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_sources";
             referencedColumns: ["id"];
           },
         ];

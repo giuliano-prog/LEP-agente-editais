@@ -235,3 +235,21 @@ export async function updateEdital(
   revalidatePath(`/editais/${editalId}`);
   redirect(`/editais/${editalId}?salvo=1`);
 }
+
+/** Triagem: descartar (esconde e não reimporta) ou restaurar para revisão pendente. */
+export async function setEditalTriage(
+  editalId: string,
+  decision: "discarded" | "pending",
+): Promise<void> {
+  if (!ID_PATTERN.test(editalId)) return;
+  const { membership } = await requireMembership("editor");
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("editais")
+    .update({ review_status: decision })
+    .eq("id", editalId)
+    .eq("org_id", membership.orgId);
+  if (error) console.error("Erro na triagem do edital:", error.code);
+  revalidatePath("/editais");
+  revalidatePath(`/editais/${editalId}`);
+}
