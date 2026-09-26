@@ -9,6 +9,7 @@ const edital = toEdital({
   status: "open",
   deadline: "2026-11-30",
   review_status: "validated",
+  eligible_territories: ["SP"],
   accepted_formats: ["feature_film"],
   accepted_genres: ["documentary"],
   accepted_stages: ["production"],

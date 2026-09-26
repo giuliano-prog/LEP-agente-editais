@@ -8,6 +8,7 @@ import {
   type ProjectStage,
 } from "@lep/projects";
 import { CLOSED_STATUSES, parseDeadline, type Edital } from "./edital";
+import { isProponentEligible, LEP_HEADQUARTERS, territoryLabel, type Proponent } from "./territory";
 
 /**
  * Match explicável edital × projeto.
@@ -167,10 +168,43 @@ function checkDeadline(buckets: Buckets, edital: Edital, now: Date) {
   }
 }
 
+/**
+ * Território: compara a sede do PROPONENTE (sempre a própria LEP — diretriz nº 2,
+ * parceiras não contam) com os territórios aceitos pelo edital.
+ */
+function checkTerritory(buckets: Buckets, edital: Edital, proponent: Proponent) {
+  const criterion = "Território (sede da LEP)";
+  const sede = proponent.state
+    ? `${proponent.city ?? "?"}/${proponent.state}`
+    : "sede não cadastrada";
+  if (edital.eligibleTerritories.length === 0) {
+    buckets.attention.push({
+      criterion,
+      detail: `Restrição territorial não registrada no cadastro do edital. Confirme se aceita proponentes de ${sede}.`,
+    });
+  } else if (!proponent.state) {
+    buckets.attention.push({
+      criterion,
+      detail: "Sede do proponente não cadastrada na organização.",
+    });
+  } else if (isProponentEligible(edital.eligibleTerritories, proponent)) {
+    buckets.met.push({
+      criterion,
+      detail: `Aceita ${edital.eligibleTerritories.map(territoryLabel).join(", ")} — LEP sediada em ${sede}.`,
+    });
+  } else {
+    buckets.unmet.push({
+      criterion,
+      detail: `Exclusivo para ${edital.eligibleTerritories.map(territoryLabel).join(", ")}; a LEP é sediada em ${sede}.`,
+    });
+  }
+}
+
 export function matchProject(
   edital: Edital,
   project: MatchProject,
   now: Date = new Date(),
+  proponent: Proponent = LEP_HEADQUARTERS,
 ): MatchResult {
   const buckets: Buckets = { met: [], attention: [], unmet: [] };
 
@@ -183,6 +217,7 @@ export function matchProject(
   }
 
   checkDeadline(buckets, edital, now);
+  checkTerritory(buckets, edital, proponent);
   checkList(buckets, "Formato", edital.acceptedFormats, project.format, PROJECT_FORMATS);
   checkList(buckets, "Gênero / tipologia", edital.acceptedGenres, project.genre, PROJECT_GENRES);
   checkList(buckets, "Estágio do projeto", edital.acceptedStages, project.stage, PROJECT_STAGES);
@@ -210,6 +245,7 @@ export function matchProjects(
   edital: Edital,
   projects: MatchProject[],
   now: Date = new Date(),
+  proponent: Proponent = LEP_HEADQUARTERS,
 ): MatchResult[] {
   const order: Record<MatchVerdict, number> = {
     compatible: 0,
@@ -217,6 +253,6 @@ export function matchProjects(
     incompatible: 2,
   };
   return projects
-    .map((project) => matchProject(edital, project, now))
+    .map((project) => matchProject(edital, project, now, proponent))
     .sort((a, b) => order[a.verdict] - order[b.verdict] || a.unmet.length - b.unmet.length);
 }

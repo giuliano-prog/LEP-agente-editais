@@ -24,10 +24,18 @@ export type EditalFormDefaults = {
   acceptedFormats: string[];
   acceptedGenres: string[];
   acceptedStages: string[];
+  eligibleTerritories: string[];
   reviewed: boolean;
 };
 
 type Action = (state: EditalActionState, formData: FormData) => Promise<EditalActionState>;
+
+/** Atalhos de território (diretriz nº 1: LEP sediada em São Paulo/SP). */
+const TERRITORY_PRESETS: Record<string, string> = {
+  BR: "Todo o Brasil",
+  SP: "Estado de São Paulo",
+  "SP:São Paulo": "Município de São Paulo",
+};
 
 function Fieldset({
   legend,
@@ -180,6 +188,21 @@ export function EditalForm({ action, defaults }: { action: Action; defaults: Edi
         legend="Regras usadas no Match"
         description="Deixe em branco o que o edital não restringe. Campos em branco viram “pontos de atenção” no Match."
       >
+        <CheckboxGroup
+          label="Território de sede aceito para o proponente"
+          name="eligible_territories"
+          options={TERRITORY_PRESETS}
+          selected={defaults.eligibleTerritories}
+        />
+        <TextArea
+          label="Outros territórios aceitos (um por linha)"
+          name="other_territories"
+          placeholder={"RJ\nRJ:Rio de Janeiro"}
+          hint="Sigla do estado (ex.: RJ) ou UF:Município. Se o edital for exclusivo de outro local, a aderência fica “Baixa”: a LEP é sediada em São Paulo/SP."
+          defaultValue={defaults.eligibleTerritories
+            .filter((code) => !(code in TERRITORY_PRESETS))
+            .join("\n")}
+        />
         <CheckboxGroup
           label="Formatos aceitos"
           name="accepted_formats"

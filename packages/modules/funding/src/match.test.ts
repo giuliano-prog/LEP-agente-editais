@@ -10,6 +10,7 @@ const edital = toEdital({
   status: "open",
   deadline: "2026-11-30",
   review_status: "validated",
+  eligible_territories: ["BR"],
   accepted_formats: ["feature_film"],
   accepted_genres: ["fiction", "documentary"],
   accepted_stages: ["development", "production"],
@@ -34,6 +35,7 @@ describe("matchProject", () => {
     expect(result.attention).toHaveLength(0);
     expect(result.met.map((item) => item.criterion)).toEqual([
       "Prazo de inscrição",
+      "Território (sede da LEP)",
       "Formato",
       "Gênero / tipologia",
       "Estágio do projeto",
@@ -69,7 +71,8 @@ describe("matchProject", () => {
     });
     const result = matchProject(bare, project, now);
     expect(result.verdict).toBe("compatible_with_pending");
-    expect(result.attention).toHaveLength(4);
+    // formato, gênero, estágio, orçamento e território não registrados
+    expect(result.attention).toHaveLength(5);
   });
 
   it("critérios textuais e documentos exigidos viram pendências para verificação humana", () => {
@@ -105,6 +108,34 @@ describe("matchProject", () => {
   it("prazo em data simples vale até 23h59 de Brasília do próprio dia", () => {
     const lastDay = new Date("2026-11-30T22:00:00-03:00");
     expect(matchProject(edital, project, lastDay).unmet).toHaveLength(0);
+  });
+});
+
+describe("território (diretrizes LEP 1 e 2)", () => {
+  it("edital exclusivo de outro estado: não atende, com explicação", () => {
+    const result = matchProject(
+      { ...edital, eligibleTerritories: ["RJ:Rio de Janeiro"] },
+      project,
+      now,
+    );
+    expect(result.verdict).toBe("incompatible");
+    expect(result.unmet[0]).toEqual({
+      criterion: "Território (sede da LEP)",
+      detail: "Exclusivo para Município de Rio de Janeiro/RJ; a LEP é sediada em São Paulo/SP.",
+    });
+  });
+
+  it("edital de SP: atende", () => {
+    const result = matchProject({ ...edital, eligibleTerritories: ["SP"] }, project, now);
+    expect(result.met.map((item) => item.criterion)).toContain("Território (sede da LEP)");
+  });
+
+  it("sede do proponente não cadastrada: ponto de atenção", () => {
+    const result = matchProject({ ...edital, eligibleTerritories: ["SP"] }, project, now, {
+      state: null,
+      city: null,
+    });
+    expect(result.attention.map((item) => item.criterion)).toContain("Território (sede da LEP)");
   });
 });
 

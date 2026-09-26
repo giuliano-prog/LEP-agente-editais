@@ -46,6 +46,33 @@ function form(entries: [string, string][]) {
   return data;
 }
 
+describe("territórios no formulário", () => {
+  it("combina opções marcadas e outros territórios digitados", () => {
+    const result = editalInputSchema.parse(
+      editalFormToInput(
+        form([
+          ["title", "Edital X"],
+          ["eligible_territories", "SP"],
+          ["other_territories", "rj\nMG:Belo Horizonte\nsp"],
+        ]),
+      ),
+    );
+    expect(result.eligible_territories).toEqual(["SP", "RJ", "MG:Belo Horizonte"]);
+  });
+
+  it("rejeita códigos inválidos", () => {
+    const result = editalInputSchema.safeParse(
+      editalFormToInput(
+        form([
+          ["title", "Edital X"],
+          ["other_territories", "Rio de Janeiro"],
+        ]),
+      ),
+    );
+    expect(result.error?.issues[0]?.message).toContain("Território inválido");
+  });
+});
+
 describe("editalInputSchema", () => {
   it("converte o formulário completo", () => {
     const input = editalFormToInput(

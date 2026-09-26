@@ -118,6 +118,35 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3b. Diretrizes LEP (sede do proponente e território dos editais).
+  const [hq, territories] = await Promise.all([
+    supabase.from("organizations").select("hq_state, hq_city").eq("id", orgId).maybeSingle(),
+    supabase.from("editais").select("eligible_territories, triage_reason").limit(1),
+  ]);
+  const guidelineError = hq.error ?? territories.error;
+  checks.push(
+    guidelineError
+      ? {
+          label: "Diretrizes LEP (território e sede)",
+          status: "fail",
+          detail: guidelineError.message,
+          fix: "Aplique a migração 20260929120000 (supabase db push).",
+        }
+      : hq.data?.hq_state
+        ? {
+            label: "Diretrizes LEP (território e sede)",
+            status: "ok",
+            detail: `Proponente sediado em ${hq.data.hq_city ?? "?"}/${hq.data.hq_state}. Editais exclusivos de outros territórios são descartados.`,
+          }
+        : {
+            label: "Diretrizes LEP (território e sede)",
+            status: "warn",
+            detail:
+              "Sede do proponente não cadastrada: a análise usa São Paulo/SP (padrão da LEP Filmes).",
+            fix: "Defina a sede em Membros → Proponente.",
+          },
+  );
+
   // 4. Armazenamento de documentos.
   const storage = await supabase.storage.from(DOCUMENTS_BUCKET).list(orgId, { limit: 1 });
   checks.push(

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { ROLE_LABELS } from "@lep/core";
-import { PageHeader } from "@/components/ui";
+import { Card, PageHeader, SectionTitle } from "@/components/ui";
+import { loadProponent } from "@/lib/proponent";
+import { ProponentForm } from "./proponent-form";
 import { requireMembership } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,6 +13,7 @@ export default async function MembersPage() {
   const supabase = await createClient();
 
   // O RLS garante que só membros da própria organização retornam.
+  const proponent = await loadProponent(supabase, membership.orgId);
   const { data: members, error } = await supabase
     .from("memberships")
     .select("id, role, created_at, profiles ( email, full_name )")
@@ -23,6 +26,16 @@ export default async function MembersPage() {
         title="Membros"
         description="Somente leitura nesta etapa. Convites e papéis são definidos pelo script `pnpm members:invite` (ver README)."
       />
+
+      <Card>
+        <SectionTitle>Proponente — {membership.orgName}</SectionTitle>
+        <p className="mb-4 text-sm text-muted">
+          A {membership.orgName} é sempre a proponente: empresas parceiras não contam para a
+          elegibilidade. A sede abaixo decide se editais com restrição territorial são aceitos ou
+          descartados pela varredura (docs/diretrizes-lep.md).
+        </p>
+        <ProponentForm state={proponent.state} city={proponent.city} />
+      </Card>
 
       {error ? (
         <p className="text-sm text-bad">Não foi possível carregar os membros.</p>

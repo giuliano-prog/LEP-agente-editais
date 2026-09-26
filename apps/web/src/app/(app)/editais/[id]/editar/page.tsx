@@ -74,6 +74,7 @@ export default async function EditEditalPage({
           acceptedFormats: edital.acceptedFormats,
           acceptedGenres: edital.acceptedGenres,
           acceptedStages: edital.acceptedStages,
+          eligibleTerritories: edital.eligibleTerritories,
           reviewed: edital.reviewStatus === "validated",
         }}
       />

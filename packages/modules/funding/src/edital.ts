@@ -32,6 +32,10 @@ export type Edital = {
   origin: string;
   sourceId: string | null;
   discoveredAt: string | null;
+  /** Territórios de sede aceitos para o proponente ("BR", "SP", "SP:São Paulo"...). */
+  eligibleTerritories: string[];
+  /** Motivo de descarte automático na triagem (ex.: restrição territorial). */
+  triageReason: string | null;
 };
 
 export const EDITAL_STATUS_LABELS: Record<string, string> = {
@@ -185,6 +189,8 @@ export function toEdital(row: Row): Edital {
     origin: asText(row.origin) ?? "manual",
     sourceId: asText(row.source_id),
     discoveredAt: asText(row.discovered_at),
+    eligibleTerritories: asStringArray(row.eligible_territories),
+    triageReason: asText(row.triage_reason),
   };
 }
 

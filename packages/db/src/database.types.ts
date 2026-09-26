@@ -265,6 +265,8 @@ export type Database = {
           title: string | null;
           total_amount: number | null;
           updated_at: string;
+          eligible_territories: string[];
+          triage_reason: string | null;
         };
         Insert: {
           accepted_formats?: string[];
@@ -292,6 +294,8 @@ export type Database = {
           title?: string | null;
           total_amount?: number | null;
           updated_at?: string;
+          eligible_territories?: string[];
+          triage_reason?: string | null;
         };
         Update: {
           accepted_formats?: string[];
@@ -319,6 +323,8 @@ export type Database = {
           title?: string | null;
           total_amount?: number | null;
           updated_at?: string;
+          eligible_territories?: string[];
+          triage_reason?: string | null;
         };
         Relationships: [
           {
@@ -386,6 +392,7 @@ export type Database = {
           started_at: string;
           status: string;
           trigger: string;
+          rejected: number;
         };
         Insert: {
           candidates?: number;
@@ -400,6 +407,7 @@ export type Database = {
           started_at?: string;
           status: string;
           trigger: string;
+          rejected?: number;
         };
         Update: {
           candidates?: number;
@@ -414,6 +422,7 @@ export type Database = {
           started_at?: string;
           status?: string;
           trigger?: string;
+          rejected?: number;
         };
         Relationships: [
           {
@@ -439,6 +448,8 @@ export type Database = {
           name: string;
           slug: string;
           updated_at: string;
+          hq_city: string | null;
+          hq_state: string | null;
         };
         Insert: {
           created_at?: string;
@@ -446,6 +457,8 @@ export type Database = {
           name: string;
           slug: string;
           updated_at?: string;
+          hq_city?: string | null;
+          hq_state?: string | null;
         };
         Update: {
           created_at?: string;
@@ -453,6 +466,8 @@ export type Database = {
           name?: string;
           slug?: string;
           updated_at?: string;
+          hq_city?: string | null;
+          hq_state?: string | null;
         };
         Relationships: [];
       };

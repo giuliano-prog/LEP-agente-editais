@@ -114,9 +114,10 @@ export async function runMonitorNow(): Promise<SourceActionState> {
     revalidatePath("/editais/fontes");
     if (results.length === 0) return { error: "Nenhuma fonte ativa para verificar." };
     const imported = results.reduce((total, result) => total + result.imported, 0);
+    const rejected = results.reduce((total, result) => total + result.rejected, 0);
     const failed = results.filter((result) => result.status !== "ok").length;
     return {
-      success: `${results.length} fonte(s) verificada(s): ${imported} edital(is) novo(s)${failed ? `, ${failed} com problema` : ""}.`,
+      success: `${results.length} fonte(s) verificada(s): ${imported} edital(is) novo(s)${rejected ? `, ${rejected} descartado(s) pelas diretrizes LEP` : ""}${failed ? `, ${failed} com problema` : ""}.`,
       savedAt: Date.now(),
     };
   } catch (error) {

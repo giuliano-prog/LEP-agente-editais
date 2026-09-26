@@ -28,6 +28,15 @@ export function parseMoney(raw: unknown): number | null | typeof Number.NaN {
   return Number.isFinite(value) ? value : Number.NaN;
 }
 
+/** "br" → "BR"; "rj:rio de janeiro" → "RJ:rio de janeiro" (UF em maiúsculas). */
+export function normalizeTerritoryCode(raw: string): string {
+  const [uf, ...city] = raw.trim().split(":");
+  const state = (uf ?? "").trim().toUpperCase();
+  return city.length ? `${state}:${city.join(":").trim()}` : state;
+}
+
+const TERRITORY_CODE = /^(BR|[A-Z]{2}(:[^:]{2,80})?)$/;
+
 /** Texto com um item por linha → lista sem vazios/duplicados. */
 export function parseLines(raw: unknown): string[] {
   if (typeof raw !== "string") return [];
@@ -94,6 +103,15 @@ export const editalInputSchema = z
     accepted_formats: codes(PROJECT_FORMATS),
     accepted_genres: codes(PROJECT_GENRES),
     accepted_stages: codes(PROJECT_STAGES),
+    eligible_territories: z
+      .array(z.string())
+      .transform((values) => [
+        ...new Set(values.map(normalizeTerritoryCode).filter((value) => value !== "")),
+      ])
+      .refine((values) => values.every((value) => TERRITORY_CODE.test(value)), {
+        message:
+          "Território inválido: use BR, a sigla do estado (ex.: RJ) ou UF:Município (ex.: RJ:Rio de Janeiro).",
+      }),
     reviewed: z.boolean(),
   })
   .refine(
@@ -134,6 +152,10 @@ export function editalFormToInput(form: FormData) {
     accepted_formats: form.getAll("accepted_formats").map(String),
     accepted_genres: form.getAll("accepted_genres").map(String),
     accepted_stages: form.getAll("accepted_stages").map(String),
+    eligible_territories: [
+      ...form.getAll("eligible_territories").map(String),
+      ...parseLines(text("other_territories")),
+    ],
     reviewed: form.get("reviewed") === "on",
   };
 }

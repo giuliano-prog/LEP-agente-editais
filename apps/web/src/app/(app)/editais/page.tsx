@@ -13,6 +13,7 @@ import { DbErrorNotice } from "@/components/db-error-notice";
 import { Deadline, EditalStatusBadge } from "@/components/edital-badges";
 import { Badge, EmptyState, PageHeader } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
+import { loadProponent } from "@/lib/proponent";
 import { formatBRL } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
@@ -48,7 +49,7 @@ export default async function EditaisPage({
 
   // select("*") e ordenação no app: a lista funciona mesmo que a tabela remota tenha
   // colunas a mais ou ainda não tenha as colunas mais novas. O RLS limita à organização.
-  const [editaisQuery, projectsQuery, lastRunQuery] = await Promise.all([
+  const [editaisQuery, projectsQuery, lastRunQuery, proponent] = await Promise.all([
     supabase.from("editais").select("*").eq("org_id", membership.orgId),
     supabase
       .from("projetos")
@@ -61,6 +62,7 @@ export default async function EditaisPage({
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    loadProponent(supabase, membership.orgId),
   ]);
 
   if (editaisQuery.error)
@@ -179,6 +181,9 @@ export default async function EditaisPage({
                         )
                       )}
                     </div>
+                    {edital.reviewStatus === "discarded" && edital.triageReason && (
+                      <p className="mt-1.5 text-xs text-muted">{edital.triageReason}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted">{edital.agency ?? "—"}</td>
                   <td className="px-4 py-3">
@@ -195,7 +200,9 @@ export default async function EditaisPage({
                   <td className="px-4 py-3">
                     <AdherenceCell
                       adherence={
-                        projects ? summarizeAdherence(matchProjects(edital, projects, now)) : null
+                        projects
+                          ? summarizeAdherence(matchProjects(edital, projects, now, proponent))
+                          : null
                       }
                     />
                   </td>

@@ -28,6 +28,7 @@ export async function GET(request: Request) {
     return Response.json({
       sources: results.length,
       imported: results.reduce((total, result) => total + result.imported, 0),
+      rejected: results.reduce((total, result) => total + result.rejected, 0),
       errors: results.filter((result) => result.status !== "ok").length,
     });
   } catch (error) {

@@ -14,6 +14,7 @@ function startFakeSite() {
       body: `<html><body><nav><a href="/">Início</a></nav>
         <a href="/editais/edital-producao-longa/">Edital de Produção de Longas-Metragens 2026</a>
         <a href="/editais/edital-producao-longa/">Saiba mais</a>
+        <a href="/editais/chamada-curtas-rj/">Chamada de Curtas-Metragens para produtoras cariocas</a>
         <a href="/editais/resultado-edital-5/">Resultado final do Edital nº 5</a>
         <a href="/privado/edital-interno/">Edital interno de seleção</a>
         <a href="/fora/">Página fora do ar sobre edital de cinema</a>
@@ -25,7 +26,15 @@ function startFakeSite() {
         <meta name="description" content="Edital fictício de apoio à produção de longas-metragens de ficção e documentário."></head>
         <body><h1>Edital de Produção de Longas-Metragens 2026</h1>
         <p>O edital tem valor total de R$ 10.000.000,00 para até 5 projetos.</p>
-        <p>Inscrições de 01/10/2026 a 30/11/2026, exclusivamente pela internet.</p></body></html>`,
+        <p>Inscrições de 01/10/2026 a 30/11/2026, exclusivamente pela internet.</p>
+        <p>Podem participar produtoras independentes de todo o território nacional.</p></body></html>`,
+    },
+    "/editais/chamada-curtas-rj/": {
+      type: "text/html; charset=utf-8",
+      body: `<html><head><title>Chamada de Curtas</title></head><body>
+        <h1>Chamada de Curtas-Metragens</h1>
+        <p>Somente empresas produtoras sediadas no Município do Rio de Janeiro há pelo menos 2 anos.</p>
+        <p>Inscrições até 15/12/2026.</p></body></html>`,
     },
   };
   const server: Server = createServer((req, res) => {
@@ -95,10 +104,10 @@ describe("runMonitor (varredura)", () => {
     });
 
     const ok = results.find((result) => result.sourceId === "fonte-1");
-    expect(ok).toMatchObject({ status: "ok", imported: 1 });
+    expect(ok).toMatchObject({ status: "ok", imported: 1, rejected: 1 });
 
-    expect(db.editais).toHaveLength(1);
-    expect(db.editais![0]).toMatchObject({
+    expect(db.editais).toHaveLength(2);
+    expect(db.editais!.find((e) => String(e.official_url).includes("longa"))).toMatchObject({
       title: "Edital de Produção de Longas-Metragens 2026",
       official_url: `${site.url}/editais/edital-producao-longa/`,
       review_status: "pending",
@@ -109,12 +118,29 @@ describe("runMonitor (varredura)", () => {
       status: "open",
       total_amount: 10000000,
       summary: "Edital fictício de apoio à produção de longas-metragens de ficção e documentário.",
+      eligible_territories: ["BR"],
     });
     // Cópia da página guardada no armazenamento, na pasta da organização.
     expect([...supabase.files.keys()].every((path) => path.startsWith(`${ORG}/captures/`))).toBe(
       true,
     );
-    expect(supabase.files.size).toBe(1);
+    expect(supabase.files.size).toBe(2);
+  });
+
+  it("diretriz territorial: edital exclusivo de outro município é descartado com motivo e evidência", () => {
+    const rejected = db.editais!.find((e) => String(e.official_url).includes("curtas-rj"));
+    expect(rejected).toMatchObject({
+      review_status: "discarded",
+      origin: "monitor",
+      eligible_territories: ["RJ:Rio de Janeiro"],
+    });
+    expect(String(rejected!.triage_reason)).toContain("Descartado automaticamente");
+    expect(String(rejected!.triage_reason)).toContain("a LEP Filmes é sediada em São Paulo/SP");
+    expect(String(rejected!.triage_reason)).toContain("sediadas no municipio do rio de janeiro");
+    expect(db.monitor_runs!.find((run) => run.source_id === "fonte-1")).toMatchObject({
+      imported: 1,
+      rejected: 1,
+    });
   });
 
   it("ignora ruído (resultado) e páginas proibidas pelo robots.txt", () => {
@@ -142,8 +168,10 @@ describe("runMonitor (varredura)", () => {
     expect(results.find((result) => result.sourceId === "fonte-1")).toMatchObject({
       status: "ok",
       imported: 0,
+      rejected: 0,
     });
-    expect(db.editais).toHaveLength(1);
+    // O descartado também não volta: o link continua conhecido.
+    expect(db.editais).toHaveLength(2);
     expect(db.monitor_runs!.filter((run) => run.source_id === "fonte-1")).toHaveLength(2);
   });
 });

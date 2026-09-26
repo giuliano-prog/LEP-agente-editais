@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { matchProjects, toEdital, type Edital } from "@lep/funding";
+import { matchProjects, territoryLabel, toEdital, type Edital } from "@lep/funding";
 import { can } from "@lep/core";
 import { labelOf, PROJECT_FORMATS, PROJECT_GENRES, PROJECT_STAGES } from "@lep/projects";
 import { Deadline, EditalStatusBadge, ReviewBadge } from "@/components/edital-badges";
@@ -10,6 +10,7 @@ import { setEditalTriage } from "../actions";
 import { MatchPanel } from "@/components/match-panel";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
+import { loadProponent } from "@/lib/proponent";
 import { formatBRL } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,7 +35,7 @@ export default async function EditalPage({
 
   const canEdit = can(membership.role, "content.edit");
 
-  const [editalQuery, projectsQuery, documentsQuery] = await Promise.all([
+  const [editalQuery, projectsQuery, documentsQuery, proponent] = await Promise.all([
     supabase.from("editais").select("*").eq("id", id).eq("org_id", membership.orgId).maybeSingle(),
     supabase
       .from("projetos")
@@ -49,13 +50,14 @@ export default async function EditalPage({
       .eq("edital_id", id)
       .eq("org_id", membership.orgId)
       .order("created_at", { ascending: true }),
+    loadProponent(supabase, membership.orgId),
   ]);
 
   if (editalQuery.error) console.error("Erro ao carregar edital:", editalQuery.error.message);
   if (!editalQuery.data) notFound();
 
   const edital = toEdital(editalQuery.data);
-  const matches = matchProjects(edital, projectsQuery.data ?? []);
+  const matches = matchProjects(edital, projectsQuery.data ?? [], new Date(), proponent);
 
   return (
     <div className="space-y-6">
@@ -108,9 +110,12 @@ export default async function EditalPage({
           </p>
         )}
         {edital.reviewStatus === "discarded" && (
-          <p className="text-sm text-warn">
-            Edital descartado na triagem: não aparece na lista principal nem é importado de novo.
-          </p>
+          <div className="space-y-1 text-sm text-warn">
+            <p>
+              Edital descartado na triagem: não aparece na lista principal nem é importado de novo.
+            </p>
+            {edital.triageReason && <p className="text-muted">{edital.triageReason}</p>}
+          </div>
         )}
       </header>
 
@@ -165,6 +170,10 @@ export default async function EditalPage({
           <Card>
             <SectionTitle>Regras usadas no Match</SectionTitle>
             <dl className="space-y-3 text-sm">
+              <Rule
+                label="Território (sede do proponente)"
+                values={edital.eligibleTerritories.map(territoryLabel)}
+              />
               <Rule
                 label="Formatos"
                 values={edital.acceptedFormats.map((code) => labelOf(PROJECT_FORMATS, code))}

@@ -1,6 +1,13 @@
 import "server-only";
 
-import { findDeadline, findTotalAmount, selectCandidates, statusFromDeadline } from "@lep/funding";
+import {
+  assessTerritory,
+  findDeadline,
+  findTotalAmount,
+  selectCandidates,
+  statusFromDeadline,
+  type Proponent,
+} from "@lep/funding";
 import {
   decodeHtml,
   detectKind,
@@ -20,6 +27,7 @@ import {
   ingestFromUrl,
   removeStored,
 } from "@/lib/editais/ingest";
+import { loadProponent } from "@/lib/proponent";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -45,6 +53,8 @@ export type SourceResult = {
   linksFound: number;
   candidates: number;
   imported: number;
+  /** Encontrados e descartados automaticamente pelas diretrizes LEP (ex.: território). */
+  rejected: number;
   skipped: number;
   error?: string;
 };
@@ -105,7 +115,7 @@ async function knownUrls(admin: Admin, orgId: string): Promise<Set<string>> {
 export async function scanSource(
   admin: Admin,
   source: SourceRow,
-  options: { now: Date; deadlineAt: number },
+  options: { now: Date; deadlineAt: number; proponent: Proponent },
 ): Promise<SourceResult> {
   const result: SourceResult = {
     sourceId: source.id,
@@ -114,6 +124,7 @@ export async function scanSource(
     linksFound: 0,
     candidates: 0,
     imported: 0,
+    rejected: 0,
     skipped: 0,
   };
 
@@ -146,22 +157,23 @@ export async function scanSource(
     result.candidates = candidates.length;
 
     for (const candidate of candidates) {
-      if (result.imported >= MAX_IMPORTS_PER_SOURCE || Date.now() > options.deadlineAt) break;
+      if (
+        result.imported + result.rejected >= MAX_IMPORTS_PER_SOURCE ||
+        Date.now() > options.deadlineAt
+      )
+        break;
       if (!(await allowed(candidate.url))) {
         result.skipped++;
         continue;
       }
-      const imported = await importCandidate(admin, source, candidate, options.now).catch(
-        (error) => {
-          console.error(
-            `Varredura: falha ao importar ${candidate.url}:`,
-            error instanceof Error ? error.message : error,
-          );
-          return false;
-        },
-      );
-      if (imported) result.imported++;
-      else result.skipped++;
+      const outcome = await importCandidate(admin, source, candidate, options).catch((error) => {
+        console.error(
+          `Varredura: falha ao importar ${candidate.url}:`,
+          error instanceof Error ? error.message : error,
+        );
+        return "skipped" as const;
+      });
+      result[outcome]++;
     }
   } catch (error) {
     const message =
@@ -177,12 +189,12 @@ async function importCandidate(
   admin: Admin,
   source: SourceRow,
   candidate: { title: string; url: string },
-  now: Date,
-): Promise<boolean> {
+  { now, proponent }: { now: Date; proponent: Proponent },
+): Promise<"imported" | "rejected" | "skipped"> {
   const document = await ingestFromUrl(admin, source.org_id, candidate.url);
   if (await findDuplicate(admin, source.org_id, document)) {
     await removeStored(admin, document.storagePath);
-    return false;
+    return "skipped";
   }
 
   const columns = documentColumns(document);
@@ -210,6 +222,10 @@ async function importCandidate(
   // Sugestões por regras de texto (sem IA). O edital fica com revisão pendente.
   const text = document.text ?? "";
   const deadline = findDeadline(text);
+  // Diretrizes LEP 1 e 2: exclusivo de outro território → descartado automaticamente,
+  // com motivo e trecho do texto (a equipe pode restaurar em "Descartados").
+  const territory = assessTerritory(`${candidate.title}\n${text}`, proponent);
+  const rejected = territory.verdict === "ineligible";
   await admin
     .from("editais")
     .update({
@@ -221,10 +237,17 @@ async function importCandidate(
       deadline: deadline ? `${deadline}T23:59:00-03:00` : null,
       status: statusFromDeadline(deadline, todayInBrasilia(now)),
       total_amount: findTotalAmount(text),
+      eligible_territories: territory.territories,
+      ...(rejected
+        ? {
+            review_status: "discarded",
+            triage_reason: `Descartado automaticamente — ${territory.reason}${territory.evidence ? ` Trecho: “${territory.evidence}”` : ""}`,
+          }
+        : {}),
     })
     .eq("id", editalId)
     .eq("org_id", source.org_id);
-  return true;
+  return rejected ? "rejected" : "imported";
 }
 
 /**
@@ -249,10 +272,17 @@ export async function runMonitor(
   if (error) throw new Error(`Não foi possível ler as fontes: ${error.message}`);
 
   const results: SourceResult[] = [];
+  const proponents = new Map<string, Proponent>();
   for (const source of sources ?? []) {
     if (Date.now() > deadlineAt) break;
     const startedAt = new Date().toISOString();
-    const result = await scanSource(admin, source, { now, deadlineAt });
+    if (!proponents.has(source.org_id))
+      proponents.set(source.org_id, await loadProponent(admin, source.org_id));
+    const result = await scanSource(admin, source, {
+      now,
+      deadlineAt,
+      proponent: proponents.get(source.org_id)!,
+    });
     results.push(result);
 
     await Promise.all([
@@ -264,6 +294,7 @@ export async function runMonitor(
         links_found: result.linksFound,
         candidates: result.candidates,
         imported: result.imported,
+        rejected: result.rejected,
         skipped: result.skipped,
         error: result.error ?? null,
         started_at: startedAt,

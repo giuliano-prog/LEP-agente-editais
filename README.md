@@ -171,6 +171,12 @@ O agendamento está em `apps/web/vercel.json` (o projeto na Vercel deve usar `ap
      (o botão "Novo edital" só aparece para Editor/Revisor e Administrador).
 3. Para ver o que só o banco mostra, rode `supabase/scripts/diagnostico.sql` (somente leitura) no SQL Editor.
 
+## Diretrizes da LEP
+
+As regras de negócio (elegibilidade territorial com sede em São Paulo/SP, foco exclusivo na LEP como
+proponente e formato da tabela/Match) estão em [`docs/diretrizes-lep.md`](docs/diretrizes-lep.md) e são
+aplicadas automaticamente pela varredura e pelo Match. A sede do proponente fica em **Membros → Proponente**.
+
 ## Match explicável
 
 O Match (`packages/modules/funding/src/match.ts`) compara regras **registradas** do edital com os dados

@@ -52,3 +52,6 @@ select
 from core.organizations o
 where o.slug = 'lep-filmes'
   and not exists (select 1 from core.editais e where e.title = 'Chamada Exemplo — Desenvolvimento de Séries');
+
+-- Sede da LEP (diretriz territorial). A migração já faz isso; repetido para bancos locais antigos.
+update core.organizations set hq_state = 'SP', hq_city = 'São Paulo' where slug = 'lep-filmes' and hq_state is null;

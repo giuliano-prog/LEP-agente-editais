@@ -41,9 +41,7 @@ export default async function SourcesPage() {
       .order("name"),
     supabase
       .from("monitor_runs")
-      .select(
-        "id, source_id, trigger, status, links_found, candidates, imported, skipped, error, started_at",
-      )
+      .select("*")
       .eq("org_id", membership.orgId)
       .order("started_at", { ascending: false })
       .limit(20),
@@ -171,7 +169,13 @@ export default async function SourcesPage() {
                   <th className="py-2 pr-4 font-medium">Origem</th>
                   <th className="py-2 pr-4 font-medium">Resultado</th>
                   <th className="py-2 pr-4 text-right font-medium">Links</th>
-                  <th className="py-2 text-right font-medium">Novos</th>
+                  <th className="py-2 pr-4 text-right font-medium">Novos</th>
+                  <th
+                    className="py-2 text-right font-medium"
+                    title="Descartados automaticamente pelas diretrizes LEP (ex.: território)"
+                  >
+                    Rejeitados
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -191,9 +195,10 @@ export default async function SourcesPage() {
                       {run.error && <span className="ml-2 text-xs text-muted">{run.error}</span>}
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums">{run.links_found}</td>
-                    <td className="py-2 text-right font-medium tabular-nums text-brand">
+                    <td className="py-2 pr-4 text-right font-medium tabular-nums text-brand">
                       {run.imported}
                     </td>
+                    <td className="py-2 text-right tabular-nums text-muted">{run.rejected ?? 0}</td>
                   </tr>
                 ))}
               </tbody>
