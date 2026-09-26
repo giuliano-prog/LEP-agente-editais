@@ -1,0 +1,82 @@
+name: Migrações Supabase (produção)
+
+# Aplica automaticamente as migrações de supabase/migrations/ no projeto Supabase de produção.
+#
+# Quando roda:
+#   • a cada push no branch de produção (variável SUPABASE_MIGRATIONS_BRANCH; padrão: main)
+#     que altere supabase/migrations/;
+#   • manualmente: Actions → "Migrações Supabase (produção)" → Run workflow.
+#
+# Segredos necessários (GitHub → Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  token pessoal (supabase.com → Account → Access Tokens)
+#   SUPABASE_DB_PASSWORD   senha do banco (Project Settings → Database)
+#   SUPABASE_PROJECT_REF   id do projeto (Project Settings → General → Project ID)
+
+on:
+  push:
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Nunca rodar duas aplicações ao mesmo tempo, e nunca cancelar uma em andamento.
+concurrency:
+  group: supabase-production-migrations
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Testar migrações (banco descartável)
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == (vars.SUPABASE_MIGRATIONS_BRANCH || 'main')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Migrações do zero (2x) + testes de permissão
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/postgres -qc "create database fresh" -c "create database partial"
+          DB_TEST_SHIM=1 DB_URL=postgresql://postgres:postgres@localhost:5432/fresh bash scripts/db-test.sh
+      - name: Migrações sobre banco parcialmente migrado à mão
+        run: DB_TEST_SHIM=1 DB_TEST_SCENARIO=remoto-parcial DB_URL=postgresql://postgres:postgres@localhost:5432/partial bash scripts/db-test.sh
+
+  deploy:
+    name: Aplicar no Supabase de produção
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Conferir segredos
+        run: |
+          missing=""
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Segredos ausentes:$missing. Configure em Settings → Secrets and variables → Actions (ver README)."
+            exit 1
+          fi
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Vincular projeto
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - name: Migrações pendentes (simulação)
+        run: supabase db push --dry-run --include-all --password "$SUPABASE_DB_PASSWORD"
+      - name: Aplicar migrações
+        run: supabase db push --include-all --password "$SUPABASE_DB_PASSWORD"
+      - name: Histórico de migrações no banco
+        run: supabase migration list --password "$SUPABASE_DB_PASSWORD"

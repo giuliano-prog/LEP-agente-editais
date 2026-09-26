@@ -91,27 +91,34 @@ A paleta da LEP Filmes está em `apps/web/src/app/globals.css` (bloco `@theme`) 
 A logomarca é lida de **`apps/web/public/logo.jpg`**. Enquanto o arquivo não estiver no
 repositório, o cabeçalho exibe o nome "LEP FILMES" em texto.
 
-## Aplicando as migrações no Supabase remoto
+## Migrações no Supabase de produção (automático)
 
-As migrações ficam em `supabase/migrations/`. Para aplicá-las no projeto remoto:
+As migrações de `supabase/migrations/` são aplicadas **automaticamente** pelo GitHub Actions
+(workflow **Migrações Supabase (produção)**, [ADR-0014](docs/adr/0014-migracoes-automaticas.md)): a cada push
+no branch de produção que altere migrações, o workflow testa tudo em um banco descartável e roda
+`supabase db push`. **Não use o SQL Editor para migrações.** Todas as migrações são idempotentes (podem ser
+reaplicadas com segurança, inclusive sobre um banco parcialmente migrado).
 
-```bash
-pnpm exec supabase link --project-ref <ref-do-projeto>   # uma vez
-pnpm exec supabase db push --dry-run                      # confira o que será aplicado
-pnpm exec supabase db push
-```
+**Configuração única** (GitHub → repositório → Settings):
 
-A migração `20260926120000_editais_projetos.sql` é **conciliadora** para `core.editais`
-(tabela criada originalmente no painel): cria só o que falta e **não apaga nem altera** colunas
-existentes. Depois de aplicar, revise as políticas de acesso da tabela — políticas antigas
-criadas manualmente continuam valendo e podem liberar acesso além do desejado:
+1. **Secrets and variables → Actions → New repository secret:**
 
-```sql
-select policyname, cmd, roles, qual from pg_policies
-where schemaname = 'core' and tablename in ('editais', 'projetos');
-```
+   | Segredo                 | Onde encontrar                                                         |
+   | ----------------------- | ---------------------------------------------------------------------- |
+   | `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → **Access Tokens** → Generate new token        |
+   | `SUPABASE_DB_PASSWORD`  | Project Settings → **Database** → senha do banco (redefina se preciso) |
+   | `SUPABASE_PROJECT_REF`  | Project Settings → **General** → Project ID                            |
 
-As políticas esperadas são `editais_*` / `projetos_*` (ver migração). Remova as demais após conferência.
+2. **Variables** (opcional): `SUPABASE_MIGRATIONS_BRANCH` = branch que a Vercel publica em produção
+   (padrão: `main`).
+3. **Environments → production** (criado na primeira execução): opcionalmente exija aprovação manual.
+
+**Alinhar o banco agora:** Actions → **Migrações Supabase (produção)** → **Run workflow**. O passo
+"Migrações pendentes (simulação)" lista o que será aplicado antes de aplicar.
+
+Se o workflow acusar `Remote migration versions not found in local migrations directory` (migrações antigas
+criadas pelo painel), marque-as como revertidas uma única vez com
+`supabase migration repair --status reverted <versão>` e rode o workflow de novo.
 
 ## Estrutura
 
@@ -166,7 +173,7 @@ O agendamento está em `apps/web/vercel.json` (o projeto na Vercel deve usar `ap
 1. Entre como administrador e abra **Diagnóstico** (menu superior): cada item mostra ✓/✕ e como corrigir.
 2. Causas mais comuns:
    - **Schema `core` não liberado:** Supabase → Project Settings → Data API → Exposed schemas → adicione `core`.
-   - **Migrações não aplicadas:** `supabase link --project-ref <ref>` e `supabase db push`.
+   - **Migrações não aplicadas:** GitHub → Actions → **Migrações Supabase (produção)** → Run workflow.
    - **Usuário sem vínculo/papel:** `pnpm members:invite --email ... --role admin|editor|viewer`
      (o botão "Novo edital" só aparece para Editor/Revisor e Administrador).
 3. Para ver o que só o banco mostra, rode `supabase/scripts/diagnostico.sql` (somente leitura) no SQL Editor.

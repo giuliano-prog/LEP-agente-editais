@@ -109,7 +109,7 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
           label: "Colunas de monitoramento em core.editais",
           status: "fail",
           detail: monitorColumns.error.message,
-          fix: "Aplique a migração 20260928120000 (supabase db push).",
+          fix: "Aplique a migração 20260928120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
         }
       : {
           label: "Colunas de monitoramento em core.editais",
@@ -130,7 +130,7 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
           label: "Diretrizes LEP (território e sede)",
           status: "fail",
           detail: guidelineError.message,
-          fix: "Aplique a migração 20260929120000 (supabase db push).",
+          fix: "Aplique a migração 20260929120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
         }
       : hq.data?.hq_state
         ? {
@@ -155,7 +155,7 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
           label: `Armazenamento (bucket “${DOCUMENTS_BUCKET}”)`,
           status: "fail",
           detail: storage.error.message,
-          fix: "Aplique a migração 20260927120000 (cria o bucket e as permissões) com supabase db push.",
+          fix: "Aplique a migração 20260927120000 (cria o bucket e as permissões) pelo workflow “Migrações Supabase (produção)”.",
         }
       : {
           label: `Armazenamento (bucket “${DOCUMENTS_BUCKET}”)`,

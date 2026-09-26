@@ -16,13 +16,20 @@ grant usage on schema core to authenticated, service_role;
 
 -- A ordem dos valores define a hierarquia: viewer < editor < admin.
 -- Deve permanecer igual a ROLES em packages/core/src/auth/roles.ts.
-create type core.app_role as enum ('viewer', 'editor', 'admin');
+do $$
+begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid = t.typnamespace
+                 where n.nspname = 'core' and t.typname = 'app_role') then
+    create type core.app_role as enum ('viewer', 'editor', 'admin');
+  end if;
+end;
+$$;
 
 -- ---------------------------------------------------------------------
 -- Funções utilitárias
 -- ---------------------------------------------------------------------
 
-create function core.set_updated_at()
+create or replace function core.set_updated_at()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -37,7 +44,7 @@ $$;
 -- Tabelas
 -- ---------------------------------------------------------------------
 
-create table core.organizations (
+create table if not exists core.organizations (
   id          uuid primary key default gen_random_uuid(),
   name        text not null check (char_length(name) between 2 and 200),
   slug        text not null unique check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
@@ -48,7 +55,7 @@ create table core.organizations (
 comment on table core.organizations is 'Organizações (tenant). Todo dado de negócio pertence a uma organização via org_id.';
 
 -- Um perfil por usuário do Supabase Auth, criado automaticamente (trigger abaixo).
-create table core.profiles (
+create table if not exists core.profiles (
   id          uuid primary key references auth.users (id) on delete cascade,
   email       text not null,
   full_name   text check (full_name is null or char_length(full_name) <= 200),
@@ -58,7 +65,7 @@ create table core.profiles (
 
 comment on table core.profiles is 'Dados públicos (dentro da organização) de cada usuário.';
 
-create table core.memberships (
+create table if not exists core.memberships (
   id          uuid primary key default gen_random_uuid(),
   org_id      uuid not null references core.organizations (id) on delete cascade,
   user_id     uuid not null references core.profiles (id) on delete cascade,
@@ -68,12 +75,12 @@ create table core.memberships (
   unique (org_id, user_id)
 );
 
-create index memberships_user_id_idx on core.memberships (user_id);
+create index if not exists memberships_user_id_idx on core.memberships (user_id);
 
 comment on table core.memberships is 'Vínculo usuário ↔ organização com o papel (admin, editor, viewer).';
 
 -- Sem FK em org_id de propósito: o histórico deve sobreviver à exclusão de registros.
-create table core.audit_log (
+create table if not exists core.audit_log (
   id            bigint generated always as identity primary key,
   org_id        uuid,
   actor_id      uuid,
@@ -86,12 +93,12 @@ create table core.audit_log (
   created_at    timestamptz not null default now()
 );
 
-create index audit_log_org_created_idx on core.audit_log (org_id, created_at desc);
+create index if not exists audit_log_org_created_idx on core.audit_log (org_id, created_at desc);
 
 comment on table core.audit_log is 'Trilha de auditoria (quem alterou o quê e quando). Somente escrita via trigger.';
 
 -- Registro de toda chamada de IA, independente do fornecedor (ADR-0006).
-create table core.ai_usage (
+create table if not exists core.ai_usage (
   id                   bigint generated always as identity primary key,
   org_id               uuid not null references core.organizations (id) on delete cascade,
   purpose              text not null,
@@ -108,15 +115,18 @@ create table core.ai_usage (
   created_at           timestamptz not null default now()
 );
 
-create index ai_usage_org_created_idx on core.ai_usage (org_id, created_at desc);
+create index if not exists ai_usage_org_created_idx on core.ai_usage (org_id, created_at desc);
 
 comment on table core.ai_usage is 'Custos e consumo de IA por chamada. Base para limites e alertas futuros.';
 
 -- updated_at automático
+drop trigger if exists organizations_set_updated_at on core.organizations;
 create trigger organizations_set_updated_at before update on core.organizations
   for each row execute function core.set_updated_at();
+drop trigger if exists profiles_set_updated_at on core.profiles;
 create trigger profiles_set_updated_at before update on core.profiles
   for each row execute function core.set_updated_at();
+drop trigger if exists memberships_set_updated_at on core.memberships;
 create trigger memberships_set_updated_at before update on core.memberships
   for each row execute function core.set_updated_at();
 
@@ -127,7 +137,7 @@ create trigger memberships_set_updated_at before update on core.memberships
 -- dentro das próprias políticas de memberships.
 -- ---------------------------------------------------------------------
 
-create function core.role_in_org(p_org_id uuid)
+create or replace function core.role_in_org(p_org_id uuid)
 returns core.app_role
 language sql
 stable
@@ -142,7 +152,7 @@ $$;
 
 comment on function core.role_in_org is 'Papel do usuário autenticado na organização (null se não for membro).';
 
-create function core.has_role(p_org_id uuid, p_min_role core.app_role)
+create or replace function core.has_role(p_org_id uuid, p_min_role core.app_role)
 returns boolean
 language sql
 stable
@@ -163,7 +173,7 @@ grant execute on function core.has_role(uuid, core.app_role) to authenticated, s
 -- Perfil automático para novos usuários do Supabase Auth
 -- ---------------------------------------------------------------------
 
-create function core.handle_new_user()
+create or replace function core.handle_new_user()
 returns trigger
 language plpgsql
 security definer
@@ -180,7 +190,7 @@ begin
 end;
 $$;
 
-create function core.handle_user_email_change()
+create or replace function core.handle_user_email_change()
 returns trigger
 language plpgsql
 security definer
@@ -192,10 +202,12 @@ begin
 end;
 $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function core.handle_new_user();
 
+drop trigger if exists on_auth_user_email_changed on auth.users;
 create trigger on_auth_user_email_changed
   after update of email on auth.users
   for each row
@@ -209,7 +221,7 @@ revoke execute on function core.handle_user_email_change() from public, anon, au
 -- Proteção: a organização nunca fica sem administrador
 -- ---------------------------------------------------------------------
 
-create function core.prevent_last_admin_removal()
+create or replace function core.prevent_last_admin_removal()
 returns trigger
 language plpgsql
 security definer
@@ -238,6 +250,7 @@ begin
 end;
 $$;
 
+drop trigger if exists memberships_keep_one_admin on core.memberships;
 create trigger memberships_keep_one_admin
   before update or delete on core.memberships
   for each row execute function core.prevent_last_admin_removal();
@@ -248,7 +261,7 @@ revoke execute on function core.prevent_last_admin_removal() from public, anon, 
 -- Auditoria genérica (reutilizável pelos módulos futuros)
 -- ---------------------------------------------------------------------
 
-create function core.audit_row_change()
+create or replace function core.audit_row_change()
 returns trigger
 language plpgsql
 security definer
@@ -286,9 +299,11 @@ comment on function core.audit_row_change is 'Trigger AFTER genérico de auditor
 
 revoke execute on function core.audit_row_change() from public, anon, authenticated;
 
+drop trigger if exists organizations_audit on core.organizations;
 create trigger organizations_audit
   after insert or update or delete on core.organizations
   for each row execute function core.audit_row_change();
+drop trigger if exists memberships_audit on core.memberships;
 create trigger memberships_audit
   after insert or update or delete on core.memberships
   for each row execute function core.audit_row_change();
@@ -304,16 +319,19 @@ alter table core.audit_log     enable row level security;
 alter table core.ai_usage      enable row level security;
 
 -- organizations: membros leem; administradores editam. Criação/exclusão só pelo servidor.
+drop policy if exists "organizations_select_members" on core.organizations;
 create policy "organizations_select_members" on core.organizations
   for select to authenticated
   using (core.has_role(id, 'viewer'));
 
+drop policy if exists "organizations_update_admins" on core.organizations;
 create policy "organizations_update_admins" on core.organizations
   for update to authenticated
   using (core.has_role(id, 'admin'))
   with check (core.has_role(id, 'admin'));
 
 -- profiles: cada um vê o próprio perfil e o de quem está na mesma organização.
+drop policy if exists "profiles_select_self_or_same_org" on core.profiles;
 create policy "profiles_select_self_or_same_org" on core.profiles
   for select to authenticated
   using (
@@ -325,34 +343,41 @@ create policy "profiles_select_self_or_same_org" on core.profiles
     )
   );
 
+drop policy if exists "profiles_update_self" on core.profiles;
 create policy "profiles_update_self" on core.profiles
   for update to authenticated
   using (id = (select auth.uid()))
   with check (id = (select auth.uid()));
 
 -- memberships: membros veem a equipe; somente administradores alteram.
+drop policy if exists "memberships_select_members" on core.memberships;
 create policy "memberships_select_members" on core.memberships
   for select to authenticated
   using (core.has_role(org_id, 'viewer'));
 
+drop policy if exists "memberships_insert_admins" on core.memberships;
 create policy "memberships_insert_admins" on core.memberships
   for insert to authenticated
   with check (core.has_role(org_id, 'admin'));
 
+drop policy if exists "memberships_update_admins" on core.memberships;
 create policy "memberships_update_admins" on core.memberships
   for update to authenticated
   using (core.has_role(org_id, 'admin'))
   with check (core.has_role(org_id, 'admin'));
 
+drop policy if exists "memberships_delete_admins" on core.memberships;
 create policy "memberships_delete_admins" on core.memberships
   for delete to authenticated
   using (core.has_role(org_id, 'admin'));
 
 -- audit_log e ai_usage: somente administradores leem. Escrita apenas por trigger/servidor.
+drop policy if exists "audit_log_select_admins" on core.audit_log;
 create policy "audit_log_select_admins" on core.audit_log
   for select to authenticated
   using (core.has_role(org_id, 'admin'));
 
+drop policy if exists "ai_usage_select_admins" on core.ai_usage;
 create policy "ai_usage_select_admins" on core.ai_usage
   for select to authenticated
   using (core.has_role(org_id, 'admin'));

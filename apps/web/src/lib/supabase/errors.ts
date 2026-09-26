@@ -37,7 +37,7 @@ export function describeDbError(error: ErrorLike): DbProblem | null {
     return {
       kind: "missing_table",
       title: "Uma tabela necessária não existe no banco.",
-      fix: "Aplique as migrações pendentes: supabase link → supabase db push (ver README).",
+      fix: "Aplique as migrações: GitHub → Actions → “Migrações Supabase (produção)” → Run workflow (ver README).",
     };
   }
   if (
@@ -48,14 +48,14 @@ export function describeDbError(error: ErrorLike): DbProblem | null {
     return {
       kind: "missing_column",
       title: "Uma coluna necessária não existe no banco.",
-      fix: "Aplique as migrações pendentes: supabase db push (as migrações só acrescentam o que falta).",
+      fix: "Aplique as migrações: GitHub → Actions → “Migrações Supabase (produção)” → Run workflow (as migrações só acrescentam o que falta).",
     };
   }
   if (code === "42501" || /permission denied/i.test(message)) {
     return {
       kind: "permission",
       title: "O banco recusou o acesso (permissão).",
-      fix: "Aplique as migrações (elas concedem as permissões) e confira o papel do usuário em Membros.",
+      fix: "Aplique as migrações (GitHub → Actions → “Migrações Supabase (produção)”) e confira o papel do usuário em Membros.",
     };
   }
   if (code === "PGRST301" || code === "PGRST303" || /jwt/i.test(message)) {

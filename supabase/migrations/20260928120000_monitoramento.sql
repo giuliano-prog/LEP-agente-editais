@@ -10,7 +10,7 @@
 -- só leem o histórico.
 -- =====================================================================
 
-create table core.edital_sources (
+create table if not exists core.edital_sources (
   id                uuid primary key default gen_random_uuid(),
   org_id            uuid not null references core.organizations (id) on delete cascade,
   name              text not null check (char_length(name) between 2 and 120),
@@ -32,13 +32,15 @@ comment on table core.edital_sources is 'Fontes monitoradas pela varredura diár
 comment on column core.edital_sources.audiovisual_only is 'true: tudo na fonte é audiovisual (não exige termos de audiovisual no link).';
 comment on column core.edital_sources.link_contains is 'Filtro opcional: o link do edital precisa conter este trecho (ex.: /editais/).';
 
+drop trigger if exists edital_sources_set_updated_at on core.edital_sources;
 create trigger edital_sources_set_updated_at before update on core.edital_sources
   for each row execute function core.set_updated_at();
+drop trigger if exists edital_sources_audit on core.edital_sources;
 create trigger edital_sources_audit
   after insert or update or delete on core.edital_sources
   for each row execute function core.audit_row_change();
 
-create table core.monitor_runs (
+create table if not exists core.monitor_runs (
   id            bigint generated always as identity primary key,
   org_id        uuid not null references core.organizations (id) on delete cascade,
   source_id     uuid references core.edital_sources (id) on delete cascade,
@@ -53,7 +55,7 @@ create table core.monitor_runs (
   finished_at   timestamptz
 );
 
-create index monitor_runs_org_started_idx on core.monitor_runs (org_id, started_at desc);
+create index if not exists monitor_runs_org_started_idx on core.monitor_runs (org_id, started_at desc);
 
 comment on table core.monitor_runs is 'Histórico das varreduras (uma linha por fonte por execução).';
 
@@ -71,17 +73,22 @@ create index if not exists editais_org_official_url_idx on core.editais (org_id,
 alter table core.edital_sources enable row level security;
 alter table core.monitor_runs enable row level security;
 
+drop policy if exists "edital_sources_select_members" on core.edital_sources;
 create policy "edital_sources_select_members" on core.edital_sources
   for select to authenticated using (core.has_role(org_id, 'viewer'));
+drop policy if exists "edital_sources_insert_admins" on core.edital_sources;
 create policy "edital_sources_insert_admins" on core.edital_sources
   for insert to authenticated with check (core.has_role(org_id, 'admin'));
+drop policy if exists "edital_sources_update_admins" on core.edital_sources;
 create policy "edital_sources_update_admins" on core.edital_sources
   for update to authenticated
   using (core.has_role(org_id, 'admin'))
   with check (core.has_role(org_id, 'admin'));
+drop policy if exists "edital_sources_delete_admins" on core.edital_sources;
 create policy "edital_sources_delete_admins" on core.edital_sources
   for delete to authenticated using (core.has_role(org_id, 'admin'));
 
+drop policy if exists "monitor_runs_select_members" on core.monitor_runs;
 create policy "monitor_runs_select_members" on core.monitor_runs
   for select to authenticated using (core.has_role(org_id, 'viewer'));
 

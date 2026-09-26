@@ -12,7 +12,7 @@
 -- ---------------------------------------------------------------------
 -- Utilitário: converte texto em uuid sem gerar erro (null se inválido)
 -- ---------------------------------------------------------------------
-create function core.try_uuid(p_value text)
+create or replace function core.try_uuid(p_value text)
 returns uuid
 language plpgsql
 immutable
@@ -34,6 +34,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('edital-documents', 'edital-documents', false, 26214400, array['application/pdf', 'text/html'])
 on conflict (id) do nothing;
 
+drop policy if exists "edital_documents_storage_select" on storage.objects;
 create policy "edital_documents_storage_select" on storage.objects
   for select to authenticated
   using (
@@ -41,6 +42,7 @@ create policy "edital_documents_storage_select" on storage.objects
     and core.has_role(core.try_uuid((storage.foldername(name))[1]), 'viewer')
   );
 
+drop policy if exists "edital_documents_storage_insert" on storage.objects;
 create policy "edital_documents_storage_insert" on storage.objects
   for insert to authenticated
   with check (
@@ -48,6 +50,7 @@ create policy "edital_documents_storage_insert" on storage.objects
     and core.has_role(core.try_uuid((storage.foldername(name))[1]), 'editor')
   );
 
+drop policy if exists "edital_documents_storage_delete" on storage.objects;
 create policy "edital_documents_storage_delete" on storage.objects
   for delete to authenticated
   using (
@@ -69,7 +72,7 @@ begin
   where a.attrelid = 'core.editais'::regclass and a.attname = 'id' and not a.attisdropped;
 
   execute format($ddl$
-    create table core.edital_documents (
+    create table if not exists core.edital_documents (
       id            uuid primary key default gen_random_uuid(),
       org_id        uuid not null references core.organizations (id) on delete cascade,
       edital_id     %s not null references core.editais (id) on delete cascade,
@@ -93,26 +96,30 @@ begin
 end;
 $$;
 
-create index edital_documents_edital_idx on core.edital_documents (edital_id, created_at);
-create index edital_documents_org_sha_idx on core.edital_documents (org_id, sha256);
+create index if not exists edital_documents_edital_idx on core.edital_documents (edital_id, created_at);
+create index if not exists edital_documents_org_sha_idx on core.edital_documents (org_id, sha256);
 
 comment on table core.edital_documents is 'Documentos de cada edital (cópia original guardada no Storage). Nunca alterar o arquivo: nova versão = novo documento.';
 comment on column core.edital_documents.kind is 'main | annex | rectification | faq | result | other';
 comment on column core.edital_documents.metadata is 'Metadados extraídos sem IA: page_title, pdf_links (links de PDF encontrados na página).';
 
+drop trigger if exists edital_documents_set_updated_at on core.edital_documents;
 create trigger edital_documents_set_updated_at before update on core.edital_documents
   for each row execute function core.set_updated_at();
+drop trigger if exists edital_documents_audit on core.edital_documents;
 create trigger edital_documents_audit
   after insert or update or delete on core.edital_documents
   for each row execute function core.audit_row_change();
 
 alter table core.edital_documents enable row level security;
 
+drop policy if exists "edital_documents_select_members" on core.edital_documents;
 create policy "edital_documents_select_members" on core.edital_documents
   for select to authenticated
   using (core.has_role(org_id, 'viewer'));
 
 -- O edital precisa ser da mesma organização do documento.
+drop policy if exists "edital_documents_insert_editors" on core.edital_documents;
 create policy "edital_documents_insert_editors" on core.edital_documents
   for insert to authenticated
   with check (
@@ -120,11 +127,13 @@ create policy "edital_documents_insert_editors" on core.edital_documents
     and exists (select 1 from core.editais e where e.id = edital_id and e.org_id = edital_documents.org_id)
   );
 
+drop policy if exists "edital_documents_update_editors" on core.edital_documents;
 create policy "edital_documents_update_editors" on core.edital_documents
   for update to authenticated
   using (core.has_role(org_id, 'editor'))
   with check (core.has_role(org_id, 'editor'));
 
+drop policy if exists "edital_documents_delete_admins" on core.edital_documents;
 create policy "edital_documents_delete_admins" on core.edital_documents
   for delete to authenticated
   using (core.has_role(org_id, 'admin'));
@@ -141,7 +150,7 @@ grant all on core.edital_documents to service_role;
 -- SECURITY INVOKER: roda com as permissões (e o RLS) de quem chama.
 -- Retorna o id do edital como texto (o tipo de core.editais.id pode variar).
 -- ---------------------------------------------------------------------
-create function core.create_edital_with_document(
+create or replace function core.create_edital_with_document(
   p_org_id        uuid,
   p_title         text,
   p_official_url  text,

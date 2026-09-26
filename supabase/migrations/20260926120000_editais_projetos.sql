@@ -107,7 +107,7 @@ grant all on core.editais to service_role;
 -- Códigos de format/genre/stage: packages/modules/projects/src/vocabulary.ts
 -- ---------------------------------------------------------------------
 
-create table core.projetos (
+create table if not exists core.projetos (
   id          uuid primary key default gen_random_uuid(),
   org_id      uuid not null references core.organizations (id) on delete cascade,
   title       text not null check (char_length(title) between 2 and 200),
@@ -120,31 +120,37 @@ create table core.projetos (
   updated_at  timestamptz not null default now()
 );
 
-create index projetos_org_created_idx on core.projetos (org_id, created_at desc);
+create index if not exists projetos_org_created_idx on core.projetos (org_id, created_at desc);
 
 comment on table core.projetos is 'Projetos da LEP (dados sigilosos). Base para o Match com editais.';
 
+drop trigger if exists projetos_set_updated_at on core.projetos;
 create trigger projetos_set_updated_at before update on core.projetos
   for each row execute function core.set_updated_at();
+drop trigger if exists projetos_audit on core.projetos;
 create trigger projetos_audit
   after insert or update or delete on core.projetos
   for each row execute function core.audit_row_change();
 
 alter table core.projetos enable row level security;
 
+drop policy if exists "projetos_select_members" on core.projetos;
 create policy "projetos_select_members" on core.projetos
   for select to authenticated
   using (core.has_role(org_id, 'viewer'));
 
+drop policy if exists "projetos_insert_editors" on core.projetos;
 create policy "projetos_insert_editors" on core.projetos
   for insert to authenticated
   with check (core.has_role(org_id, 'editor'));
 
+drop policy if exists "projetos_update_editors" on core.projetos;
 create policy "projetos_update_editors" on core.projetos
   for update to authenticated
   using (core.has_role(org_id, 'editor'))
   with check (core.has_role(org_id, 'editor'));
 
+drop policy if exists "projetos_delete_admins" on core.projetos;
 create policy "projetos_delete_admins" on core.projetos
   for delete to authenticated
   using (core.has_role(org_id, 'admin'));

@@ -18,5 +18,6 @@ Decisões não são apagadas; quando mudam, um novo ADR "substitui" o anterior.
 | 0011 | [Cadastro de editais por URL/PDF](0011-cadastro-editais-url-pdf.md)                | Aceita |
 | 0012 | [Monitoramento automático de fontes](0012-monitoramento-automatico.md)             | Aceita |
 | 0013 | [Diretrizes territoriais e foco exclusivo na LEP](0013-diretrizes-territoriais.md) | Aceita |
+| 0014 | [Migrações idempotentes e aplicação automática](0014-migracoes-automaticas.md)     | Aceita |
 
 Modelo para novos ADRs: copie um existente e mantenha as seções.

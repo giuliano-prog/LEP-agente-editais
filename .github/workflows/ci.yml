@@ -45,7 +45,9 @@ jobs:
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v5
-      - run: bash scripts/db-test.sh
-        env:
-          DB_TEST_SHIM: "1"
-          DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      - name: Migrações do zero (2x, idempotência) + testes de permissão
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/postgres -qc "create database fresh" -c "create database partial"
+          DB_TEST_SHIM=1 DB_URL=postgresql://postgres:postgres@localhost:5432/fresh bash scripts/db-test.sh
+      - name: Migrações sobre banco parcialmente migrado à mão
+        run: DB_TEST_SHIM=1 DB_TEST_SCENARIO=remoto-parcial DB_URL=postgresql://postgres:postgres@localhost:5432/partial bash scripts/db-test.sh

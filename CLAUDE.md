@@ -20,7 +20,9 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 
 - Interface em pt-BR; código, tabelas e colunas em inglês; comentários/docs em pt-BR.
 - Toda tabela de negócio: `org_id`, RLS com `core.has_role`, grants explícitos, teste em `supabase/tests/`.
-- Nunca editar migração já aplicada: crie uma nova.
+- Nunca editar migração já aplicada: crie uma nova. **Migrações devem ser idempotentes** (`if not exists`,
+  `create or replace`, `drop ... if exists` + `create`): o CI as aplica 2x e sobre banco parcial (ADR-0014).
+- Produção recebe migrações só pelo workflow `supabase-migrations.yml` (nunca pelo SQL Editor; seed nunca em produção).
 - Papéis: `viewer < editor < admin` — manter `core.app_role` e `packages/core/src/auth/roles.ts` iguais.
 - Não importar SDKs de IA fora de `packages/ai` (ADR-0006).
 - Next.js 16: `src/proxy.ts` (não `middleware.ts`); `cookies()`/`searchParams` são assíncronos.
