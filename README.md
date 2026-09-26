@@ -3,9 +3,9 @@
 Plataforma de inteligência e automação da **LEP Filmes** para o setor audiovisual.
 Arquitetura modular: o primeiro módulo será **Captação de Recursos / Editais**.
 
-> **Status: Etapa 1.** Fundação (autenticação, permissões, RLS) + identidade visual LEP,
-> módulo de **Editais** (listagem e detalhe), **Projetos LEP** (cadastro e listagem) e
-> **Match explicável** edital × projeto.
+> **Status: Etapa 2.** Fundação (autenticação, permissões, RLS), identidade visual LEP,
+> **Editais** (cadastro por link, PDF ou manual, com cópia original guardada e revisão humana),
+> **Projetos LEP** e **Match explicável** edital × projeto.
 
 ## Tecnologias
 
@@ -118,12 +118,30 @@ As políticas esperadas são `editais_*` / `projetos_*` (ver migração). Remova
 apps/web/          Next.js (interface, autenticação, Editais, Projetos, Match)
 packages/core/     papéis e permissões
 packages/modules/projects/  vocabulário (formato, gênero, estágio) e validação de projetos
-packages/modules/funding/   modelo do edital e motor de Match explicável
+packages/modules/funding/   modelo do edital, validação do formulário e motor de Match explicável
+packages/ingestion/         download seguro de URLs (anti-SSRF), hash, leitura de HTML
 packages/db/       tipos do banco
 packages/ai/       contrato de IA independente de fornecedor + registro de custos
 supabase/          migrações, seed, testes SQL, templates de e-mail
 docs/              arquitetura e ADRs
 ```
+
+## Cadastro de editais (link, PDF ou manual)
+
+Em **Editais → Novo edital** (papel Editor/Revisor ou Administrador):
+
+1. **Link** — a plataforma baixa a página oficial ou o PDF, guarda uma cópia, sugere o título e lista os PDFs
+   encontrados na página (que podem ser adicionados como anexos com um clique).
+2. **PDF** — o arquivo vai direto do navegador para o armazenamento privado e é validado pelo servidor.
+3. **Manual** — só o título; documentos podem ser anexados depois.
+
+Depois, o formulário de revisão abre para preencher prazo, valores, critérios e as regras usadas no Match.
+O edital só fica **validado** quando alguém marca "Revisei estas informações com o documento oficial".
+Documentos repetidos (mesmo arquivo ou mesmo link oficial) são recusados com link para o edital existente.
+Detalhes e proteções de segurança: [ADR-0011](docs/adr/0011-cadastro-editais-url-pdf.md).
+
+> **Deploy (Vercel):** defina `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` antes do build —
+> o navegador usa essas variáveis para enviar PDFs.
 
 ## Match explicável
 

@@ -16,6 +16,7 @@
     "@lep/core": "workspace:*",
     "@lep/db": "workspace:*",
     "@lep/funding": "workspace:*",
+    "@lep/ingestion": "workspace:*",
     "@lep/projects": "workspace:*",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.117.0",

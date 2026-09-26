@@ -104,6 +104,81 @@ export type Database = {
         };
         Relationships: [];
       };
+      edital_documents: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          edital_id: string;
+          file_name: string | null;
+          final_url: string | null;
+          http_status: number | null;
+          id: string;
+          kind: string;
+          metadata: Json;
+          mime_type: string;
+          org_id: string;
+          sha256: string;
+          size_bytes: number | null;
+          source: string;
+          source_url: string | null;
+          storage_path: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          edital_id: string;
+          file_name?: string | null;
+          final_url?: string | null;
+          http_status?: number | null;
+          id?: string;
+          kind?: string;
+          metadata?: Json;
+          mime_type: string;
+          org_id: string;
+          sha256: string;
+          size_bytes?: number | null;
+          source: string;
+          source_url?: string | null;
+          storage_path: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          edital_id?: string;
+          file_name?: string | null;
+          final_url?: string | null;
+          http_status?: number | null;
+          id?: string;
+          kind?: string;
+          metadata?: Json;
+          mime_type?: string;
+          org_id?: string;
+          sha256?: string;
+          size_bytes?: number | null;
+          source?: string;
+          source_url?: string | null;
+          storage_path?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "edital_documents_edital_id_fkey";
+            columns: ["edital_id"];
+            isOneToOne: false;
+            referencedRelation: "editais";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_documents_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       editais: {
         Row: {
           accepted_formats: string[];
@@ -329,9 +404,32 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      create_edital_with_document: {
+        Args: {
+          p_file_name: string | null;
+          p_final_url: string | null;
+          p_http_status: number | null;
+          p_kind: string;
+          p_metadata: Json | null;
+          p_mime_type: string;
+          p_official_url: string | null;
+          p_org_id: string;
+          p_sha256: string;
+          p_size_bytes: number | null;
+          p_source: string;
+          p_source_url: string | null;
+          p_storage_path: string;
+          p_title: string;
+        };
+        Returns: string;
+      };
       has_role: {
         Args: { p_min_role: Database["core"]["Enums"]["app_role"]; p_org_id: string };
         Returns: boolean;
+      };
+      try_uuid: {
+        Args: { p_value: string };
+        Returns: string | null;
       };
       role_in_org: {
         Args: { p_org_id: string };

@@ -10,7 +10,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Pacotes internos do monorepo são TypeScript puro e compilados pelo Next.
-  transpilePackages: ["@lep/core", "@lep/db", "@lep/funding", "@lep/projects"],
+  transpilePackages: ["@lep/core", "@lep/db", "@lep/funding", "@lep/ingestion", "@lep/projects"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

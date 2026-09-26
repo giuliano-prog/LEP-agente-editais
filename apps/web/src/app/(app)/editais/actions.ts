@@ -1,0 +1,237 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { DOCUMENT_KIND_LABELS, editalFormToInput, editalInputSchema } from "@lep/funding";
+import { requireMembership } from "@/lib/auth/session";
+import {
+  documentColumns,
+  findDuplicate,
+  IngestError,
+  ingestFromUpload,
+  ingestFromUrl,
+  removeStored,
+  type Duplicate,
+  type IngestedDocument,
+} from "@/lib/editais/ingest";
+import { createClient } from "@/lib/supabase/server";
+
+export type EditalActionState = {
+  error?: string;
+  duplicate?: Duplicate;
+  success?: string;
+  savedAt?: number;
+};
+
+const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+
+function kindFrom(value: unknown) {
+  return typeof value === "string" && value in DOCUMENT_KIND_LABELS ? value : "main";
+}
+
+function failure(error: unknown): EditalActionState {
+  if (error instanceof IngestError) return { error: error.message };
+  console.error("Erro no cadastro de edital:", error instanceof Error ? error.message : error);
+  return { error: "Não foi possível concluir o cadastro. Tente novamente." };
+}
+
+/** Cria o edital + documento principal de forma atômica e abre o formulário de revisão. */
+async function createFromDocument(
+  document: IngestedDocument,
+  orgId: string,
+): Promise<EditalActionState | string> {
+  const supabase = await createClient();
+
+  const duplicate = await findDuplicate(supabase, orgId, document);
+  if (duplicate) {
+    await removeStored(supabase, document.storagePath);
+    return { error: "Este edital já está cadastrado na plataforma.", duplicate };
+  }
+
+  const columns = documentColumns(document);
+  const { data: editalId, error } = await supabase.rpc("create_edital_with_document", {
+    p_org_id: orgId,
+    p_title: document.suggestedTitle,
+    p_official_url: document.finalUrl ?? document.sourceUrl,
+    p_kind: "main",
+    p_source: columns.source,
+    p_source_url: columns.source_url,
+    p_final_url: columns.final_url,
+    p_storage_path: columns.storage_path,
+    p_file_name: columns.file_name,
+    p_mime_type: columns.mime_type,
+    p_size_bytes: columns.size_bytes,
+    p_sha256: columns.sha256,
+    p_http_status: columns.http_status,
+    p_metadata: columns.metadata,
+  });
+
+  if (error || !editalId) {
+    await removeStored(supabase, document.storagePath);
+    console.error("Erro ao criar edital:", error?.code, error?.message);
+    return { error: "Não foi possível cadastrar o edital. Tente novamente." };
+  }
+
+  revalidatePath("/editais");
+  return editalId;
+}
+
+export async function createEditalFromUrl(
+  _prev: EditalActionState,
+  formData: FormData,
+): Promise<EditalActionState> {
+  const { membership } = await requireMembership("editor");
+  const url = String(formData.get("url") ?? "").trim();
+  if (!url) return { error: "Informe o link do edital." };
+
+  let result: EditalActionState | string;
+  try {
+    const supabase = await createClient();
+    const document = await ingestFromUrl(supabase, membership.orgId, url);
+    result = await createFromDocument(document, membership.orgId);
+  } catch (error) {
+    return failure(error);
+  }
+  if (typeof result !== "string") return result;
+  redirect(`/editais/${result}/editar?novo=1`);
+}
+
+export async function createEditalFromUpload(input: {
+  path: string;
+  fileName: string;
+}): Promise<EditalActionState> {
+  const { membership } = await requireMembership("editor");
+
+  let result: EditalActionState | string;
+  try {
+    const supabase = await createClient();
+    const document = await ingestFromUpload(supabase, membership.orgId, input.path, input.fileName);
+    result = await createFromDocument(document, membership.orgId);
+  } catch (error) {
+    return failure(error);
+  }
+  if (typeof result !== "string") return result;
+  redirect(`/editais/${result}/editar?novo=1`);
+}
+
+export async function createEditalManual(
+  _prev: EditalActionState,
+  formData: FormData,
+): Promise<EditalActionState> {
+  const { membership } = await requireMembership("editor");
+  const title = String(formData.get("title") ?? "").trim();
+  if (title.length < 3) return { error: "Informe o título do edital (mínimo de 3 caracteres)." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("editais")
+    .insert({ org_id: membership.orgId, title: title.slice(0, 300) })
+    .select("id")
+    .single();
+  if (error || !data) {
+    console.error("Erro ao criar edital manual:", error?.code);
+    return { error: "Não foi possível cadastrar o edital." };
+  }
+  revalidatePath("/editais");
+  redirect(`/editais/${data.id}/editar?novo=1`);
+}
+
+/** Adiciona documento (anexo, retificação...) a um edital existente. */
+async function addDocument(
+  editalId: string,
+  kind: string,
+  document: IngestedDocument,
+): Promise<EditalActionState> {
+  const { membership } = await requireMembership("editor");
+  const supabase = await createClient();
+
+  const duplicate = await findDuplicate(supabase, membership.orgId, {
+    ...document,
+    sourceUrl: null,
+    finalUrl: null,
+  });
+  if (duplicate) {
+    await removeStored(supabase, document.storagePath);
+    return {
+      error:
+        duplicate.editalId === editalId
+          ? "Este documento já está cadastrado neste edital."
+          : "Este documento já está cadastrado em outro edital.",
+      duplicate: duplicate.editalId === editalId ? undefined : duplicate,
+    };
+  }
+
+  const { error } = await supabase
+    .from("edital_documents")
+    .insert({ ...documentColumns(document), org_id: membership.orgId, edital_id: editalId, kind });
+  if (error) {
+    await removeStored(supabase, document.storagePath);
+    console.error("Erro ao adicionar documento:", error.code);
+    return { error: "Não foi possível adicionar o documento." };
+  }
+
+  revalidatePath(`/editais/${editalId}`);
+  return { success: "Documento adicionado.", savedAt: Date.now() };
+}
+
+export async function addDocumentFromUrl(
+  editalId: string,
+  _prev: EditalActionState,
+  formData: FormData,
+): Promise<EditalActionState> {
+  if (!ID_PATTERN.test(editalId)) return { error: "Edital inválido." };
+  const { membership } = await requireMembership("editor");
+  const url = String(formData.get("url") ?? "").trim();
+  if (!url) return { error: "Informe o link do documento." };
+  try {
+    const supabase = await createClient();
+    const document = await ingestFromUrl(supabase, membership.orgId, url);
+    return await addDocument(editalId, kindFrom(formData.get("kind")), document);
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function addDocumentFromUpload(
+  editalId: string,
+  input: { path: string; fileName: string; kind: string },
+): Promise<EditalActionState> {
+  if (!ID_PATTERN.test(editalId)) return { error: "Edital inválido." };
+  const { membership } = await requireMembership("editor");
+  try {
+    const supabase = await createClient();
+    const document = await ingestFromUpload(supabase, membership.orgId, input.path, input.fileName);
+    return await addDocument(editalId, kindFrom(input.kind), document);
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Salva o cadastro manual dos campos do edital. */
+export async function updateEdital(
+  editalId: string,
+  _prev: EditalActionState,
+  formData: FormData,
+): Promise<EditalActionState> {
+  if (!ID_PATTERN.test(editalId)) return { error: "Edital inválido." };
+  const { membership } = await requireMembership("editor");
+
+  const parsed = editalInputSchema.safeParse(editalFormToInput(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("editais")
+    .update(parsed.data)
+    .eq("id", editalId)
+    .eq("org_id", membership.orgId)
+    .select("id");
+  if (error || !data || data.length === 0) {
+    console.error("Erro ao salvar edital:", error?.code, error?.message);
+    return { error: "Não foi possível salvar o edital." };
+  }
+
+  revalidatePath("/editais");
+  revalidatePath(`/editais/${editalId}`);
+  redirect(`/editais/${editalId}?salvo=1`);
+}

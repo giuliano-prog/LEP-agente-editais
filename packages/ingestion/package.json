@@ -1,5 +1,5 @@
 {
-  "name": "@lep/funding",
+  "name": "@lep/ingestion",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,11 +12,10 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@lep/projects": "workspace:*",
-    "zod": "^4.1.0"
+    "undici": "^7.16.0"
   },
   "devDependencies": {
-    "@types/node": "^22.20.4",
+    "@types/node": "^22.0.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.0"
   }

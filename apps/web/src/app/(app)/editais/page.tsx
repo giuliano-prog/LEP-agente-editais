@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { can } from "@lep/core";
 import { toEdital } from "@lep/funding";
 import { Deadline, EditalStatusBadge } from "@/components/edital-badges";
 import { EmptyState, PageHeader } from "@/components/ui";
@@ -29,7 +30,16 @@ export default async function EditaisPage() {
       <PageHeader
         title="Editais"
         description="Oportunidades de financiamento cadastradas. Abra um edital para ver os critérios e o Match com os projetos LEP."
-      />
+      >
+        {can(membership.role, "content.edit") && (
+          <Link
+            href="/editais/novo"
+            className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong"
+          >
+            + Novo edital
+          </Link>
+        )}
+      </PageHeader>
 
       {error ? (
         <p className="rounded-md border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
@@ -38,7 +48,9 @@ export default async function EditaisPage() {
         </p>
       ) : editais.length === 0 ? (
         <EmptyState title="Nenhum edital cadastrado ainda">
-          O cadastro de editais pela plataforma (URL ou PDF) entra em uma próxima etapa.
+          {can(membership.role, "content.edit")
+            ? "Use “Novo edital” para cadastrar a partir de um link ou PDF oficial."
+            : "Peça a um editor para cadastrar os editais."}
         </EmptyState>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-line bg-card">

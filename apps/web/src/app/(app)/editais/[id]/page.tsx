@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { matchProjects, toEdital, type Edital } from "@lep/funding";
+import { can } from "@lep/core";
 import { labelOf, PROJECT_FORMATS, PROJECT_GENRES, PROJECT_STAGES } from "@lep/projects";
 import { Deadline, EditalStatusBadge, ReviewBadge } from "@/components/edital-badges";
+import { DocumentsSection, type EditalDocument } from "@/components/editais/documents-section";
 import { MatchPanel } from "@/components/match-panel";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
@@ -15,20 +17,37 @@ export const metadata: Metadata = { title: "Edital" };
 // Aceita UUID ou id numérico (a tabela remota pode usar qualquer um dos dois).
 const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
-export default async function EditalPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditalPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ salvo?: string }>;
+}) {
   const { id } = await params;
+  const { salvo } = await searchParams;
   if (!ID_PATTERN.test(id)) notFound();
 
   const { membership } = await requireMembership();
   const supabase = await createClient();
 
-  const [editalQuery, projectsQuery] = await Promise.all([
+  const canEdit = can(membership.role, "content.edit");
+
+  const [editalQuery, projectsQuery, documentsQuery] = await Promise.all([
     supabase.from("editais").select("*").eq("id", id).eq("org_id", membership.orgId).maybeSingle(),
     supabase
       .from("projetos")
       .select("id, title, format, genre, stage, budget")
       .eq("org_id", membership.orgId)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("edital_documents")
+      .select(
+        "id, kind, source, source_url, final_url, file_name, mime_type, size_bytes, sha256, created_at, metadata",
+      )
+      .eq("edital_id", id)
+      .eq("org_id", membership.orgId)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (editalQuery.error) console.error("Erro ao carregar edital:", editalQuery.error.message);
@@ -43,10 +62,26 @@ export default async function EditalPage({ params }: { params: Promise<{ id: str
         ← Voltar para editais
       </Link>
 
+      {salvo && (
+        <p className="rounded-md border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok">
+          Edital salvo.
+        </p>
+      )}
+
       <header className="space-y-3 pt-1">
-        <div className="flex flex-wrap gap-2">
-          <EditalStatusBadge status={edital.status} />
-          <ReviewBadge reviewStatus={edital.reviewStatus} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <EditalStatusBadge status={edital.status} />
+            <ReviewBadge reviewStatus={edital.reviewStatus} />
+          </div>
+          {canEdit && (
+            <Link
+              href={`/editais/${edital.id}/editar`}
+              className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand"
+            >
+              {edital.reviewStatus === "validated" ? "Editar" : "Editar e revisar"}
+            </Link>
+          )}
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{edital.title}</h1>
         {edital.agency && <p className="text-muted">{edital.agency}</p>}
@@ -124,6 +159,13 @@ export default async function EditalPage({ params }: { params: Promise<{ id: str
           </Card>
         </aside>
       </div>
+
+      <DocumentsSection
+        editalId={edital.id}
+        orgId={membership.orgId}
+        documents={(documentsQuery.data ?? []) as EditalDocument[]}
+        canEdit={canEdit}
+      />
 
       <MatchPanel results={matches} />
     </div>

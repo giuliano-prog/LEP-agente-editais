@@ -9,7 +9,8 @@ packages/core  → papéis e permissões (regras puras, testadas)
 packages/db    → tipos do banco (gerados)
 packages/ai    → contrato de IA independente de fornecedor + registro de custos
 packages/modules/projects → vocabulário e validação de projetos
-packages/modules/funding  → modelo do edital (toEdital) e motor de Match explicável
+packages/modules/funding  → modelo do edital (toEdital), formulário (editalInputSchema) e Match
+packages/ingestion        → download seguro de URLs (anti-SSRF), SHA-256, metadados de HTML (servidor)
 supabase/      → migrações, seed, testes de RLS, templates de e-mail
 ```
 
@@ -22,7 +23,8 @@ apps/
       app/                      rotas (App Router)
         (app)/                  área autenticada (layout exige login + organização)
           page.tsx              início
-          editais/              listagem e detalhe (com painel de Match)
+          editais/              listagem, detalhe (documentos + Match), novo/, [id]/editar/
+            documentos/[docId]/ abre documento guardado (link temporário do Storage)
           projetos/             cadastro e listagem de projetos
           conta/senha/          definir/trocar senha
           configuracoes/membros lista de membros (somente admin)

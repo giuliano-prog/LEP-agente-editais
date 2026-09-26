@@ -18,5 +18,6 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 - Next.js 16: `src/proxy.ts` (não `middleware.ts`); `cookies()`/`searchParams` são assíncronos.
 - Tabelas `core.editais`/`core.projetos` (ADR-0010). Vocabulário de projetos em `packages/modules/projects/src/vocabulary.ts` = CHECK constraints da migração.
 - Match (`packages/modules/funding`): regras determinísticas; nunca afirmar aprovação (`MATCH_DISCLAIMER`).
+- Documentos de editais: bucket privado `edital-documents` (`<org_id>/...`), `core.edital_documents` com SHA-256 imutável (ADR-0011). Buscar URLs externas só via `safeFetch` de `@lep/ingestion` (anti-SSRF).
 - Tema: use tokens de `globals.css` (`bg-surface`, `bg-card`, `text-fg`, `text-muted`, `text-brand`), nunca cores soltas.
 - Dados da LEP são sigilosos: nada de dados reais em seeds, fixtures ou logs.
