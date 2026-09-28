@@ -2,25 +2,27 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { LEP_LOGO } from "@/lib/brand";
 
 /*
- * Logomarca oficial (/public/logo.jpg, 666×551, marca centralizada sobre fundo
- * grafite com margem ampla). A moldura recorta a margem e amplia a marca para
- * que "LEP FILMES" fique legível em tamanhos pequenos (cabeçalho).
+ * Logomarca oficial em alta resolução (public/brand/lep-logo.png, fundo transparente).
+ * Só a altura é fixada; a largura segue a proporção original (sem recorte, sem distorção).
+ * `sizes` informa a largura exibida para o Next gerar versões otimizadas (inclusive 2x/3x).
  */
 const SIZES = {
-  sm: "h-12 w-[60px]",
-  lg: "h-24 w-[120px]",
+  sm: { className: "h-9 sm:h-11", sizes: "(min-width: 640px) 57px, 47px" },
+  lg: { className: "h-20 sm:h-24", sizes: "(min-width: 640px) 123px, 103px" },
 } as const;
 
 export function Logo({ size = "sm" }: { size?: keyof typeof SIZES }) {
   const [failed, setFailed] = useState(false);
+  const variant = SIZES[size];
 
   if (failed) {
     // Se o arquivo não carregar, o nome em texto evita imagem quebrada.
     return (
       <span
-        className={`${SIZES[size]} inline-flex w-auto items-center rounded-md border border-line px-3 text-sm font-bold tracking-[0.25em]`}
+        className={`${variant.className} inline-flex items-center rounded-md border border-line px-3 text-sm font-bold tracking-[0.25em]`}
       >
         <span className="text-brand">LEP</span>&nbsp;<span className="text-fg">FILMES</span>
       </span>
@@ -28,18 +30,15 @@ export function Logo({ size = "sm" }: { size?: keyof typeof SIZES }) {
   }
 
   return (
-    <span
-      className={`${SIZES[size]} relative inline-block shrink-0 overflow-hidden rounded-lg ring-1 ring-line`}
-    >
-      <Image
-        src="/logo.jpg"
-        alt="LEP Filmes"
-        fill
-        sizes={size === "sm" ? "60px" : "120px"}
-        priority
-        onError={() => setFailed(true)}
-        className="scale-[1.45] object-cover"
-      />
-    </span>
+    <Image
+      src={LEP_LOGO.src}
+      alt={LEP_LOGO.alt}
+      width={LEP_LOGO.width}
+      height={LEP_LOGO.height}
+      sizes={variant.sizes}
+      priority
+      onError={() => setFailed(true)}
+      className={`${variant.className} w-auto shrink-0 select-none`}
+    />
   );
 }

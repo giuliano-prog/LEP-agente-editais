@@ -48,7 +48,8 @@ Prestação de contas, Direitos e clearance, Produção, Documentação, Assiste
 
 **✅ Implementado e funcionando (testado neste repositório)**
 
-- Fundação: login por convite, papéis, RLS, auditoria, identidade visual (tema escuro LEP).
+- Fundação: login por convite, papéis, RLS, auditoria, identidade visual (tema escuro LEP; logo oficial em alta
+  resolução no cabeçalho e no login, proporção preservada em desktop e celular).
 - Editais: listagem (Oportunidade | Instituição | Prazo | Valor | Aderência), detalhe, cadastro por link/PDF/manual,
   cópia original guardada com SHA-256, revisão humana, triagem (descartar/restaurar).
 - Projetos: cadastro e listagem.
@@ -66,8 +67,6 @@ fontes Spcine, RioFilme, ANCINE/FSA).
 
 - Evolução do motor de monitoramento e do módulo Membros: **diagnóstico técnico entregue, aguardando decisões**
   (ver §10–11). Nenhuma implementação iniciada.
-- Novo logo em alta resolução: arquivo enviado (`apps/web/public/brand/lep-logo.png`), **ainda não integrado**
-  (a interface usa `apps/web/public/logo.jpg`).
 
 **⬜ Planejado**: extração/interpretação por IA (aguarda escolha do fornecedor), alertas por e-mail, detecção de
 retificações, deduplicação multi-fonte, novas fontes, Diários Oficiais, perfis Administrador/Diretoria/Equipe, convite
@@ -302,24 +301,23 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 | `packages/core/src/auth/*`                                  | Papéis e permissões                                                  |
 | `packages/ai/src/*`                                         | Contrato de IA e registro de custos (sem fornecedor)                 |
 | `apps/web/scripts/invite-member.ts`                         | Convite de membros por linha de comando                              |
-| `apps/web/public/brand/lep-logo.png`                        | Novo logo (ainda não integrado)                                      |
-| `apps/web/public/logo.jpg`                                  | Logo em uso atualmente                                               |
+| `apps/web/public/brand/lep-logo.png`                        | Logo oficial em uso (alta resolução, `lib/brand.ts`)                 |
+| `apps/web/public/logo.jpg`                                  | Logo antigo — sem uso, mantido só para reversão                      |
 
 ---
 
 ## 10. Pendências
 
-1. Integrar o novo logo (`brand/lep-logo.png`) no cabeçalho e no login.
-2. Corrigir a coerência "fonte ativa" (tela × motor) e validar de fato a chave de serviço no Diagnóstico.
-3. Resumo detalhado do "Verificar agora" (novas, atualizadas, duplicadas, descartadas, pendentes, erros por fonte).
-4. Membros: convite pela tela, status do vínculo (convidado/ativo/suspenso), perfis Administrador/Diretoria/Equipe.
-5. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
-6. Motor: classificação do tipo de página/oportunidade; elegibilidade separada da aderência; extração ampliada com
+1. Corrigir a coerência "fonte ativa" (tela × motor) e validar de fato a chave de serviço no Diagnóstico.
+2. Resumo detalhado do "Verificar agora" (novas, atualizadas, duplicadas, descartadas, pendentes, erros por fonte).
+3. Membros: convite pela tela, status do vínculo (convidado/ativo/suspenso), perfis Administrador/Diretoria/Equipe.
+4. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
+5. Motor: classificação do tipo de página/oportunidade; elegibilidade separada da aderência; extração ampliada com
    evidência por campo; leitura de texto de PDF; deduplicação multi-fonte; aderência explicável por fatores (gravada).
-7. Detecção de alterações/retificações a partir dos documentos e hashes guardados.
-8. Novas fontes via adaptadores (Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores).
-9. Extração/interpretação por IA (depende da escolha do fornecedor).
-10. Alertas por e-mail.
+6. Detecção de alterações/retificações a partir dos documentos e hashes guardados.
+7. Novas fontes via adaptadores (Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores).
+8. Extração/interpretação por IA (depende da escolha do fornecedor).
+9. Alertas por e-mail.
 
 **Decisões pendentes da LEP:** (a) trocar o descarte territorial automático por classificação visível; (b) mapeamento
 Diretoria = `editor` / Equipe = `viewer` e se a Equipe precisa editar; (c) prioridade entre Membros e motor;
@@ -330,19 +328,18 @@ Diretoria = `editor` / Equipe = `viewer` e se a Equipe precisa editar; (c) prior
 
 ## 11. Próximos passos técnicos (ordem lógica — nenhum executado)
 
-1. Integrar o novo logo (desktop e celular).
-2. Coerência de fontes ativas + validação real da chave de serviço + resumo detalhado por execução.
-3. Membros: status do vínculo, convite pela tela, rótulos Administrador/Diretoria/Equipe, suspender/reativar
+1. Coerência de fontes ativas + validação real da chave de serviço + resumo detalhado por execução.
+2. Membros: status do vínculo, convite pela tela, rótulos Administrador/Diretoria/Equipe, suspender/reativar
    (após SMTP e modelo de e-mail em produção); então o convite da primeira usuária de teste pelo fluxo normal.
-4. Benchmark: transformar os 38 casos em fixtures de teste + relatório comparativo (sem regras fixas no motor).
-5. Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros.
-6. Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte.
-7. Extração ampliada + evidência por campo + texto de PDF.
-8. Deduplicação multi-fonte (chave canônica + avistamentos).
-9. Aderência por fatores e Match v2 gravados.
-10. Detecção de alterações/retificações com revisão.
-11. Novas fontes.
-12. IA atrás de uma interface única de análise (`EditalAnalyzer`) usando `packages/ai`.
+3. Benchmark: transformar os 38 casos em fixtures de teste + relatório comparativo (sem regras fixas no motor).
+4. Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros.
+5. Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte.
+6. Extração ampliada + evidência por campo + texto de PDF.
+7. Deduplicação multi-fonte (chave canônica + avistamentos).
+8. Aderência por fatores e Match v2 gravados.
+9. Detecção de alterações/retificações com revisão.
+10. Novas fontes.
+11. IA atrás de uma interface única de análise (`EditalAnalyzer`) usando `packages/ai`.
 
 ---
 
