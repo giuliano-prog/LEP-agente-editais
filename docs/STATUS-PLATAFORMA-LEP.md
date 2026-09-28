@@ -1,0 +1,357 @@
+# Status da Plataforma LEP — estado atual oficial
+
+> **Atualizado em:** 2026-09-28 · **Branch:** `claude/epic-cerf-abwkc1` · **Commit de referência:** `fc3b550`
+>
+> Documento de referência para qualquer assistente ou pessoa entender o projeto sem ler o histórico da conversa.
+> Legenda: **✅ IMPLEMENTADO** (no código, testado) · **🟡 EM ANDAMENTO** (decidido/parcial, aguardando algo) ·
+> **⬜ PLANEJADO** (definido, não iniciado). Itens marcados **(informado pela equipe)** foram relatados pela LEP e
+> **não foram verificados** a partir deste repositório (o assistente não tem acesso ao Supabase/Vercel de produção).
+
+---
+
+## 1. Visão geral da plataforma
+
+**Objetivo.** Plataforma própria da LEP Filmes (produtora audiovisual sediada em São Paulo/SP) para inteligência e
+automação da operação. O primeiro módulo é **Captação de Recursos / Editais**: encontrar oportunidades de
+financiamento, confirmar na fonte oficial, estruturar, interpretar e cruzar com os projetos da LEP, de forma
+explicável e **sem nunca afirmar que um projeto será aprovado**.
+
+**Arquitetura geral** (ADR-0001/0002): monólito modular em monorepo pnpm.
+
+```
+apps/web (Next.js 16, Vercel) ──► Supabase (PostgreSQL + Auth + Storage, RLS em tudo)
+   │  proxy.ts (sessão) · páginas por módulo · Server Actions · /api/cron/monitor
+   ▼
+packages/core      papéis e permissões          packages/db         tipos do banco
+packages/ai        ponto único de IA (contrato) packages/ingestion  download seguro, HTML, robots.txt, hash
+packages/modules/  funding (editais, Match, varredura, território) · projects (vocabulário/validação)
+```
+
+**Núcleo compartilhado (schema `core`)** — ✅ IMPLEMENTADO: organizações (com sede do proponente), perfis,
+vínculos/papéis, auditoria (`audit_log`), registro de custos de IA (`ai_usage`), armazenamento privado de documentos.
+
+**Módulos existentes**
+
+| Módulo                                      | Estado                                           |
+| ------------------------------------------- | ------------------------------------------------ |
+| Captação de Recursos / Editais              | ✅ em uso (evolução em andamento — ver §3 e §11) |
+| Projetos (cadastro básico usado pelo Match) | ✅ versão inicial                                |
+| Membros (listagem + sede do proponente)     | ✅ versão inicial (convite pela tela ⬜)         |
+| Diagnóstico de configuração                 | ✅                                               |
+
+**Módulos planejados** (⬜, apenas nomeados; escopo e ordem ainda não definidos): Contratos, Equipe, Orçamentos,
+Prestação de contas, Direitos e clearance, Produção, Documentação, Assistente da LEP.
+
+---
+
+## 2. Estado atual
+
+**✅ Implementado e funcionando (testado neste repositório)**
+
+- Fundação: login por convite, papéis, RLS, auditoria, identidade visual (tema escuro LEP).
+- Editais: listagem (Oportunidade | Instituição | Prazo | Valor | Aderência), detalhe, cadastro por link/PDF/manual,
+  cópia original guardada com SHA-256, revisão humana, triagem (descartar/restaurar).
+- Projetos: cadastro e listagem.
+- Match edital × projeto explicável (✓ / ⚠ / ✕) e Aderência (Alta/Média/Baixa/Sem projetos).
+- Varredura automática diária de fontes + "Verificar agora" + histórico de varreduras.
+- Diretrizes LEP no código: território (sede São Paulo/SP) e foco exclusivo na LEP como proponente.
+- Página Diagnóstico e script SQL de diagnóstico (somente leitura).
+- Migrações idempotentes + workflow de aplicação automática em produção via `supabase db push --db-url`.
+
+**✅ Em produção (informado pela equipe)**: app publicado na Vercel; banco remoto sincronizado pelo workflow de
+migrações; varredura real executada (resultado relatado: 10 em acompanhamento, 6 novas da varredura, 5 descartadas;
+fontes Spcine, RioFilme, ANCINE/FSA).
+
+**🟡 Em andamento**
+
+- Evolução do motor de monitoramento e do módulo Membros: **diagnóstico técnico entregue, aguardando decisões**
+  (ver §10–11). Nenhuma implementação iniciada.
+- Novo logo em alta resolução: arquivo enviado (`apps/web/public/brand/lep-logo.png`), **ainda não integrado**
+  (a interface usa `apps/web/public/logo.jpg`).
+
+**⬜ Planejado**: extração/interpretação por IA (aguarda escolha do fornecedor), alertas por e-mail, detecção de
+retificações, deduplicação multi-fonte, novas fontes, Diários Oficiais, perfis Administrador/Diretoria/Equipe, convite
+de membros pela tela, módulos futuros.
+
+---
+
+## 3. Módulo Captação de Recursos / Editais
+
+### Funcionalidades atuais (✅)
+
+- **Listagem** `/editais`: colunas Oportunidade · Instituição · Prazo · Valor · Aderência (Match); filtros
+  "Em acompanhamento", "Novos da varredura", "Revisão pendente", "Descartados"; ordenação no app (abertos por prazo →
+  sem prazo → encerrados). Leitura com `select("*")` e normalização defensiva (`toEdital`), tolerante a colunas
+  extras/ausentes.
+- **Detalhe** `/editais/[id]`: resumo, critérios, documentos exigidos, categorias, regras usadas no Match (inclui
+  território), links oficiais, documentos guardados, PDFs encontrados na página, painel de Match, Editar, Descartar/Restaurar.
+- **Fontes** `/editais/fontes`: cadastro (admin), sugestões, pausar/remover, "Verificar agora", histórico.
+
+### Cadastro (✅, ADR-0011)
+
+- **Por link**: download seguro (anti-SSRF, portas 80/443, redirecionamentos revalidados, 20 s, 25 MB) → cópia no
+  bucket privado → título sugerido e PDFs da página.
+- **Por PDF**: navegador envia direto ao Storage; servidor valida caminho, tamanho e assinatura `%PDF`.
+- **Manual**: só o título. Criação atômica edital + documento (`core.create_edital_with_document`).
+- Todos nascem com `review_status = 'pending'` e abrem o formulário de revisão.
+
+### Revisão (✅, ADR-0009)
+
+Formulário completo (valores em R$, prazo em horário de Brasília — sem hora = 23h59, listas por linha, regras do
+Match, território). Só vira `validated` com a confirmação explícita "Revisei estas informações com o documento oficial".
+
+### Elegibilidade (✅ parcial)
+
+Hoje existe **apenas elegibilidade territorial** (`assessTerritory`) — não há campo/classificação de elegibilidade
+geral separado da aderência. ⬜ Planejado: classificação própria (elegível / não elegível / não confirmada / restrição
+territorial / via parceiro / pessoa física / necessita revisão).
+
+### Aderência (✅)
+
+`summarizeAdherence`: melhor resultado de Match entre os projetos → Alta (compatível), Média (compatível com
+pendências), Baixa (algum critério não atendido), Sem projetos. Mostra o melhor projeto e "n/m compatíveis".
+Calculada na hora (não gravada). Considera a sede do proponente.
+
+### Match com projetos (✅, regras determinísticas, sem IA)
+
+Critérios: revisão do edital · prazo/status · **território (sede da LEP)** · formato · gênero/tipologia · estágio ·
+faixa de orçamento · critérios textuais e documentos exigidos (sempre "⚠ verificar"). Resultado: atendidos / pontos de
+atenção / não atendidos + aviso fixo `MATCH_DISCLAIMER` (não é previsão de aprovação).
+
+### Deduplicação (✅ básica)
+
+- Cadastro: mesmo SHA-256 de documento **ou** mesmo link oficial na organização → recusado com link para o existente.
+- Varredura: ignora links já conhecidos (URL normalizada de editais e documentos) e documentos com mesmo hash.
+- ⬜ Planejado: chave canônica (órgão + número + ano), título normalizado, período, avistamentos multi-fonte.
+
+### Fluxo de monitoramento (✅, ADR-0012)
+
+```
+Vercel Cron diário 10:00 UTC (7h Brasília) → GET /api/cron/monitor (Bearer CRON_SECRET)
+  ou "Verificar agora" (admin)
+→ runMonitor (cliente com chave de serviço): fontes active = true
+→ por fonte: robots.txt → página de listagem → extractLinks → selectCandidates
+   (termos de edital + audiovisual; exclui ruído e links conhecidos; até 5 importações/fonte, 50 s no total)
+→ por candidato: baixa página → guarda cópia → cria edital (origin = monitor, revisão pendente)
+   → prazo/valor/status/resumo sugeridos por regras de texto
+   → assessTerritory: se exclusivo de outro território → review_status = 'discarded' + triage_reason (motivo + trecho)
+→ grava core.monitor_runs (links, candidatos, importados, rejeitados, erro) e status da fonte
+```
+
+### Fontes monitoradas (✅)
+
+Sugestões no código: **RioFilme** (`/editais/`), **Spcine** (`/editais/`), **ANCINE/FSA**. Cadastro por página de
+listagem com opções "fonte exclusiva de audiovisual" e filtro de endereço. ⬜ Planejado: adaptadores/configuração por
+fonte para Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores.
+
+### Regras territoriais (✅, ADR-0013, `docs/diretrizes-lep.md`)
+
+Aceita nacionais, estado de SP, município de São Paulo e locais abertos a SP; nacional com cota regional = aceito com
+aviso; sem informação = pendente (nunca rejeita sem evidência); exclusivo de outro território = **descartado
+automaticamente pela varredura** com motivo e trecho. Parceiras/coprodutoras não contam (LEP é sempre a proponente).
+🟡 Em discussão: trocar o descarte automático por classificação visível "restrição territorial" (caso RioFilme) e
+permitir configuração futura de parcerias/exceções — **aguardando decisão**.
+
+### Status utilizados (✅)
+
+| Campo                     | Valores                                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `status` (situação)       | `open` · `upcoming` · `closed` · `suspended` · `under_review` · `result_published` (aliases em PT normalizados) |
+| `review_status` (triagem) | `pending` · `validated` · `discarded`                                                                           |
+| `origin`                  | `manual` · `monitor`                                                                                            |
+| `eligible_territories`    | `BR` · UF (ex.: `SP`) · `UF:Município`                                                                          |
+
+---
+
+## 4. Última alteração implementada
+
+**Commit `a4a8e82` — "Workflow de migrações: db push --db-url, sem supabase link"** (última tarefa de código
+executada pelo assistente). Tarefas posteriores (resumo de arquitetura e diagnóstico técnico) **não alteraram código**.
+Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equipe (pasta `brand/` e `lep-logo.png`).
+
+| Aspecto                         | Alteração                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Funcionalidade                  | Job de produção do workflow deixou de usar `supabase link` (Management API); aplica migrações direto no PostgreSQL com `supabase db push --db-url`                                                                                                                                                                                               |
+| Workflow                        | `.github/workflows/supabase-migrations.yml`: validação do segredo (recusa porta 6543 e URL sem senha), máscara da senha nos logs, `--dry-run` antes, `--include-all --yes` na aplicação, `migration list` ao final; CLI fixado em `2.118.0`; mantidos teste em banco descartável, concorrência sem cancelamento, ambiente `production`, sem seed |
+| Secrets                         | Passa a usar só `SUPABASE_DB_URL` (Session pooler, porta 5432); `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF` deixaram de ser usados                                                                                                                                                                                   |
+| Banco / migrations / permissões | Nenhuma alteração                                                                                                                                                                                                                                                                                                                                |
+| Componentes / rotas / serviços  | Nenhuma alteração                                                                                                                                                                                                                                                                                                                                |
+| Testes                          | Validado localmente: dry-run, aplicação, histórico, reaplicação ("up to date") e ausência da senha na saída, contra PostgreSQL descartável; script de validação testado com 4 casos                                                                                                                                                              |
+| Arquivos                        | `.github/workflows/supabase-migrations.yml`, `README.md`, `docs/adr/0014-migracoes-automaticas.md`                                                                                                                                                                                                                                               |
+
+---
+
+## 5. Membros, autenticação e permissões
+
+- **Login (✅):** Supabase Auth com e-mail e senha; **cadastro público desligado**; sessão em cookies renovada por
+  `src/proxy.ts`; convite/recuperação por link com `token_hash` → `/auth/confirm` → `/conta/senha`.
+- **Organização e vínculo (✅):** `core.organizations` (tenant; hoje só LEP, com `hq_state/hq_city`), `core.profiles`
+  (criado por trigger no cadastro do Auth), `core.memberships` (usuário ↔ organização ↔ papel). Trava impede remover o
+  último administrador.
+- **Papéis existentes (✅):** `viewer` (Visualização) < `editor` (Editor/Revisor) < `admin` (Administrador) — enum
+  `core.app_role` = `packages/core/src/auth/roles.ts`.
+- **Permissões atuais (✅)** (`packages/core/src/auth/permissions.ts`; a garantia real é o RLS):
+  `content.read` viewer · `content.edit` editor · `content.review` editor · `org.manage` admin ·
+  `members.manage` admin · `ai_usage.read` admin · `audit.read` admin. Diagnóstico, Membros e cadastro de fontes exigem admin.
+- **Alterações realizadas:** página Membros com listagem e edição da sede do proponente (admin).
+- **Convite hoje:** somente pelo script `pnpm members:invite` (chave de serviço, fora da interface).
+- **Falta para Administrador / Diretoria / Equipe (⬜, proposta aguardando decisão):** fase 1 = renomear rótulos
+  (Diretoria = `editor`, Equipe = `viewer`) sem migração de papel; fase 2 (se necessário) = permissões por módulo;
+  `memberships.status` (convidado/ativo/suspenso) com `has_role` exigindo ativo.
+- **Fluxo planejado de convite (⬜):** admin preenche nome, e-mail e perfil em Membros → ação no servidor (admin) chama
+  o convite do Supabase Auth → vínculo "convidado" → pessoa define a própria senha pelo link → "ativo". A plataforma
+  nunca pede nem guarda senhas. **Pré-requisitos em produção (não verificados):** SMTP próprio (o envio padrão do
+  Supabase só entrega para a equipe do projeto Supabase), modelo de e-mail de convite com `token_hash` configurado no
+  painel e Site URL/Redirect URLs apontando para o domínio da Vercel. Primeira convidada prevista: perfil Diretoria,
+  pelo fluxo normal (não fixada no código).
+
+---
+
+## 6. Banco e infraestrutura
+
+- **Supabase:** PostgreSQL 17 (local via CLI), Auth, Storage. Schema exposto na API: `core`.
+- **Tabelas principais (`core`):** `organizations`, `profiles`, `memberships`, `audit_log`, `ai_usage`, `editais`,
+  `projetos`, `edital_documents`, `edital_sources`, `monitor_runs`. Funções: `has_role`, `role_in_org`, `try_uuid`,
+  `create_edital_with_document`, triggers de auditoria/updated_at/perfil/último admin.
+- **Storage:** bucket privado `edital-documents` (PDF/HTML, 25 MB), caminho `<org_id>/...`.
+- **Migrations** (`supabase/migrations/`, todas idempotentes — ADR-0014):
+  `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
+  `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio`.
+- **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
+  (`SUPABASE_MIGRATIONS_BRANCH`, padrão `main`) que altere migrações, ou manual → testes em banco descartável →
+  `supabase db push --db-url` (dry-run antes). **CI** (`ci.yml`): formatação, lint, tipos, testes, build, migrações 2x
+  e cenário de banco parcial.
+- **Vercel:** app `apps/web` (Root Directory `apps/web`); cron em `apps/web/vercel.json`.
+- **Cron:** `/api/cron/monitor`, diário às 10:00 UTC.
+- **Variáveis de ambiente (nomes apenas):**
+  | Onde                                   | Nome                                                               | Uso                                                           |
+  | -------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
+  | Vercel/local                           | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | cliente (precisam existir no build)                           |
+  | Vercel/local (servidor)                | `SUPABASE_SECRET_KEY`                                              | varredura, cron, diagnóstico, sede do proponente na varredura |
+  | Vercel                                 | `CRON_SECRET`                                                      | autenticação do cron                                          |
+  | Local (script)                         | `SITE_URL`                                                         | links de convite do `members:invite`                          |
+  | GitHub (secret, ambiente `production`) | `SUPABASE_DB_URL`                                                  | aplicação das migrações                                       |
+  | GitHub (variable)                      | `SUPABASE_MIGRATIONS_BRANCH`                                       | branch de produção das migrações                              |
+
+---
+
+## 7. Segurança
+
+- **RLS em todas as tabelas** com `core.has_role(org_id, papel)`; grants explícitos por coluna; `anon` sem acesso ao
+  schema `core`; Storage protegido pela pasta da organização.
+- **Controle de acesso em 3 camadas:** `proxy.ts` (login) → `requireMembership(papel)` nas páginas/ações → RLS no banco.
+- **Auditoria:** trigger genérico em organizações, vínculos, editais, projetos, documentos e fontes.
+- **Secrets:** nunca no código; `.env*` fora do Git; chave de serviço só no servidor e de uso restrito (varredura,
+  cron, diagnóstico); segredo do cron comparado em tempo constante; senha do banco mascarada no workflow.
+- **Revisão humana:** nenhum edital é validado sem confirmação explícita; importados pela varredura entram pendentes.
+- **Coleta responsável:** anti-SSRF, `robots.txt`, sem login em sites de terceiros, HTML capturado nunca exibido
+  (só baixado).
+- **Isolamento de módulos:** um schema/pacote por domínio; módulos não acessam tabelas internas de outros; IA só via
+  `packages/ai` (contrato `AiProvider` + registro de custo).
+
+---
+
+## 8. Testes (executados em 2026-09-28 neste repositório)
+
+| Verificação                                              | Resultado                                                                                                                                       |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                    |
+| Testes unitários/integração (Vitest)                     | ✅ **146** passando — core 6, ai 2, projects 3, ingestion 48, funding 63, web 24 (inclui integração da varredura com site e Supabase simulados) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **96** verificações em 5 arquivos, com migrações aplicadas 2x                                                                                |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                     |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                     |
+
+**Problemas conhecidos**
+
+1. Diagnóstico não detecta `SUPABASE_SECRET_KEY` incorreta (a verificação atual passa com qualquer chave válida do
+   projeto); a tela lê fontes com a sessão do usuário e o motor com a chave de serviço — possível causa do episódio
+   "fontes ativas, mas nenhuma fonte ativa para verificar".
+2. A varredura cria editais a partir de páginas genéricas (ex.: "Programa de Integridade", índices de "Chamamento
+   Público"); não há classificação de tipo de página.
+3. PDFs (regulamentos) não são lidos pela varredura; prazo/valor ficam ausentes quando só estão no PDF.
+4. Não há evidência por campo (só no motivo territorial), nem detecção de alterações/retificações.
+5. Limites: até 5 importações por fonte e 50 s por execução; cron diário.
+6. Não verificado a partir daqui: execução do CI no GitHub, configuração de e-mail/SMTP e modelos no Supabase de produção.
+
+---
+
+## 9. Documentação e arquivos importantes
+
+| Arquivo                                                     | Função                                                               |
+| ----------------------------------------------------------- | -------------------------------------------------------------------- |
+| `README.md`                                                 | Como rodar, comandos, produção, solução de problemas                 |
+| `CLAUDE.md`                                                 | Regras obrigatórias para agentes (diretrizes LEP e convenções)       |
+| `docs/STATUS-PLATAFORMA-LEP.md`                             | Este documento (estado atual oficial)                                |
+| `docs/arquitetura.md`                                       | Estrutura de pastas e checklist para novos módulos                   |
+| `docs/diretrizes-lep.md`                                    | Regras de negócio da LEP (território, foco na LEP, tabela/Match)     |
+| `docs/adr/0001…0014`                                        | Decisões de arquitetura (índice em `docs/adr/README.md`)             |
+| `supabase/migrations/*`                                     | Estrutura do banco (idempotente)                                     |
+| `supabase/tests/*`                                          | Testes SQL de permissão; `scenarios/` = banco parcial                |
+| `supabase/scripts/diagnostico.sql`                          | Diagnóstico somente leitura para o SQL Editor                        |
+| `supabase/config.toml`, `supabase/templates/*`              | Supabase local e e-mails de convite/recuperação                      |
+| `.github/workflows/ci.yml`                                  | CI (qualidade, testes, build, migrações)                             |
+| `.github/workflows/supabase-migrations.yml`                 | Aplicação automática de migrações em produção                        |
+| `apps/web/vercel.json`                                      | Agendamento do cron                                                  |
+| `apps/web/src/lib/monitor/run.ts`                           | Motor da varredura                                                   |
+| `apps/web/src/lib/editais/ingest.ts`                        | Ingestão (download/upload, cópia, duplicidade)                       |
+| `apps/web/src/lib/diagnostics.ts`, `lib/supabase/errors.ts` | Diagnóstico e tradução de erros do banco                             |
+| `apps/web/src/lib/supabase/{server,client,admin,proxy}.ts`  | Clientes Supabase (sessão, navegador, serviço)                       |
+| `packages/modules/funding/src/*`                            | Edital, Match, aderência, varredura (regras), território, formulário |
+| `packages/modules/projects/src/*`                           | Vocabulário e validação de projetos                                  |
+| `packages/ingestion/src/*`                                  | Download seguro, robots.txt, leitura de HTML, hash                   |
+| `packages/core/src/auth/*`                                  | Papéis e permissões                                                  |
+| `packages/ai/src/*`                                         | Contrato de IA e registro de custos (sem fornecedor)                 |
+| `apps/web/scripts/invite-member.ts`                         | Convite de membros por linha de comando                              |
+| `apps/web/public/brand/lep-logo.png`                        | Novo logo (ainda não integrado)                                      |
+| `apps/web/public/logo.jpg`                                  | Logo em uso atualmente                                               |
+
+---
+
+## 10. Pendências
+
+1. Integrar o novo logo (`brand/lep-logo.png`) no cabeçalho e no login.
+2. Corrigir a coerência "fonte ativa" (tela × motor) e validar de fato a chave de serviço no Diagnóstico.
+3. Resumo detalhado do "Verificar agora" (novas, atualizadas, duplicadas, descartadas, pendentes, erros por fonte).
+4. Membros: convite pela tela, status do vínculo (convidado/ativo/suspenso), perfis Administrador/Diretoria/Equipe.
+5. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
+6. Motor: classificação do tipo de página/oportunidade; elegibilidade separada da aderência; extração ampliada com
+   evidência por campo; leitura de texto de PDF; deduplicação multi-fonte; aderência explicável por fatores (gravada).
+7. Detecção de alterações/retificações a partir dos documentos e hashes guardados.
+8. Novas fontes via adaptadores (Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores).
+9. Extração/interpretação por IA (depende da escolha do fornecedor).
+10. Alertas por e-mail.
+
+**Decisões pendentes da LEP:** (a) trocar o descarte territorial automático por classificação visível; (b) mapeamento
+Diretoria = `editor` / Equipe = `viewer` e se a Equipe precisa editar; (c) prioridade entre Membros e motor;
+(d) provedor de SMTP e remetente; (e) envio da planilha do benchmark de 26/09/2026 (38 oportunidades);
+(f) biblioteca de extração de texto de PDF; (g) remoção do `logo.jpg` antigo; (h) fornecedor de IA.
+
+---
+
+## 11. Próximos passos técnicos (ordem lógica — nenhum executado)
+
+1. Integrar o novo logo (desktop e celular).
+2. Coerência de fontes ativas + validação real da chave de serviço + resumo detalhado por execução.
+3. Membros: status do vínculo, convite pela tela, rótulos Administrador/Diretoria/Equipe, suspender/reativar
+   (após SMTP e modelo de e-mail em produção); então o convite da primeira usuária de teste pelo fluxo normal.
+4. Benchmark: transformar os 38 casos em fixtures de teste + relatório comparativo (sem regras fixas no motor).
+5. Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros.
+6. Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte.
+7. Extração ampliada + evidência por campo + texto de PDF.
+8. Deduplicação multi-fonte (chave canônica + avistamentos).
+9. Aderência por fatores e Match v2 gravados.
+10. Detecção de alterações/retificações com revisão.
+11. Novas fontes.
+12. IA atrás de uma interface única de análise (`EditalAnalyzer`) usando `packages/ai`.
+
+---
+
+## 12. Estado do Git
+
+| Item                                        | Valor                                                 |
+| ------------------------------------------- | ----------------------------------------------------- |
+| Repositório                                 | `giuliano-prog/LEP-agente-editais`                    |
+| Branch atual                                | `claude/epic-cerf-abwkc1` (único branch no remoto)    |
+| Commit mais recente (antes deste documento) | `fc3b550` — "Add files via upload" (logo em `brand/`) |
+| Última alteração de código                  | `a4a8e82` — workflow de migrações com `--db-url`      |
+| Alterações não commitadas                   | Nenhuma (antes da criação deste arquivo)              |
