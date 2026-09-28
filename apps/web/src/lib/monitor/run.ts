@@ -40,6 +40,7 @@ import {
   removeStored,
   storeFetchedDocument,
 } from "@/lib/editais/ingest";
+import { persistMatches } from "@/lib/editais/matches";
 import { loadPartnerTerritories, loadProponent } from "@/lib/proponent";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -531,6 +532,8 @@ async function importCandidate(
     now,
   });
   knownEditais.push({ id: String(editalId), title: candidate.title, print });
+  // Etapa 9: grava o Match v2 do edital novo com os projetos da organização.
+  await persistMatches(admin, source.org_id, [String(editalId)], now);
   return RESTRICTED_ELIGIBILITY.has(eligibility.status) ? "restricted" : "imported";
 }
 

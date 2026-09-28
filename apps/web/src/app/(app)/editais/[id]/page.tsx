@@ -22,7 +22,8 @@ import { EligibilityForm } from "@/components/editais/eligibility-form";
 import { EvidencePanel } from "@/components/editais/evidence-panel";
 import { EditalHistory, type AuditEntry } from "@/components/editais/edital-history";
 import { DocumentsSection, type EditalDocument } from "@/components/editais/documents-section";
-import { resolveDuplicate, setEditalTriage } from "../actions";
+import { recalculateMatches, resolveDuplicate, setEditalTriage } from "../actions";
+import { inputsHash } from "@/lib/editais/matches";
 import { MatchPanel } from "@/components/match-panel";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
@@ -135,6 +136,27 @@ export default async function EditalPage({
       : Promise.resolve(null),
   ]);
   const original = duplicateOf?.data ?? null;
+  // Match v2 gravado (etapa 9): em dia se o hash dos dados atuais é o mesmo.
+  const savedMatches =
+    tab === "match"
+      ? await supabase
+          .from("edital_matches")
+          .select("projeto_id, computed_at, inputs_hash, version")
+          .eq("edital_id", edital.id)
+          .eq("org_id", membership.orgId)
+      : null;
+  const projectsById = new Map((projectsQuery.data ?? []).map((project) => [project.id, project]));
+  const saved = savedMatches?.data ?? [];
+  const lastSaved = saved.reduce<string | null>(
+    (latest, row) => (!latest || row.computed_at > latest ? row.computed_at : latest),
+    null,
+  );
+  const upToDate =
+    saved.length === (projectsQuery.data ?? []).length &&
+    saved.every((row) => {
+      const project = projectsById.get(row.projeto_id);
+      return project && row.inputs_hash === inputsHash(edital, project, proponent);
+    });
   const matches = matchProjects(edital, projectsQuery.data ?? [], new Date(), proponent);
 
   return (
@@ -437,7 +459,31 @@ export default async function EditalPage({
         </div>
       )}
 
-      {tab === "match" && <MatchPanel results={matches} />}
+      {tab === "match" && (
+        <div className="space-y-3">
+          {!savedMatches?.error && (matches.length > 0 || saved.length > 0) && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-card px-4 py-3 text-sm text-muted">
+              <span>
+                {lastSaved
+                  ? `Match v2 gravado em ${new Date(lastSaved).toLocaleString("pt-BR", {
+                      timeZone: "America/Sao_Paulo",
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })} — ${upToDate ? "em dia com os dados atuais." : "desatualizado: abaixo, o cálculo com os dados atuais."}`
+                  : "Match ainda não gravado: abaixo, o cálculo com os dados atuais."}
+              </span>
+              {canEdit && !upToDate && (
+                <form action={recalculateMatches.bind(null, edital.id)}>
+                  <button className="rounded-md border border-line px-3 py-1 text-xs text-fg hover:border-brand hover:text-brand">
+                    Recalcular e gravar
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+          <MatchPanel results={matches} />
+        </div>
+      )}
 
       {tab === "documentos" && (
         <DocumentsSection

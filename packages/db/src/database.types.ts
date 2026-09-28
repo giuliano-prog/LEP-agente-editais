@@ -179,6 +179,76 @@ export type Database = {
           },
         ];
       };
+      edital_matches: {
+        Row: {
+          blockers: string[];
+          computed_at: string;
+          confidence: number;
+          edital_id: string;
+          factors: Json;
+          id: string;
+          inputs_hash: string;
+          level: "high" | "medium" | "low" | "insufficient";
+          org_id: string;
+          projeto_id: string;
+          score: number | null;
+          verdict: "compatible" | "compatible_with_pending" | "incompatible";
+          version: string;
+        };
+        Insert: {
+          blockers?: string[];
+          computed_at?: string;
+          confidence: number;
+          edital_id: string;
+          factors?: Json;
+          id?: string;
+          inputs_hash: string;
+          level: "high" | "medium" | "low" | "insufficient";
+          org_id: string;
+          projeto_id: string;
+          score?: number | null;
+          verdict: "compatible" | "compatible_with_pending" | "incompatible";
+          version: string;
+        };
+        Update: {
+          blockers?: string[];
+          computed_at?: string;
+          confidence?: number;
+          edital_id?: string;
+          factors?: Json;
+          id?: string;
+          inputs_hash?: string;
+          level?: "high" | "medium" | "low" | "insufficient";
+          org_id?: string;
+          projeto_id?: string;
+          score?: number | null;
+          verdict?: "compatible" | "compatible_with_pending" | "incompatible";
+          version?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "edital_matches_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_matches_projeto_id_fkey";
+            columns: ["projeto_id"];
+            isOneToOne: false;
+            referencedRelation: "projetos";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_matches_edital_id_fkey";
+            columns: ["edital_id"];
+            isOneToOne: false;
+            referencedRelation: "editais";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       edital_sightings: {
         Row: {
           edital_id: string;

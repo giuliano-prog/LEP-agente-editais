@@ -5,6 +5,7 @@ const TONES: Record<AdherenceLevel, BadgeTone> = {
   high: "ok",
   medium: "warn",
   low: "bad",
+  insufficient: "neutral",
   none: "neutral",
 };
 
@@ -13,14 +14,21 @@ export function AdherenceCell({ adherence }: { adherence: Adherence | null }) {
   if (!adherence) return <span className="text-muted">—</span>;
   return (
     <div className="space-y-1">
-      <Badge tone={TONES[adherence.level]}>{ADHERENCE_LABELS[adherence.level]}</Badge>
+      <Badge tone={TONES[adherence.level]}>
+        {ADHERENCE_LABELS[adherence.level]}
+        {adherence.blocked
+          ? " · impedimento"
+          : adherence.score !== null &&
+            adherence.level !== "insufficient" &&
+            ` · ${adherence.score}`}
+      </Badge>
       {adherence.best && (
         <p
           className="text-xs text-muted"
           title="Melhor projeto e quantos projetos não têm impedimentos registrados"
         >
           {adherence.best.projectTitle} · {adherence.compatibleProjects}/{adherence.totalProjects}{" "}
-          compatível(is)
+          compatível(is) · confiança {Math.round(adherence.confidence * 100)}%
         </p>
       )}
     </div>

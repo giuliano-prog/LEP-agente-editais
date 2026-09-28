@@ -234,6 +234,27 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3b6. Match v2 persistido (etapa 9).
+  const matchesTable = await supabase
+    .from("edital_matches")
+    .select("id")
+    .eq("org_id", orgId)
+    .limit(1);
+  checks.push(
+    matchesTable.error
+      ? {
+          label: "Match v2 (aderência gravada)",
+          status: "fail",
+          detail: matchesTable.error.message,
+          fix: "Aplique a migração 20261006120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Match v2 (aderência gravada)",
+          status: "ok",
+          detail: "Pontuação por fatores, confiança e impedimentos gravados por edital × projeto.",
+        },
+  );
+
   // 3c. Resumo detalhado da varredura (colunas novas do histórico).
   const summaryColumns = await supabase
     .from("monitor_runs")

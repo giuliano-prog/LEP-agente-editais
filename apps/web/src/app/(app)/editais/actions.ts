@@ -10,6 +10,7 @@ import {
 } from "@lep/funding";
 import { requireMembership } from "@/lib/auth/session";
 import { applyAutomaticSuggestions } from "@/lib/editais/extraction";
+import { persistMatches } from "@/lib/editais/matches";
 import {
   documentColumns,
   findDuplicate,
@@ -79,6 +80,7 @@ async function createFromDocument(
   }
 
   await applyAutomaticSuggestions(supabase, orgId, String(editalId), document);
+  await persistMatches(supabase, orgId, [String(editalId)]);
   revalidatePath("/editais");
   return editalId;
 }
@@ -238,6 +240,7 @@ export async function updateEdital(
     return { error: "Não foi possível salvar o edital." };
   }
 
+  await persistMatches(supabase, membership.orgId, [editalId]);
   revalidatePath("/editais");
   revalidatePath(`/editais/${editalId}`);
   redirect(`/editais/${editalId}?salvo=1`);
@@ -257,6 +260,7 @@ export async function setEditalTriage(
     .eq("id", editalId)
     .eq("org_id", membership.orgId);
   if (error) console.error("Erro na triagem do edital:", error.code);
+  else await persistMatches(supabase, membership.orgId, [editalId]);
   revalidatePath("/editais");
   revalidatePath(`/editais/${editalId}`);
 }
@@ -299,6 +303,7 @@ export async function setEditalEligibility(
         "Não foi possível salvar. Confira no Diagnóstico se a migração de elegibilidade foi aplicada.",
     };
   }
+  await persistMatches(supabase, membership.orgId, [editalId]);
   revalidatePath("/editais");
   revalidatePath(`/editais/${editalId}`);
   return { success: "Elegibilidade atualizada pela equipe." };
@@ -347,6 +352,16 @@ export async function resolveDuplicate(
       .eq("org_id", membership.orgId);
     revalidatePath(`/editais/${original.id}`);
   }
+  await persistMatches(supabase, membership.orgId, [editalId]);
   revalidatePath("/editais");
+  revalidatePath(`/editais/${editalId}`);
+}
+
+/** Recalcula e grava o Match v2 deste edital com os projetos atuais (Diretoria/Admin). */
+export async function recalculateMatches(editalId: string): Promise<void> {
+  if (!ID_PATTERN.test(editalId)) return;
+  const { membership } = await requireMembership("editor");
+  const supabase = await createClient();
+  await persistMatches(supabase, membership.orgId, [editalId]);
   revalidatePath(`/editais/${editalId}`);
 }

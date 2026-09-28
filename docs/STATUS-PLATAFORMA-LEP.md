@@ -109,17 +109,18 @@ necessita revisão. Regras determinísticas com motivo e trecho (evidência); de
 sobrescrita. Aba **Elegibilidade** no detalhe (motivo, trecho, territórios, formulário da equipe) e filtro na lista.
 Parcerias: espaço reservado (`organizations.partner_territories`, sem tela) — só geram "via parceiro".
 
-### Aderência (✅)
+### Aderência e Match v2 (✅, etapa 9, ADR-0020)
 
-`summarizeAdherence`: melhor resultado de Match entre os projetos → Alta (compatível), Média (compatível com
-pendências), Baixa (algum critério não atendido), Sem projetos. Mostra o melhor projeto e "n/m compatíveis".
-Calculada na hora (não gravada). Considera a sede do proponente.
-
-### Match com projetos (✅, regras determinísticas, sem IA)
-
-Critérios: revisão do edital · prazo/status · **território (sede da LEP)** · formato · gênero/tipologia · estágio ·
-faixa de orçamento · critérios textuais e documentos exigidos (sempre "⚠ verificar"). Resultado: atendidos / pontos de
-atenção / não atendidos + aviso fixo `MATCH_DISCLAIMER` (não é previsão de aprovação).
+- Regras determinísticas, sem IA, **nunca** previsão de aprovação (`MATCH_DISCLAIMER`).
+- Fatores com peso: formato 25 · estágio 20 · orçamento 20 · prazo 20 · gênero 15; situação atende / parcial / não
+  atende / **sem dado** (fora da conta). Pontuação 0–100, **confiança** = peso avaliado ÷ peso total.
+- Impedimentos (elegibilidade restrita, território, prazo encerrado) → **Baixa**, com o motivo. Confiança < 40% →
+  **Dados insuficientes** (incerteza nunca vira "Baixa").
+- Painel de Match mantém ✓ / ⚠ / ✕ e ganha a tabela "Como a aderência foi calculada" (fator, peso, situação,
+  pontos, motivo). Coluna Aderência mostra nível, pontuação (ou “impedimento”) e confiança do melhor projeto.
+- **Persistido** em `core.edital_matches` (versão, pontuação, confiança, nível, fatores, impedimentos, hash dos
+  dados), recalculado ao salvar edital/elegibilidade/triagem, cadastrar projeto e na varredura; aba Match mostra se o
+  cálculo gravado está em dia (botão "Recalcular e gravar"). Histórico na auditoria.
 
 ### Deduplicação (✅ multi-fonte, etapa 8, ADR-0019)
 
@@ -274,7 +275,7 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
   `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo` · `20261001120000_membros_status` ·
   `20261002120000_elegibilidade` · `20261003120000_classificador_paginas` ·
-  `20261004120000_evidencias` · `20261005120000_deduplicacao`
+  `20261004120000_evidencias` · `20261005120000_deduplicacao` · `20261006120000_match_v2`
   (branch `claude/melhorias-editais`, ainda não aplicadas em produção: entra pelo workflow quando o branch for
   integrado ao de produção).
 - **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
@@ -313,13 +314,13 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                            |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                         |
-| Testes unitários/integração (Vitest)                     | ✅ **253** passando — core 8, ai 2, projects 3, ingestion 53 (inclui texto de PDF), funding 128 (inclui benchmark, elegibilidade, classificador, extração e deduplicação), web 59 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **172** verificações em 11 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação), com migrações aplicadas 2x                                                                                                                     |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                          |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                          |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Testes unitários/integração (Vitest)                     | ✅ **265** passando — core 8, ai 2, projects 3, ingestion 53 (inclui texto de PDF), funding 137 (inclui benchmark, elegibilidade, classificador, extração, deduplicação e Match v2), web 62 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **183** verificações em 12 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2), com migrações aplicadas 2x                                                                                                                     |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 **Problemas conhecidos**
 
@@ -396,7 +397,7 @@ futuro (hoje só lê).
 5. ✅ Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte (etapa 6).
 6. ✅ Extração ampliada + evidência por campo + texto de PDF (etapa 7).
 7. ✅ Deduplicação multi-fonte (chave canônica + avistamentos) (etapa 8).
-8. Aderência por fatores e Match v2 gravados.
+8. ✅ Aderência por fatores e Match v2 gravados (etapa 9).
 9. Detecção de alterações/retificações com revisão.
 10. Novas fontes.
 11. IA atrás de uma interface única de análise (`EditalAnalyzer`) usando `packages/ai`.

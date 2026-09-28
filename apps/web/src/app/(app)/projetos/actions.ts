@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { projectInputSchema } from "@lep/projects";
 import { requireMembership } from "@/lib/auth/session";
+import { persistMatches } from "@/lib/editais/matches";
 import { createClient } from "@/lib/supabase/server";
 
 export type ProjectFormState = { error?: string; success?: string; savedAt?: number };
@@ -33,6 +34,9 @@ export async function createProject(
     return { error: "Não foi possível cadastrar o projeto. Tente novamente." };
   }
 
+  // Novo projeto: recalcula e grava o Match v2 com todos os editais.
+  await persistMatches(supabase, membership.orgId, "all");
   revalidatePath("/projetos");
+  revalidatePath("/editais");
   return { success: `Projeto "${parsed.data.title}" cadastrado.`, savedAt: Date.now() };
 }

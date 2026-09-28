@@ -61,6 +61,10 @@ A proponente é **sempre a própria LEP Filmes**. Empresas parceiras, coprodutor
 - O painel de Match mantém os marcadores **✓ Requisitos atendidos · ⚠ Pontos de atenção / documentos
   pendentes · ✕ Não atendidos**.
 - A aderência indica compatibilidade técnica com critérios registrados — **nunca** previsão de aprovação.
+- **Match v2 (etapa 9, ADR-0020):** aderência Alta/Média/Baixa com pontuação 0–100 por fatores com peso (formato 25,
+  estágio 20, orçamento 20, prazo 20, gênero 15), **confiança** (parte do peso com dado) e **impedimentos**
+  (elegibilidade/território/prazo encerrado → Baixa, com o motivo). Pouco dado (< 40%) → **“Dados insuficientes”**,
+  nunca “Baixa”. O painel mostra cada fator, peso, situação, pontos e motivo; o cálculo é gravado por edital × projeto.
 
 ## Regras anteriores que continuam valendo
 

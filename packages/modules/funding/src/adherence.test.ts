@@ -45,3 +45,27 @@ describe("summarizeAdherence", () => {
     expect(summarizeAdherence([]).level).toBe("none");
   });
 });
+
+describe("summarizeAdherence — Match v2", () => {
+  it("expõe pontuação, confiança e se o melhor projeto tem impedimento", () => {
+    const edital = toEdital({
+      id: "e",
+      title: "Edital",
+      status: "open",
+      deadline: "2026-11-30",
+      review_status: "validated",
+      eligible_territories: ["RJ"],
+      accepted_formats: ["feature_film"],
+    });
+    const adherence = summarizeAdherence(
+      matchProjects(
+        edital,
+        [{ id: "p", title: "P", format: "feature_film", genre: null, stage: null, budget: null }],
+        new Date("2026-09-28T12:00:00-03:00"),
+      ),
+    );
+    expect(adherence).toMatchObject({ level: "low", blocked: true });
+    expect(adherence.score).not.toBeNull();
+    expect(summarizeAdherence([])).toMatchObject({ level: "none", score: null, blocked: false });
+  });
+});

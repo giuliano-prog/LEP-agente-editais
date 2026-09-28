@@ -99,6 +99,19 @@ const db: FakeDb = {
   monitor_runs: [],
   monitor_ignored_urls: [],
   edital_sightings: [],
+  edital_matches: [],
+  // Projeto fictício da organização (Match v2 gravado na importação).
+  projetos: [
+    {
+      id: "projeto-1",
+      org_id: ORG,
+      title: "Projeto Fictício",
+      format: "feature_film",
+      genre: "fiction",
+      stage: "production",
+      budget: 3000000,
+    },
+  ],
 };
 
 beforeAll(async () => {
@@ -243,6 +256,24 @@ describe("runMonitor (varredura)", () => {
       imported: 0,
       duplicates: 1,
     });
+  });
+
+  it("Match v2 (etapa 9): gravado para cada edital importado × projeto, com fatores e hash", () => {
+    const longa = db.editais!.find((e) => String(e.official_url).includes("longa"))!;
+    const rj = db.editais!.find((e) => String(e.official_url).includes("curtas-rj"))!;
+    const rows = db.edital_matches!;
+    expect(rows).toHaveLength(2);
+    expect(rows.find((row) => row.edital_id === longa.id)).toMatchObject({
+      org_id: ORG,
+      projeto_id: "projeto-1",
+      version: "v2",
+      verdict: expect.any(String),
+      inputs_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
+    });
+    const restricted = rows.find((row) => row.edital_id === rj.id)!;
+    expect(restricted.level).toBe("low");
+    expect(String((restricted.blockers as string[])[0])).toContain("Território");
+    expect(Array.isArray(restricted.factors)).toBe(true);
   });
 
   it("diretriz territorial: exclusivo de outro município fica visível como restrição territorial, com motivo e evidência (não é descartado)", () => {
