@@ -65,14 +65,16 @@ Prestação de contas, Direitos e clearance, Produção, Documentação, Assiste
 migrações; varredura real executada (resultado relatado: 10 em acompanhamento, 6 novas da varredura, 5 descartadas;
 fontes Spcine, RioFilme, ANCINE/FSA).
 
-**🟡 Em andamento**
+**✅ Implementado no branch `claude/melhorias-editais` (etapas 1–12, testado aqui; ainda não integrado ao branch de
+produção)**: logo; fontes ativas + resumo da varredura; membros (status, convite, perfis); benchmark (estrutura);
+taxonomia em 3 eixos; classificador de páginas + configuração por fonte; extração com evidência + texto de PDF;
+deduplicação multi-fonte; Match v2 explicável e gravado; alterações/retificações; catálogo de novas fontes + "Testar
+fonte"; interface `EditalAnalyzer` (sem fornecedor de IA).
 
-- Evolução do motor de monitoramento e do módulo Membros: **diagnóstico técnico entregue, aguardando decisões**
-  (ver §10–11). Nenhuma implementação iniciada.
+**🟡 Dependem da LEP / de produção**: SMTP e modelo de convite no Supabase; planilha das 38 oportunidades
+(benchmark); endereços oficiais e teste das novas fontes no site real; escolha do fornecedor de IA.
 
-**⬜ Planejado**: extração/interpretação por IA (aguarda escolha do fornecedor), alertas por e-mail, detecção de
-retificações, deduplicação multi-fonte, novas fontes, Diários Oficiais, perfis Administrador/Diretoria/Equipe, convite
-de membros pela tela, módulos futuros.
+**⬜ Planejado**: alertas por e-mail, Diários Oficiais, OCR (se necessário), tela de parcerias, módulos futuros.
 
 ---
 
@@ -239,21 +241,11 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 
 ## 4. Última alteração implementada
 
-**Commit `a4a8e82` — "Workflow de migrações: db push --db-url, sem supabase link"** (última tarefa de código
-executada pelo assistente). Tarefas posteriores (resumo de arquitetura e diagnóstico técnico) **não alteraram código**.
-Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equipe (pasta `brand/` e `lep-logo.png`).
-
-| Aspecto                         | Alteração                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Funcionalidade                  | Job de produção do workflow deixou de usar `supabase link` (Management API); aplica migrações direto no PostgreSQL com `supabase db push --db-url`                                                                                                                                                                                               |
-| Workflow                        | `.github/workflows/supabase-migrations.yml`: validação do segredo (recusa porta 6543 e URL sem senha), máscara da senha nos logs, `--dry-run` antes, `--include-all --yes` na aplicação, `migration list` ao final; CLI fixado em `2.118.0`; mantidos teste em banco descartável, concorrência sem cancelamento, ambiente `production`, sem seed |
-| Secrets                         | Passa a usar só `SUPABASE_DB_URL` (Session pooler, porta 5432); `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF` deixaram de ser usados                                                                                                                                                                                   |
-| Banco / migrations / permissões | Nenhuma alteração                                                                                                                                                                                                                                                                                                                                |
-| Componentes / rotas / serviços  | Nenhuma alteração                                                                                                                                                                                                                                                                                                                                |
-| Testes                          | Validado localmente: dry-run, aplicação, histórico, reaplicação ("up to date") e ausência da senha na saída, contra PostgreSQL descartável; script de validação testado com 4 casos                                                                                                                                                              |
-| Arquivos                        | `.github/workflows/supabase-migrations.yml`, `README.md`, `docs/adr/0014-migracoes-automaticas.md`                                                                                                                                                                                                                                               |
-
----
+**Plano de melhorias de Editais (etapas 1–12), branch `claude/melhorias-editais`** — um commit por etapa (§12).
+Última etapa: **`EditalAnalyzer`** em `packages/ai` (ADR-0023) — contrato único de análise por IA, padrão sem
+fornecedor (`NoopEditalAnalyzer`), adaptador genérico para qualquer `AiProvider` e regras de segurança
+(`validateAnalysis`): trecho literal obrigatório, nenhuma afirmação de aprovação, "não elegível" só por decisão
+humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 
 ## 5. Membros, autenticação e permissões
 
@@ -336,13 +328,13 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Testes unitários/integração (Vitest)                     | ✅ **280** passando — core 8, ai 2, projects 3, ingestion 53 (inclui texto de PDF), funding 146 (inclui benchmark, elegibilidade, classificador, extração, deduplicação, Match v2 e alterações), web 68 (inclui catálogo e “Testar fonte”) (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **196** verificações em 13 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2; alterações), com migrações aplicadas 2x                                                                                                                                                        |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Testes unitários/integração (Vitest)                     | ✅ **288** passando — core 8, ai 10 (inclui `EditalAnalyzer`), projects 3, ingestion 53 (inclui texto de PDF), funding 146 (inclui benchmark, elegibilidade, classificador, extração, deduplicação, Match v2 e alterações), web 68 (inclui catálogo e “Testar fonte”) (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **196** verificações em 13 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2; alterações), com migrações aplicadas 2x                                                                                                                                                                                   |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 **Problemas conhecidos**
 
@@ -359,44 +351,44 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 9. Documentação e arquivos importantes
 
-| Arquivo                                                     | Função                                                               |
-| ----------------------------------------------------------- | -------------------------------------------------------------------- |
-| `README.md`                                                 | Como rodar, comandos, produção, solução de problemas                 |
-| `CLAUDE.md`                                                 | Regras obrigatórias para agentes (diretrizes LEP e convenções)       |
-| `docs/STATUS-PLATAFORMA-LEP.md`                             | Este documento (estado atual oficial)                                |
-| `docs/arquitetura.md`                                       | Estrutura de pastas e checklist para novos módulos                   |
-| `docs/diretrizes-lep.md`                                    | Regras de negócio da LEP (território, foco na LEP, tabela/Match)     |
-| `docs/adr/0001…0014`                                        | Decisões de arquitetura (índice em `docs/adr/README.md`)             |
-| `supabase/migrations/*`                                     | Estrutura do banco (idempotente)                                     |
-| `supabase/tests/*`                                          | Testes SQL de permissão; `scenarios/` = banco parcial                |
-| `supabase/scripts/diagnostico.sql`                          | Diagnóstico somente leitura para o SQL Editor                        |
-| `supabase/config.toml`, `supabase/templates/*`              | Supabase local e e-mails de convite/recuperação                      |
-| `.github/workflows/ci.yml`                                  | CI (qualidade, testes, build, migrações)                             |
-| `.github/workflows/supabase-migrations.yml`                 | Aplicação automática de migrações em produção                        |
-| `apps/web/vercel.json`                                      | Agendamento do cron                                                  |
-| `apps/web/src/lib/monitor/run.ts`                           | Motor da varredura                                                   |
-| `apps/web/src/lib/editais/ingest.ts`                        | Ingestão (download/upload, cópia, duplicidade)                       |
-| `apps/web/src/lib/diagnostics.ts`, `lib/supabase/errors.ts` | Diagnóstico e tradução de erros do banco                             |
-| `apps/web/src/lib/supabase/{server,client,admin,proxy}.ts`  | Clientes Supabase (sessão, navegador, serviço)                       |
-| `packages/modules/funding/src/*`                            | Edital, Match, aderência, varredura (regras), território, formulário |
-| `packages/modules/projects/src/*`                           | Vocabulário e validação de projetos                                  |
-| `packages/ingestion/src/*`                                  | Download seguro, robots.txt, leitura de HTML, hash                   |
-| `packages/core/src/auth/*`                                  | Papéis e permissões                                                  |
-| `packages/ai/src/*`                                         | Contrato de IA e registro de custos (sem fornecedor)                 |
-| `apps/web/scripts/invite-member.ts`                         | Convite de membros por linha de comando                              |
-| `apps/web/public/brand/lep-logo.png`                        | Logo oficial em uso (alta resolução, `lib/brand.ts`)                 |
-| `apps/web/public/logo.jpg`                                  | Logo antigo — sem uso, mantido só para reversão                      |
+| Arquivo                                                     | Função                                                                 |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `README.md`                                                 | Como rodar, comandos, produção, solução de problemas                   |
+| `CLAUDE.md`                                                 | Regras obrigatórias para agentes (diretrizes LEP e convenções)         |
+| `docs/STATUS-PLATAFORMA-LEP.md`                             | Este documento (estado atual oficial)                                  |
+| `docs/arquitetura.md`                                       | Estrutura de pastas e checklist para novos módulos                     |
+| `docs/diretrizes-lep.md`                                    | Regras de negócio da LEP (território, foco na LEP, tabela/Match)       |
+| `docs/adr/0001…0014`                                        | Decisões de arquitetura (índice em `docs/adr/README.md`)               |
+| `supabase/migrations/*`                                     | Estrutura do banco (idempotente)                                       |
+| `supabase/tests/*`                                          | Testes SQL de permissão; `scenarios/` = banco parcial                  |
+| `supabase/scripts/diagnostico.sql`                          | Diagnóstico somente leitura para o SQL Editor                          |
+| `supabase/config.toml`, `supabase/templates/*`              | Supabase local e e-mails de convite/recuperação                        |
+| `.github/workflows/ci.yml`                                  | CI (qualidade, testes, build, migrações)                               |
+| `.github/workflows/supabase-migrations.yml`                 | Aplicação automática de migrações em produção                          |
+| `apps/web/vercel.json`                                      | Agendamento do cron                                                    |
+| `apps/web/src/lib/monitor/run.ts`                           | Motor da varredura                                                     |
+| `apps/web/src/lib/editais/ingest.ts`                        | Ingestão (download/upload, cópia, duplicidade)                         |
+| `apps/web/src/lib/diagnostics.ts`, `lib/supabase/errors.ts` | Diagnóstico e tradução de erros do banco                               |
+| `apps/web/src/lib/supabase/{server,client,admin,proxy}.ts`  | Clientes Supabase (sessão, navegador, serviço)                         |
+| `packages/modules/funding/src/*`                            | Edital, Match, aderência, varredura (regras), território, formulário   |
+| `packages/modules/projects/src/*`                           | Vocabulário e validação de projetos                                    |
+| `packages/ingestion/src/*`                                  | Download seguro, robots.txt, leitura de HTML, hash                     |
+| `packages/core/src/auth/*`                                  | Papéis e permissões                                                    |
+| `packages/ai/src/*`                                         | Contrato de IA, registro de custos e `EditalAnalyzer` (sem fornecedor) |
+| `apps/web/scripts/invite-member.ts`                         | Convite de membros por linha de comando                                |
+| `apps/web/public/brand/lep-logo.png`                        | Logo oficial em uso (alta resolução, `lib/brand.ts`)                   |
+| `apps/web/public/logo.jpg`                                  | Logo antigo — sem uso, mantido só para reversão                        |
 
 ---
 
 ## 10. Pendências
 
 1. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
-2. Motor: classificação do tipo de página/oportunidade; elegibilidade separada da aderência; extração ampliada com
-   evidência por campo; leitura de texto de PDF; deduplicação multi-fonte; aderência explicável por fatores (gravada).
-3. Detecção de alterações/retificações a partir dos documentos e hashes guardados.
-4. Novas fontes via adaptadores (Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores).
-5. Extração/interpretação por IA (depende da escolha do fornecedor).
+2. Benchmark: enviar a planilha das 38 oportunidades e transformá-la em casos (em `benchmark/private/`, fora do Git).
+3. Novas fontes: colar os endereços oficiais no catálogo, testar e ativar (produção).
+4. Integrar o branch `claude/melhorias-editais` ao branch de produção (decisão da LEP; aplica as migrações
+   `20260930120000` a `20261007120000` pelo workflow).
+5. IA: `EditalAnalyzer` pronto (etapa 12); falta a LEP escolher o fornecedor para implementar um `AiProvider`.
 6. Alertas por e-mail.
 
 **Decididas (2026-09-28):** classificação visível de restrição territorial (etapa 5); Diretoria = `editor`, Equipe =
@@ -424,16 +416,19 @@ futuro (hoje só lê).
 9. ✅ Detecção de alterações/retificações com revisão (etapa 10).
 10. 🟡 Novas fontes por configuração (etapa 11): catálogo + "Testar fonte"; **falta** colar os endereços oficiais e
     testar no site real (depende do administrador em produção).
-11. IA atrás de uma interface única de análise (`EditalAnalyzer`) usando `packages/ai`.
+11. ✅ IA atrás de uma interface única de análise (`EditalAnalyzer`) em `packages/ai`, sem fornecedor (etapa 12).
 
 ---
 
 ## 12. Estado do Git
 
-| Item                                        | Valor                                                 |
-| ------------------------------------------- | ----------------------------------------------------- |
-| Repositório                                 | `giuliano-prog/LEP-agente-editais`                    |
-| Branch atual                                | `claude/epic-cerf-abwkc1` (único branch no remoto)    |
-| Commit mais recente (antes deste documento) | `fc3b550` — "Add files via upload" (logo em `brand/`) |
-| Última alteração de código                  | `a4a8e82` — workflow de migrações com `--db-url`      |
-| Alterações não commitadas                   | Nenhuma (antes da criação deste arquivo)              |
+| Item                       | Valor                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------- |
+| Repositório                | `giuliano-prog/LEP-agente-editais`                                                      |
+| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**           |
+| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                     |
+| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·    |
+|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·               |
+|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes · |
+|                            | etapa 12 (`feat(ai): add EditalAnalyzer interface`)                                     |
+| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado        |
