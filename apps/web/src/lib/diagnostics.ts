@@ -1,7 +1,8 @@
 import "server-only";
 
 import { DOCUMENTS_BUCKET } from "@/lib/editais/constants";
-import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
+import { checkMonitorAccess } from "@/lib/monitor/access";
+import { SERVICE_KEY_LABELS } from "@/lib/monitor/service-key";
 import { describeDbError } from "@/lib/supabase/errors";
 import type { createClient } from "@/lib/supabase/server";
 
@@ -147,6 +148,27 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
           },
   );
 
+  // 3c. Resumo detalhado da varredura (colunas novas do histórico).
+  const summaryColumns = await supabase
+    .from("monitor_runs")
+    .select("found, duplicates, updated, pending_review, blocked_by_robots, failed, execution_id")
+    .limit(1);
+  checks.push(
+    summaryColumns.error
+      ? {
+          label: "Resumo detalhado da varredura (core.monitor_runs)",
+          status: "fail",
+          detail: summaryColumns.error.message,
+          fix: "Aplique a migração 20260930120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Resumo detalhado da varredura (core.monitor_runs)",
+          status: "ok",
+          detail:
+            "Contadores por fonte (encontradas, novas, duplicadas, descartadas, erros) disponíveis.",
+        },
+  );
+
   // 4. Armazenamento de documentos.
   const storage = await supabase.storage.from(DOCUMENTS_BUCKET).list(orgId, { limit: 1 });
   checks.push(
@@ -164,8 +186,11 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
-  // 5. Configuração da varredura automática (nunca exibe valores).
-  if (!isAdminClientConfigured()) {
+  // 5. Configuração da varredura automática (nunca exibe valores, só o tipo da chave).
+  const access = await checkMonitorAccess(supabase, orgId);
+  const keyLabel = SERVICE_KEY_LABELS[access.keyKind];
+  const counts = `Fontes ativas vistas pela interface: ${access.userActive ?? "erro"}; pelo motor: ${access.engineActive ?? "sem acesso"}.`;
+  if (access.keyKind === "missing") {
     checks.push({
       label: "Chave de serviço (SUPABASE_SECRET_KEY)",
       status: "warn",
@@ -173,21 +198,18 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
       fix: "Vercel → Settings → Environment Variables → SUPABASE_SECRET_KEY (Supabase → Project Settings → API Keys → Secret key). Refaça o deploy.",
     });
   } else {
-    const { error } = await createAdminClient()
-      .from("edital_sources")
-      .select("id", { head: true, count: "exact" });
     checks.push(
-      error
+      access.ok
         ? {
             label: "Chave de serviço (SUPABASE_SECRET_KEY)",
-            status: "fail",
-            detail: `Configurada, mas o acesso falhou: ${error.message}`,
-            fix: "Confira se a chave é a Secret key do mesmo projeto Supabase.",
+            status: "ok",
+            detail: `Tipo: ${keyLabel}. ${counts}`,
           }
         : {
             label: "Chave de serviço (SUPABASE_SECRET_KEY)",
-            status: "ok",
-            detail: "Configurada e válida.",
+            status: "fail",
+            detail: `Tipo: ${keyLabel}. ${access.problem ?? ""} ${counts}`,
+            fix: "Use a Secret key (sb_secret_…) ou a service_role do MESMO projeto de NEXT_PUBLIC_SUPABASE_URL: Supabase → Project Settings → API Keys. Atualize na Vercel e refaça o deploy.",
           },
     );
   }

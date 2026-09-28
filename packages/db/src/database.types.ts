@@ -393,6 +393,13 @@ export type Database = {
           status: string;
           trigger: string;
           rejected: number;
+          blocked_by_robots: number;
+          duplicates: number;
+          execution_id: string | null;
+          failed: number;
+          found: number;
+          pending_review: number;
+          updated: number;
         };
         Insert: {
           candidates?: number;
@@ -408,6 +415,13 @@ export type Database = {
           status: string;
           trigger: string;
           rejected?: number;
+          blocked_by_robots?: number;
+          duplicates?: number;
+          execution_id?: string | null;
+          failed?: number;
+          found?: number;
+          pending_review?: number;
+          updated?: number;
         };
         Update: {
           candidates?: number;
@@ -423,6 +437,13 @@ export type Database = {
           status?: string;
           trigger?: string;
           rejected?: number;
+          blocked_by_robots?: number;
+          duplicates?: number;
+          execution_id?: string | null;
+          failed?: number;
+          found?: number;
+          pending_review?: number;
+          updated?: number;
         };
         Relationships: [
           {

@@ -59,11 +59,11 @@ export default async function SourcesPage() {
       <PageHeader
         title="Fontes monitoradas"
         description="Sites de editais verificados todo dia às 7h (Brasília). Editais novos entram como “revisão pendente” para triagem da equipe."
-      >
-        {isAdmin && <RunNowButton />}
-      </PageHeader>
+      />
 
       <DbErrorNotice error={sources.error} isAdmin={isAdmin} context="as fontes" />
+
+      {isAdmin && <RunNowButton />}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-3 lg:col-span-2">
@@ -161,46 +161,53 @@ export default async function SourcesPage() {
           <p className="text-sm text-muted">Nenhuma varredura executada ainda.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[860px] text-left text-sm">
               <thead className="border-b border-line text-xs uppercase tracking-wider text-muted">
                 <tr>
                   <th className="py-2 pr-4 font-medium">Quando</th>
                   <th className="py-2 pr-4 font-medium">Fonte</th>
                   <th className="py-2 pr-4 font-medium">Origem</th>
                   <th className="py-2 pr-4 font-medium">Resultado</th>
-                  <th className="py-2 pr-4 text-right font-medium">Links</th>
-                  <th className="py-2 pr-4 text-right font-medium">Novos</th>
-                  <th
-                    className="py-2 text-right font-medium"
-                    title="Descartados automaticamente pelas diretrizes LEP (ex.: território)"
-                  >
-                    Rejeitados
-                  </th>
+                  <th className="py-2 pr-4 text-right font-medium">Encontradas</th>
+                  <th className="py-2 pr-4 text-right font-medium">Novas</th>
+                  <th className="py-2 pr-4 text-right font-medium">Duplicadas</th>
+                  <th className="py-2 pr-4 text-right font-medium">Descartadas</th>
+                  <th className="py-2 text-right font-medium">Erros</th>
                 </tr>
               </thead>
               <tbody>
-                {(runs.data ?? []).map((run) => (
-                  <tr key={run.id} className="border-b border-line last:border-0">
-                    <td className="py-2 pr-4 whitespace-nowrap">{dateTime(run.started_at)}</td>
-                    <td className="py-2 pr-4">
-                      {(run.source_id && sourceNames.get(run.source_id)) ?? "—"}
-                    </td>
-                    <td className="py-2 pr-4 text-muted">
-                      {run.trigger === "cron" ? "Automática" : "Manual"}
-                    </td>
-                    <td className="py-2 pr-4">
-                      <Badge tone={STATUS[run.status]?.tone ?? "neutral"}>
-                        {STATUS[run.status]?.label ?? run.status}
-                      </Badge>
-                      {run.error && <span className="ml-2 text-xs text-muted">{run.error}</span>}
-                    </td>
-                    <td className="py-2 pr-4 text-right tabular-nums">{run.links_found}</td>
-                    <td className="py-2 pr-4 text-right font-medium tabular-nums text-brand">
-                      {run.imported}
-                    </td>
-                    <td className="py-2 text-right tabular-nums text-muted">{run.rejected ?? 0}</td>
-                  </tr>
-                ))}
+                {(runs.data ?? []).map((run) => {
+                  // Linhas antigas (antes do resumo detalhado) não têm estes contadores.
+                  const detailed = Boolean(run.execution_id);
+                  const count = (value: number | null | undefined) =>
+                    detailed ? (value ?? 0) : "—";
+                  return (
+                    <tr key={run.id} className="border-b border-line last:border-0">
+                      <td className="whitespace-nowrap py-2 pr-4">{dateTime(run.started_at)}</td>
+                      <td className="py-2 pr-4">
+                        {(run.source_id && sourceNames.get(run.source_id)) ?? "—"}
+                      </td>
+                      <td className="py-2 pr-4 text-muted">
+                        {run.trigger === "cron" ? "Automática" : "Manual"}
+                      </td>
+                      <td className="py-2 pr-4">
+                        <Badge tone={STATUS[run.status]?.tone ?? "neutral"}>
+                          {STATUS[run.status]?.label ?? run.status}
+                        </Badge>
+                        {run.error && <span className="ml-2 text-xs text-muted">{run.error}</span>}
+                      </td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{count(run.found)}</td>
+                      <td className="py-2 pr-4 text-right font-medium tabular-nums text-brand">
+                        {run.imported}
+                      </td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{count(run.duplicates)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums text-muted">
+                        {run.rejected ?? 0}
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{count(run.failed)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -140,7 +140,13 @@ describe("runMonitor (varredura)", () => {
     expect(db.monitor_runs!.find((run) => run.source_id === "fonte-1")).toMatchObject({
       imported: 1,
       rejected: 1,
+      pending_review: 1,
+      duplicates: 0,
+      blocked_by_robots: 1,
     });
+    expect(db.monitor_runs!.find((run) => run.source_id === "fonte-1")!.execution_id).toMatch(
+      /^[0-9a-f-]{36}$/,
+    );
   });
 
   it("ignora ruído (resultado) e páginas proibidas pelo robots.txt", () => {
@@ -169,6 +175,8 @@ describe("runMonitor (varredura)", () => {
       status: "ok",
       imported: 0,
       rejected: 0,
+      duplicates: 2,
+      pendingReview: 0,
     });
     // O descartado também não volta: o link continua conhecido.
     expect(db.editais).toHaveLength(2);

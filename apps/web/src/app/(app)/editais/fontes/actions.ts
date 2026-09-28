@@ -4,12 +4,19 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { assertSafeUrl, UnsafeUrlError } from "@lep/ingestion";
 import { requireMembership } from "@/lib/auth/session";
+import { checkMonitorAccess } from "@/lib/monitor/access";
 import { runMonitor } from "@/lib/monitor/run";
+import { summarize, type MonitorSummary } from "@/lib/monitor/summary";
 import { SUGGESTED_SOURCES } from "@/lib/monitor/suggested";
-import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-export type SourceActionState = { error?: string; success?: string; savedAt?: number };
+export type SourceActionState = {
+  error?: string;
+  success?: string;
+  savedAt?: number;
+  summary?: MonitorSummary;
+};
 
 const sourceSchema = z.object({
   name: z.string().trim().min(2, "Informe o nome da fonte.").max(120),
@@ -99,12 +106,15 @@ export async function deleteSource(sourceId: string): Promise<void> {
 /** "Verificar agora": roda a varredura só das fontes da organização do administrador. */
 export async function runMonitorNow(): Promise<SourceActionState> {
   const { membership } = await requireMembership("admin");
-  if (!isAdminClientConfigured()) {
-    return {
-      error:
-        "A varredura precisa da variável SUPABASE_SECRET_KEY configurada no servidor (veja o Diagnóstico).",
-    };
-  }
+  const supabase = await createClient();
+
+  // Antes de rodar: o motor precisa enxergar as mesmas fontes ativas que a tela.
+  const access = await checkMonitorAccess(supabase, membership.orgId);
+  if (!access.ok)
+    return { error: access.problem ?? "O motor não consegue ler as fontes. Veja o Diagnóstico." };
+  if (access.engineActive === 0)
+    return { error: "Nenhuma fonte ativa para verificar. Ative ou cadastre uma fonte." };
+
   try {
     const results = await runMonitor(createAdminClient(), {
       trigger: "manual",
@@ -112,14 +122,7 @@ export async function runMonitorNow(): Promise<SourceActionState> {
     });
     revalidatePath("/editais");
     revalidatePath("/editais/fontes");
-    if (results.length === 0) return { error: "Nenhuma fonte ativa para verificar." };
-    const imported = results.reduce((total, result) => total + result.imported, 0);
-    const rejected = results.reduce((total, result) => total + result.rejected, 0);
-    const failed = results.filter((result) => result.status !== "ok").length;
-    return {
-      success: `${results.length} fonte(s) verificada(s): ${imported} edital(is) novo(s)${rejected ? `, ${rejected} descartado(s) pelas diretrizes LEP` : ""}${failed ? `, ${failed} com problema` : ""}.`,
-      savedAt: Date.now(),
-    };
+    return { summary: summarize(results), savedAt: Date.now() };
   } catch (error) {
     console.error("Varredura manual falhou:", error instanceof Error ? error.message : error);
     return { error: "A varredura falhou. Veja o Diagnóstico." };

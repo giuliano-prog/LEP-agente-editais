@@ -54,7 +54,9 @@ Prestação de contas, Direitos e clearance, Produção, Documentação, Assiste
   cópia original guardada com SHA-256, revisão humana, triagem (descartar/restaurar).
 - Projetos: cadastro e listagem.
 - Match edital × projeto explicável (✓ / ⚠ / ✕) e Aderência (Alta/Média/Baixa/Sem projetos).
-- Varredura automática diária de fontes + "Verificar agora" + histórico de varreduras.
+- Varredura automática diária de fontes + "Verificar agora" + histórico de varreduras. Antes de rodar, compara as
+  fontes ativas vistas pela interface e pelo motor e identifica o tipo da chave de serviço (erro claro se divergir);
+  resumo por fonte e total (encontradas, novas, atualizadas, duplicadas, descartadas, pendentes, erros).
 - Diretrizes LEP no código: território (sede São Paulo/SP) e foco exclusivo na LEP como proponente.
 - Página Diagnóstico e script SQL de diagnóstico (somente leitura).
 - Migrações idempotentes + workflow de aplicação automática em produção via `supabase db push --db-url`.
@@ -134,7 +136,10 @@ Vercel Cron diário 10:00 UTC (7h Brasília) → GET /api/cron/monitor (Bearer C
 → por candidato: baixa página → guarda cópia → cria edital (origin = monitor, revisão pendente)
    → prazo/valor/status/resumo sugeridos por regras de texto
    → assessTerritory: se exclusivo de outro território → review_status = 'discarded' + triage_reason (motivo + trecho)
-→ grava core.monitor_runs (links, candidatos, importados, rejeitados, erro) e status da fonte
+→ grava core.monitor_runs (links, candidatos, encontradas, novas, duplicadas, descartadas, pendentes,
+   bloqueadas pelo robots.txt, falhas, erro, execution_id) e status da fonte
+→ "Verificar agora": antes de rodar, checkMonitorAccess compara fontes ativas (sessão × chave de serviço);
+   depois, mostra o resumo por fonte e o total
 ```
 
 ### Fontes monitoradas (✅)
@@ -215,7 +220,9 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 - **Storage:** bucket privado `edital-documents` (PDF/HTML, 25 MB), caminho `<org_id>/...`.
 - **Migrations** (`supabase/migrations/`, todas idempotentes — ADR-0014):
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
-  `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio`.
+  `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo`
+  (branch `claude/melhorias-editais`, ainda não aplicada em produção: entra pelo workflow quando o branch for
+  integrado ao de produção).
 - **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
   (`SUPABASE_MIGRATIONS_BRANCH`, padrão `main`) que altere migrações, ou manual → testes em banco descartável →
   `supabase db push --db-url` (dry-run antes). **CI** (`ci.yml`): formatação, lint, tipos, testes, build, migrações 2x
@@ -252,25 +259,22 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                       |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                    |
-| Testes unitários/integração (Vitest)                     | ✅ **146** passando — core 6, ai 2, projects 3, ingestion 48, funding 63, web 24 (inclui integração da varredura com site e Supabase simulados) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **96** verificações em 5 arquivos, com migrações aplicadas 2x                                                                                |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                     |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                     |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                |
+| Testes unitários/integração (Vitest)                     | ✅ **163** passando — core 6, ai 2, projects 3, ingestion 48, funding 63, web 41 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **104** verificações em 6 arquivos, com migrações aplicadas 2x                                                                                                                                                                           |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                 |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                 |
 
 **Problemas conhecidos**
 
-1. Diagnóstico não detecta `SUPABASE_SECRET_KEY` incorreta (a verificação atual passa com qualquer chave válida do
-   projeto); a tela lê fontes com a sessão do usuário e o motor com a chave de serviço — possível causa do episódio
-   "fontes ativas, mas nenhuma fonte ativa para verificar".
-2. A varredura cria editais a partir de páginas genéricas (ex.: "Programa de Integridade", índices de "Chamamento
+1. A varredura cria editais a partir de páginas genéricas (ex.: "Programa de Integridade", índices de "Chamamento
    Público"); não há classificação de tipo de página.
-3. PDFs (regulamentos) não são lidos pela varredura; prazo/valor ficam ausentes quando só estão no PDF.
-4. Não há evidência por campo (só no motivo territorial), nem detecção de alterações/retificações.
-5. Limites: até 5 importações por fonte e 50 s por execução; cron diário.
-6. Não verificado a partir daqui: execução do CI no GitHub, configuração de e-mail/SMTP e modelos no Supabase de produção.
+2. PDFs (regulamentos) não são lidos pela varredura; prazo/valor ficam ausentes quando só estão no PDF.
+3. Não há evidência por campo (só no motivo territorial), nem detecção de alterações/retificações.
+4. Limites: até 5 importações por fonte e 50 s por execução; cron diário.
+5. Não verificado a partir daqui: execução do CI no GitHub, configuração de e-mail/SMTP e modelos no Supabase de produção.
 
 ---
 
@@ -308,16 +312,14 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 10. Pendências
 
-1. Corrigir a coerência "fonte ativa" (tela × motor) e validar de fato a chave de serviço no Diagnóstico.
-2. Resumo detalhado do "Verificar agora" (novas, atualizadas, duplicadas, descartadas, pendentes, erros por fonte).
-3. Membros: convite pela tela, status do vínculo (convidado/ativo/suspenso), perfis Administrador/Diretoria/Equipe.
-4. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
-5. Motor: classificação do tipo de página/oportunidade; elegibilidade separada da aderência; extração ampliada com
+1. Membros: convite pela tela, status do vínculo (convidado/ativo/suspenso), perfis Administrador/Diretoria/Equipe.
+2. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
+3. Motor: classificação do tipo de página/oportunidade; elegibilidade separada da aderência; extração ampliada com
    evidência por campo; leitura de texto de PDF; deduplicação multi-fonte; aderência explicável por fatores (gravada).
-6. Detecção de alterações/retificações a partir dos documentos e hashes guardados.
-7. Novas fontes via adaptadores (Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores).
-8. Extração/interpretação por IA (depende da escolha do fornecedor).
-9. Alertas por e-mail.
+4. Detecção de alterações/retificações a partir dos documentos e hashes guardados.
+5. Novas fontes via adaptadores (Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores).
+6. Extração/interpretação por IA (depende da escolha do fornecedor).
+7. Alertas por e-mail.
 
 **Decisões pendentes da LEP:** (a) trocar o descarte territorial automático por classificação visível; (b) mapeamento
 Diretoria = `editor` / Equipe = `viewer` e se a Equipe precisa editar; (c) prioridade entre Membros e motor;
@@ -326,9 +328,10 @@ Diretoria = `editor` / Equipe = `viewer` e se a Equipe precisa editar; (c) prior
 
 ---
 
-## 11. Próximos passos técnicos (ordem lógica — nenhum executado)
+## 11. Próximos passos técnicos (ordem lógica)
 
-1. Coerência de fontes ativas + validação real da chave de serviço + resumo detalhado por execução.
+1. ✅ Coerência de fontes ativas + validação real da chave de serviço + resumo detalhado por execução
+   (branch `claude/melhorias-editais`, etapa 2).
 2. Membros: status do vínculo, convite pela tela, rótulos Administrador/Diretoria/Equipe, suspender/reativar
    (após SMTP e modelo de e-mail em produção); então o convite da primeira usuária de teste pelo fluxo normal.
 3. Benchmark: transformar os 38 casos em fixtures de teste + relatório comparativo (sem regras fixas no motor).

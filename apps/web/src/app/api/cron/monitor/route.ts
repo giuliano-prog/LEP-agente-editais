@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { isAdminClientConfigured, createAdminClient } from "@/lib/supabase/admin";
 import { runMonitor } from "@/lib/monitor/run";
+import { summarize } from "@/lib/monitor/summary";
 
 // Tempo máximo da função na Vercel (segundos).
 export const maxDuration = 60;
@@ -25,11 +26,14 @@ export async function GET(request: Request) {
 
   try {
     const results = await runMonitor(createAdminClient(), { trigger: "cron" });
+    const summary = summarize(results);
+    // Só contagens e nomes de fontes: nenhum dado de edital sai na resposta.
     return Response.json({
-      sources: results.length,
-      imported: results.reduce((total, result) => total + result.imported, 0),
-      rejected: results.reduce((total, result) => total + result.rejected, 0),
-      errors: results.filter((result) => result.status !== "ok").length,
+      sources: summary.sourcesChecked,
+      totals: summary.totals,
+      imported: summary.totals.imported,
+      rejected: summary.totals.rejected,
+      errors: summary.totals.sourcesWithError,
     });
   } catch (error) {
     console.error("Varredura (cron) falhou:", error instanceof Error ? error.message : error);

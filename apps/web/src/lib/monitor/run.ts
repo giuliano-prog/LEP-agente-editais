@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import {
   assessTerritory,
   findDeadline,
@@ -46,16 +47,30 @@ export type SourceRow = {
   link_contains: string | null;
 };
 
+/** Resumo de uma fonte em uma execução (exibido no "Verificar agora" e gravado no histórico). */
 export type SourceResult = {
   sourceId: string;
   name: string;
   status: "ok" | "error" | "blocked";
   linksFound: number;
+  /** Links que parecem oportunidades (inclui os já conhecidos). */
+  found: number;
+  /** Candidatos ainda desconhecidos (antes do limite por execução). */
   candidates: number;
+  /** Importados como novos (entram com revisão pendente). */
   imported: number;
-  /** Encontrados e descartados automaticamente pelas diretrizes LEP (ex.: território). */
+  /** Alterações detectadas em oportunidades conhecidas (etapa de retificações; hoje sempre 0). */
+  updated: number;
+  /** Já conhecidos (mesmo link ou mesmo arquivo). */
+  duplicates: number;
+  /** Encontrados e descartados automaticamente pelas diretrizes LEP. */
   rejected: number;
-  skipped: number;
+  /** Novos que aguardam revisão humana. */
+  pendingReview: number;
+  /** Links que o robots.txt não permite ler. */
+  blockedByRobots: number;
+  /** Falhas ao importar um item (a fonte continua). */
+  failed: number;
   error?: string;
 };
 
@@ -122,10 +137,15 @@ export async function scanSource(
     name: source.name,
     status: "ok",
     linksFound: 0,
+    found: 0,
     candidates: 0,
     imported: 0,
+    updated: 0,
+    duplicates: 0,
     rejected: 0,
-    skipped: 0,
+    pendingReview: 0,
+    blockedByRobots: 0,
+    failed: 0,
   };
 
   try {
@@ -144,16 +164,23 @@ export async function scanSource(
     const links = extractLinks(decodeHtml(page.contentType, page.body), page.finalUrl);
     result.linksFound = links.length;
     const known = await knownUrls(admin, source.org_id);
-    const candidates = selectCandidates(
+    // Seleciona sem excluir os conhecidos, para contar duplicadas separadamente.
+    const opportunities = selectCandidates(
       links,
       {
         listUrl: page.finalUrl,
         audiovisualOnly: source.audiovisual_only,
         linkContains: source.link_contains,
       },
-      known,
-      MAX_IMPORTS_PER_SOURCE * 2,
+      new Set(),
+      100,
     );
+    const candidates = opportunities
+      .filter((item) => !known.has(item.url))
+      .slice(0, MAX_IMPORTS_PER_SOURCE * 2);
+    result.found = opportunities.length;
+    result.duplicates =
+      opportunities.length - opportunities.filter((item) => !known.has(item.url)).length;
     result.candidates = candidates.length;
 
     for (const candidate of candidates) {
@@ -163,7 +190,7 @@ export async function scanSource(
       )
         break;
       if (!(await allowed(candidate.url))) {
-        result.skipped++;
+        result.blockedByRobots++;
         continue;
       }
       const outcome = await importCandidate(admin, source, candidate, options).catch((error) => {
@@ -171,9 +198,16 @@ export async function scanSource(
           `Varredura: falha ao importar ${candidate.url}:`,
           error instanceof Error ? error.message : error,
         );
-        return "skipped" as const;
+        return "failed" as const;
       });
-      result[outcome]++;
+      if (outcome === "imported") {
+        result.imported++;
+        result.pendingReview++;
+      } else if (outcome === "duplicate") {
+        result.duplicates++;
+      } else {
+        result[outcome]++;
+      }
     }
   } catch (error) {
     const message =
@@ -190,11 +224,11 @@ async function importCandidate(
   source: SourceRow,
   candidate: { title: string; url: string },
   { now, proponent }: { now: Date; proponent: Proponent },
-): Promise<"imported" | "rejected" | "skipped"> {
+): Promise<"imported" | "rejected" | "duplicate"> {
   const document = await ingestFromUrl(admin, source.org_id, candidate.url);
   if (await findDuplicate(admin, source.org_id, document)) {
     await removeStored(admin, document.storagePath);
-    return "skipped";
+    return "duplicate";
   }
 
   const columns = documentColumns(document);
@@ -273,6 +307,8 @@ export async function runMonitor(
 
   const results: SourceResult[] = [];
   const proponents = new Map<string, Proponent>();
+  // Agrupa as linhas do histórico desta execução (uma por fonte).
+  const executionId = randomUUID();
   for (const source of sources ?? []) {
     if (Date.now() > deadlineAt) break;
     const startedAt = new Date().toISOString();
@@ -295,7 +331,14 @@ export async function runMonitor(
         candidates: result.candidates,
         imported: result.imported,
         rejected: result.rejected,
-        skipped: result.skipped,
+        skipped: result.blockedByRobots + result.failed,
+        found: result.found,
+        duplicates: result.duplicates,
+        updated: result.updated,
+        pending_review: result.pendingReview,
+        blocked_by_robots: result.blockedByRobots,
+        failed: result.failed,
+        execution_id: executionId,
         error: result.error ?? null,
         started_at: startedAt,
         finished_at: new Date().toISOString(),
