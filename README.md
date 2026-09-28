@@ -68,6 +68,7 @@ Abra o convite no Mailpit, clique em **Aceitar convite**, defina a senha e você
 | `pnpm db:reset`             | Recria o banco local do zero (migrações + seed). **Apaga dados locais.**                                                      |
 | `pnpm db:test`              | Testes de permissões (RLS) no Supabase local                                                                                  |
 | `pnpm db:types`             | Regenera `packages/db/src/database.types.ts` a partir do banco local                                                          |
+| `pnpm benchmark:editais`    | Benchmark do motor de editais (ver `packages/modules/funding/benchmark/README.md`)                                            |
 | `pnpm members:invite`       | Convida membro / define papel (`--email`, `--role admin\|editor\|viewer`) — o primeiro admin; os demais pela tela **Membros** |
 
 Painel do banco local (Supabase Studio): http://127.0.0.1:54323

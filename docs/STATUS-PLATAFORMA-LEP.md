@@ -125,6 +125,17 @@ atenção / não atendidos + aviso fixo `MATCH_DISCLAIMER` (não é previsão de
 - Varredura: ignora links já conhecidos (URL normalizada de editais e documentos) e documentos com mesmo hash.
 - ⬜ Planejado: chave canônica (órgão + número + ano), título normalizado, período, avistamentos multi-fonte.
 
+### Benchmark (🟡 estrutura pronta; casos reais pendentes)
+
+- `pnpm benchmark:editais` compara o motor atual com casos conferidos por uma pessoa: por campo (é oportunidade,
+  território, elegibilidade, prazo, valor, situação) mostra acertos, erros, **erros graves** (descartar o que não era
+  inelegível) e campos **sem avaliador** (nunca contam como acerto). Opções `--json` e `--min-accuracy`.
+- Fora do código de produção (`packages/modules/funding/benchmark/`). Exemplos versionados são **fictícios**; casos
+  reais ficam em `benchmark/private/` (ignorada pelo Git) ou `--cases`.
+- Resultado com os 6 exemplos fictícios: território, prazo, valor e situação 100%; "é oportunidade" 80% (página
+  genérica aceita — problema conhecido, etapa 6); elegibilidade sem avaliador (etapa 5).
+- **Dependência externa:** a planilha das 38 oportunidades (26/09/2026) não está no repositório.
+
 ### Fluxo de monitoramento (✅, ADR-0012)
 
 ```
@@ -264,13 +275,13 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                           |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                        |
-| Testes unitários/integração (Vitest)                     | ✅ **176** passando — core 8, ai 2, projects 3, ingestion 48, funding 63, web 52 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **132** verificações em 7 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo), com migrações aplicadas 2x                                                                                                                                            |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                         |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                         |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                           |
+| Testes unitários/integração (Vitest)                     | ✅ **181** passando — core 8, ai 2, projects 3, ingestion 48, funding 68 (inclui benchmark), web 52 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **132** verificações em 7 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo), com migrações aplicadas 2x                                                                                                                                                               |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                            |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                            |
 
 **Problemas conhecidos**
 
@@ -340,7 +351,8 @@ futuro (hoje só lê).
    (branch `claude/melhorias-editais`, etapa 2).
 2. ✅ Membros: status do vínculo, convite pela tela, rótulos Administrador/Diretoria/Equipe, suspender/reativar
    (etapa 3). Falta só a configuração manual de SMTP/modelo em produção e o convite da primeira pessoa pela tela.
-3. Benchmark: transformar os 38 casos em fixtures de teste + relatório comparativo (sem regras fixas no motor).
+3. 🟡 Benchmark: ✅ estrutura, formato, avaliadores do motor atual, relatório (`pnpm benchmark:editais`) e testes
+   (etapa 4); ⬜ casos reais — **dependem da planilha das 38 oportunidades, que não está no repositório**.
 4. Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros.
 5. Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte.
 6. Extração ampliada + evidência por campo + texto de PDF.

@@ -20,7 +20,8 @@
     "db:status": "supabase status",
     "db:types": "supabase gen types typescript --local --schema core > packages/db/src/database.types.ts && prettier --write packages/db/src/database.types.ts",
     "db:test": "bash scripts/db-test.sh",
-    "members:invite": "pnpm --filter @lep/web members:invite"
+    "members:invite": "pnpm --filter @lep/web members:invite",
+    "benchmark:editais": "pnpm --filter @lep/funding benchmark"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

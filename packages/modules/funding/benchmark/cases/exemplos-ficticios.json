@@ -1,0 +1,104 @@
+[
+  {
+    "id": "exemplo-nacional-longa",
+    "fictitious": true,
+    "origin": "Exemplo inventado para testar o benchmark",
+    "referenceDate": "2026-09-28",
+    "input": {
+      "title": "Edital Exemplo de Produção de Longas-Metragens 2026",
+      "url": "https://fomento.exemplo.org/editais/producao-longas-2026/",
+      "agency": "Instituto Fictício de Fomento",
+      "audiovisualSource": true,
+      "text": "O edital tem valor total de R$ 10.000.000,00 para até 5 projetos. Inscrições de 01/10/2026 a 30/11/2026. Podem participar produtoras independentes de todo o território nacional."
+    },
+    "expected": {
+      "isOpportunity": true,
+      "territory": "eligible",
+      "eligibility": "eligible",
+      "deadline": "2026-11-30",
+      "totalAmount": 10000000,
+      "status": "open"
+    }
+  },
+  {
+    "id": "exemplo-exclusivo-outro-municipio",
+    "fictitious": true,
+    "origin": "Exemplo inventado (padrão de restrição territorial municipal)",
+    "referenceDate": "2026-09-28",
+    "input": {
+      "title": "Chamada Exemplo de Curtas-Metragens",
+      "url": "https://cultura.exemplo.org/editais/chamada-curtas/",
+      "audiovisualSource": true,
+      "text": "Somente empresas produtoras sediadas no Município do Rio de Janeiro há pelo menos 2 anos. Inscrições até 15/12/2026."
+    },
+    "expected": {
+      "isOpportunity": true,
+      "territory": "ineligible",
+      "eligibility": "territorial_restriction",
+      "deadline": "2026-12-15",
+      "status": "open"
+    },
+    "notes": "Restrição territorial deve ficar visível com evidência (etapa 5), não virar descarte silencioso."
+  },
+  {
+    "id": "exemplo-sem-informacao-territorial",
+    "fictitious": true,
+    "origin": "Exemplo inventado (texto sem regra de sede)",
+    "referenceDate": "2026-09-28",
+    "input": {
+      "title": "Prêmio Exemplo de Roteiro Audiovisual",
+      "url": "https://premio.exemplo.org/editais/premio-roteiro/",
+      "audiovisualSource": false,
+      "text": "Prêmio para roteiros de longa-metragem de ficção. Inscrições até 10/11/2026."
+    },
+    "expected": {
+      "isOpportunity": true,
+      "territory": "unknown",
+      "eligibility": "not_confirmed",
+      "deadline": "2026-11-10"
+    },
+    "notes": "Incerteza: nunca pode virar 'não elegível'."
+  },
+  {
+    "id": "exemplo-pagina-generica",
+    "fictitious": true,
+    "origin": "Exemplo inventado (página institucional com termos de edital)",
+    "referenceDate": "2026-09-28",
+    "input": {
+      "title": "Programa de Integridade",
+      "url": "https://fomento.exemplo.org/editais/programa-de-integridade/",
+      "audiovisualSource": true,
+      "text": "Conheça o programa de integridade da instituição, código de conduta e canal de denúncias."
+    },
+    "expected": { "isOpportunity": false },
+    "notes": "Problema conhecido: o motor atual aceita páginas genéricas (classificador na etapa 6)."
+  },
+  {
+    "id": "exemplo-resultado",
+    "fictitious": true,
+    "origin": "Exemplo inventado (página de resultado)",
+    "referenceDate": "2026-09-28",
+    "input": {
+      "title": "Resultado final do Edital nº 5",
+      "url": "https://fomento.exemplo.org/editais/resultado-edital-5/",
+      "audiovisualSource": true,
+      "text": "Lista de projetos selecionados."
+    },
+    "expected": { "isOpportunity": false }
+  },
+  {
+    "id": "exemplo-prazo-so-no-pdf",
+    "fictitious": true,
+    "origin": "Exemplo inventado (prazo e valor apenas no regulamento em PDF)",
+    "referenceDate": "2026-09-28",
+    "input": {
+      "title": "Edital Exemplo de Desenvolvimento de Séries",
+      "url": "https://fomento.exemplo.org/editais/desenvolvimento-series/",
+      "audiovisualSource": true,
+      "text": "Leia o regulamento completo no arquivo PDF.",
+      "pdfText": "Valor total disponibilizado: R$ 3.000.000,00. As inscrições encerram-se em 20/10/2026."
+    },
+    "expected": { "deadline": "2026-10-20", "totalAmount": 3000000, "status": "open" },
+    "notes": "Hoje o motor não lê PDF na varredura (etapa 7); o benchmark já usa pdfText quando informado."
+  }
+]
