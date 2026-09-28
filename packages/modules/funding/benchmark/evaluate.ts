@@ -1,12 +1,10 @@
 import {
   assessEligibility,
-  classifyPage,
-  IMPORTABLE_PAGE_TYPES,
   assessTerritory,
-  findDeadline,
-  findTotalAmount,
+  classifyPage,
+  extractFields,
+  IMPORTABLE_PAGE_TYPES,
   selectCandidates,
-  statusFromDeadline,
 } from "../src/index";
 import type { BenchmarkCase, ExpectedField } from "./case-schema";
 
@@ -24,6 +22,12 @@ const pageOf = (item: BenchmarkCase) =>
     url: item.input.url,
     text: [item.input.text, item.input.pdfText ?? ""].join("\n"),
   });
+
+const fieldsOf = (item: BenchmarkCase) =>
+  extractFields([
+    { kind: "page", text: `${item.input.title}\n${item.input.text}` },
+    ...(item.input.pdfText ? [{ kind: "pdf" as const, text: item.input.pdfText }] : []),
+  ]);
 
 const fullText = (item: BenchmarkCase) =>
   [item.input.title, item.input.text, item.input.pdfText ?? ""].join("\n");
@@ -48,11 +52,16 @@ export const EVALUATORS: Partial<Record<ExpectedField, Evaluator>> = {
   pageType: (item) => pageOf(item).type,
   territory: (item) => assessTerritory(fullText(item)).verdict,
   eligibility: (item) => assessEligibility(fullText(item)).status,
-  deadline: (item) => findDeadline(fullText(item))?.slice(0, 10) ?? null,
-  totalAmount: (item) => findTotalAmount(fullText(item)),
+  // Etapa 7: extração com evidência (página + PDF do regulamento; o PDF prevalece).
+  deadline: (item) => fieldsOf(item).deadline?.value ?? null,
+  totalAmount: (item) => fieldsOf(item).totalAmount?.value ?? null,
+  maxAmountPerProject: (item) => fieldsOf(item).maxAmountPerProject?.value ?? null,
+  projectCount: (item) => fieldsOf(item).projectCount?.value ?? null,
   status: (item) => {
-    const deadline = findDeadline(fullText(item));
-    return statusFromDeadline(deadline?.slice(0, 10) ?? null, item.referenceDate);
+    const fields = fieldsOf(item);
+    if (!fields.deadline) return null;
+    if (fields.opensAt && fields.opensAt.value > item.referenceDate) return "upcoming";
+    return fields.deadline.value >= item.referenceDate ? "open" : "closed";
   },
 };
 

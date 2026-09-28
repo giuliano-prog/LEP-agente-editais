@@ -56,6 +56,8 @@ export const benchmarkCaseSchema = z.object({
       /** Prazo final de inscrição (AAAA-MM-DD). */
       deadline: z.iso.date().nullable().optional(),
       totalAmount: z.number().nonnegative().nullable().optional(),
+      maxAmountPerProject: z.number().nonnegative().nullable().optional(),
+      projectCount: z.number().int().positive().nullable().optional(),
       status: z.enum(["open", "closed", "upcoming"]).nullable().optional(),
     })
     .refine((value) => Object.keys(value).length > 0, "expected: informe ao menos um campo"),

@@ -17,9 +17,11 @@
       "eligibility": "eligible",
       "deadline": "2026-11-30",
       "totalAmount": 10000000,
-      "status": "open",
-      "pageType": "opportunity"
-    }
+      "status": "upcoming",
+      "pageType": "opportunity",
+      "maxAmountPerProject": null
+    },
+    "notes": "Inscrições abrem em 01/10/2026 e a data de referência é 28/09/2026: situação “em breve”."
   },
   {
     "id": "exemplo-exclusivo-outro-municipio",
@@ -110,6 +112,6 @@
       "totalAmount": 3000000,
       "status": "open"
     },
-    "notes": "Hoje o motor não lê PDF na varredura (etapa 7); o benchmark já usa pdfText quando informado."
+    "notes": "Prazo e valor só no regulamento em PDF: a extração (etapa 7) lê o texto do PDF (sem OCR)."
   }
 ]

@@ -19,6 +19,7 @@ import {
   ReviewBadge,
 } from "@/components/edital-badges";
 import { EligibilityForm } from "@/components/editais/eligibility-form";
+import { EvidencePanel } from "@/components/editais/evidence-panel";
 import { EditalHistory, type AuditEntry } from "@/components/editais/edital-history";
 import { DocumentsSection, type EditalDocument } from "@/components/editais/documents-section";
 import { setEditalTriage } from "../actions";
@@ -35,7 +36,7 @@ export const metadata: Metadata = { title: "Edital" };
 const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
 const TABS = {
-  dados: "Dados",
+  dados: "Dados e evidências",
   elegibilidade: "Elegibilidade",
   match: "Match",
   documentos: "Documentos",
@@ -297,6 +298,7 @@ export default async function EditalPage({
               </Card>
             </aside>
           </div>
+          <EvidencePanel edital={edital} />
         </>
       )}
 

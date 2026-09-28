@@ -144,3 +144,38 @@ describe("toEdital — classificação da página (etapa 6)", () => {
     });
   });
 });
+
+describe("toEdital — evidências (etapa 7)", () => {
+  it("lê evidência por campo, divergências e avisos; ignora lixo", () => {
+    const edital = toEdital({
+      id: 1,
+      field_evidence: {
+        deadline: {
+          value: "2026-11-30",
+          snippet: "Inscrições até 30/11/2026",
+          source: "pdf",
+          label: "Regulamento (PDF)",
+        },
+        totalAmount: { value: 1000, snippet: "" },
+        desconhecido: { value: 1, snippet: "x" },
+        conflicts: ["deadline", "hack"],
+      },
+      extraction_notes: ["PDF longo: só as primeiras páginas foram lidas."],
+    });
+    expect(edital.fieldEvidence).toEqual({
+      deadline: {
+        value: "2026-11-30",
+        snippet: "Inscrições até 30/11/2026",
+        source: "pdf",
+        label: "Regulamento (PDF)",
+      },
+    });
+    expect(edital.evidenceConflicts).toEqual(["deadline"]);
+    expect(edital.extractionNotes).toHaveLength(1);
+    expect(toEdital({ id: 2 })).toMatchObject({
+      fieldEvidence: {},
+      evidenceConflicts: [],
+      extractionNotes: [],
+    });
+  });
+});

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { findDeadline, findTotalAmount, selectCandidates, statusFromDeadline } from "./monitor";
+import {
+  findDeadline,
+  findTotalAmount,
+  pickRegulationLink,
+  selectCandidates,
+  statusFromDeadline,
+} from "./monitor";
 
 const links = [
   {
@@ -104,5 +110,30 @@ describe("statusFromDeadline", () => {
     expect(statusFromDeadline("2026-11-30", "2026-09-26")).toBe("open");
     expect(statusFromDeadline("2026-09-01", "2026-09-26")).toBe("closed");
     expect(statusFromDeadline(null, "2026-09-26")).toBeNull();
+  });
+});
+
+describe("pickRegulationLink", () => {
+  it("escolhe o regulamento e ignora resultado, errata e formulários", () => {
+    expect(
+      pickRegulationLink([
+        { label: "Resultado preliminar", url: "https://a.exemplo.org/resultado.pdf" },
+        {
+          label: "Anexo II - Formulário de inscrição",
+          url: "https://a.exemplo.org/edital-anexo-ii.pdf",
+        },
+        { label: "Errata do edital", url: "https://a.exemplo.org/errata.pdf" },
+        { label: "Edital completo", url: "https://a.exemplo.org/arquivos/edital-2026.pdf" },
+      ]),
+    ).toBe("https://a.exemplo.org/arquivos/edital-2026.pdf");
+  });
+
+  it("sem PDF de regulamento → null", () => {
+    expect(
+      pickRegulationLink([{ label: "Regulamento", url: "https://a.exemplo.org/regulamento/" }]),
+    ).toBeNull();
+    expect(
+      pickRegulationLink([{ label: "Cartilha", url: "https://a.exemplo.org/cartilha.pdf" }]),
+    ).toBeNull();
   });
 });

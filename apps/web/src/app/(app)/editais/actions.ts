@@ -9,6 +9,7 @@ import {
   isEligibilityStatus,
 } from "@lep/funding";
 import { requireMembership } from "@/lib/auth/session";
+import { applyAutomaticSuggestions } from "@/lib/editais/extraction";
 import {
   documentColumns,
   findDuplicate,
@@ -77,6 +78,7 @@ async function createFromDocument(
     return { error: "Não foi possível cadastrar o edital. Tente novamente." };
   }
 
+  await applyAutomaticSuggestions(supabase, orgId, String(editalId), document);
   revalidatePath("/editais");
   return editalId;
 }

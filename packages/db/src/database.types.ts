@@ -285,6 +285,9 @@ export type Database = {
           page_type: "opportunity" | "uncertain" | null;
           opportunity_kind: string | null;
           page_type_reasons: string[];
+          field_evidence: Json;
+          extraction_notes: string[];
+          extracted_at: string | null;
         };
         Insert: {
           accepted_formats?: string[];
@@ -329,6 +332,9 @@ export type Database = {
           page_type?: "opportunity" | "uncertain" | null;
           opportunity_kind?: string | null;
           page_type_reasons?: string[];
+          field_evidence?: Json;
+          extraction_notes?: string[];
+          extracted_at?: string | null;
         };
         Update: {
           accepted_formats?: string[];
@@ -373,6 +379,9 @@ export type Database = {
           page_type?: "opportunity" | "uncertain" | null;
           opportunity_kind?: string | null;
           page_type_reasons?: string[];
+          field_evidence?: Json;
+          extraction_notes?: string[];
+          extracted_at?: string | null;
         };
         Relationships: [
           {

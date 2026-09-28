@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/make-pdf.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -12,6 +13,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "pdfjs-dist": "6.3.289",
     "undici": "^7.16.0"
   },
   "devDependencies": {

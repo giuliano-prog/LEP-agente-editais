@@ -160,6 +160,21 @@ Vercel Cron diário 10:00 UTC (7h Brasília) → GET /api/cron/monitor (Bearer C
 Sugestões no código: **RioFilme** (`/editais/`), **Spcine** (`/editais/`), **ANCINE/FSA**. Cadastro por página de
 listagem com opções "fonte exclusiva de audiovisual" e filtro de endereço.
 
+### Extração ampliada, evidência por campo e texto de PDF (✅, etapa 7, ADR-0018)
+
+- **Texto de PDF em TypeScript** com `pdfjs-dist` (Mozilla, 6.3.289), **sem OCR**: camada de texto, até 60 páginas,
+  limite de tempo; sem XFA/WebAssembly/fontes do sistema. PDF digitalizado, protegido ou longo gera aviso.
+- `extractFields` (`packages/modules/funding/src/extract.ts`): prazo final, abertura das inscrições, valor total,
+  valor máximo por projeto, quantidade de projetos, formatos, gêneros, estágios — cada um com **trecho e origem**
+  (página ou PDF). Regulamento (PDF) prevalece; divergências viram aviso. Na dúvida, campo vazio.
+- Varredura: lê a página, segue o **link do regulamento em PDF** (`pickRegulationLink`, ignora resultado/errata/
+  formulários), guarda o PDF como anexo e grava sugestões + `field_evidence` + `extraction_notes`. Situação "em breve"
+  quando as inscrições ainda não abriram.
+- Cadastro manual por link/PDF: mesma extração e elegibilidade automática, tudo pendente de revisão.
+- Aba **Dados e evidências**: valor, trecho e origem de cada campo; avisos da extração.
+- Validado: testes unitários, integração da varredura com PDF gerado, e envio de PDF no build de produção (Next.js)
+  com Supabase simulado. **Não validado com PDFs reais de editais** (rede do ambiente bloqueia sites externos).
+
 ### Classificador de páginas e configuração por fonte (✅, etapa 6, ADR-0017)
 
 - `classifyPage` (`packages/modules/funding/src/page-classifier.ts`): oportunidade · incerta · lista de editais ·
@@ -252,7 +267,8 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 - **Migrations** (`supabase/migrations/`, todas idempotentes — ADR-0014):
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
   `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo` · `20261001120000_membros_status` ·
-  `20261002120000_elegibilidade` · `20261003120000_classificador_paginas`
+  `20261002120000_elegibilidade` · `20261003120000_classificador_paginas` ·
+  `20261004120000_evidencias`
   (branch `claude/melhorias-editais`, ainda não aplicadas em produção: entra pelo workflow quando o branch for
   integrado ao de produção).
 - **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
@@ -291,21 +307,21 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                              |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                           |
-| Testes unitários/integração (Vitest)                     | ✅ **219** passando — core 8, ai 2, projects 3, ingestion 48, funding 101 (inclui benchmark, elegibilidade e classificador), web 57 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **157** verificações em 9 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte), com migrações aplicadas 2x                                                                                                  |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                            |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                            |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                           |
+| Testes unitários/integração (Vitest)                     | ✅ **238** passando — core 8, ai 2, projects 3, ingestion 53 (inclui texto de PDF), funding 114 (inclui benchmark, elegibilidade, classificador e extração), web 58 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **163** verificações em 10 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências), com migrações aplicadas 2x                                                                                                                     |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                            |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                            |
 
 **Problemas conhecidos**
 
 1. 🟡 Páginas genéricas: o classificador (etapa 6) deixa de fora resultados, retificações, notícias, páginas
    institucionais (ex.: "Programa de Integridade") e índices (ex.: "Chamamento Público"), com o motivo. Validado com
    páginas fictícias e o benchmark; **não validado em sites reais** (a rede deste ambiente bloqueia sites externos).
-2. PDFs (regulamentos) não são lidos pela varredura; prazo/valor ficam ausentes quando só estão no PDF.
-3. Não há evidência por campo (só no motivo territorial), nem detecção de alterações/retificações.
+2. PDFs digitalizados (imagem) não são lidos: não há OCR (decisão da etapa 7); a interface avisa para conferir.
+3. Não há detecção de alterações/retificações (etapa 10).
 4. Limites: até 5 importações por fonte e 50 s por execução; cron diário.
 5. Não verificado a partir daqui: execução do CI no GitHub, configuração de e-mail/SMTP e modelos no Supabase de produção.
 
@@ -372,7 +388,7 @@ futuro (hoje só lê).
    (etapa 4); ⬜ casos reais — **dependem da planilha das 38 oportunidades, que não está no repositório**.
 4. ✅ Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros + abas (etapa 5).
 5. ✅ Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte (etapa 6).
-6. Extração ampliada + evidência por campo + texto de PDF.
+6. ✅ Extração ampliada + evidência por campo + texto de PDF (etapa 7).
 7. Deduplicação multi-fonte (chave canônica + avistamentos).
 8. Aderência por fatores e Match v2 gravados.
 9. Detecção de alterações/retificações com revisão.

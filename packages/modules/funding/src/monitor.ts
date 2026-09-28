@@ -177,3 +177,26 @@ export function statusFromDeadline(
   if (!deadline) return null;
   return deadline >= today ? "open" : "closed";
 }
+
+const REGULATION = /(edital|regulamento|chamada|chamamento|termo de refer)/;
+const NOT_REGULATION =
+  /(resultado|homologa|errata|retifica|aditivo|\bata\b|parecer|recurso|impugna|modelo|formulario|ficha|declarac|planilha|cronograma|faq|perguntas)/;
+
+/**
+ * Link do regulamento (PDF) numa página de edital: o primeiro PDF cujo texto ou
+ * endereço indica edital/regulamento — e não resultado, errata, modelo ou formulário.
+ */
+export function pickRegulationLink(links: { label: string; url: string }[]): string | null {
+  for (const link of links) {
+    let path = "";
+    try {
+      path = decodeURIComponent(new URL(link.url).pathname);
+    } catch {
+      continue;
+    }
+    if (!/\.pdf$/i.test(path)) continue;
+    const described = normalizeText(`${link.label} ${path.replace(/[-_/]+/g, " ")}`);
+    if (REGULATION.test(described) && !NOT_REGULATION.test(described)) return link.url;
+  }
+  return null;
+}

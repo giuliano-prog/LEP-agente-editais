@@ -1,13 +1,14 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { makePdf } from "@lep/ingestion/testing";
 import { startFakeSupabase, type FakeDb } from "@/test/fake-supabase";
 
 const ORG = "10000000-0000-4000-8000-00000000000a";
 
 // "Site de editais" fictício (listagem + páginas de detalhe + robots.txt).
 function startFakeSite() {
-  const pages: Record<string, { type: string; body: string }> = {
+  const pages: Record<string, { type: string; body: string | Buffer }> = {
     "/robots.txt": { type: "text/plain", body: "User-agent: *\nDisallow: /privado/\n" },
     "/editais/": {
       type: "text/html; charset=utf-8",
@@ -29,7 +30,21 @@ function startFakeSite() {
         <body><h1>Edital de Produção de Longas-Metragens 2026</h1>
         <p>O edital tem valor total de R$ 10.000.000,00 para até 5 projetos.</p>
         <p>Inscrições de 01/10/2026 a 30/11/2026, exclusivamente pela internet.</p>
-        <p>Podem participar produtoras independentes de todo o território nacional.</p></body></html>`,
+        <p>Podem participar produtoras independentes de todo o território nacional.</p>
+        <a href="/arquivos/resultado-anterior.pdf">Resultado do edital anterior</a>
+        <a href="/arquivos/edital-longas-2026.pdf">Edital completo (PDF)</a></body></html>`,
+    },
+    // Regulamento fictício (PDF gerado no teste; sem arquivos reais).
+    "/arquivos/edital-longas-2026.pdf": {
+      type: "application/pdf",
+      body: makePdf([
+        ["EDITAL FICTICIO DE PRODUCAO DE LONGAS-METRAGENS 2026"],
+        [
+          "Art. 3o Valor total de R$ 10.000.000,00, com até R$ 2.000.000,00 por projeto.",
+          "Art. 4o Serão selecionados até 5 projetos de produção de longas-metragens.",
+          "Art. 5o As inscrições encerram-se em 30/11/2026.",
+        ],
+      ]),
     },
     "/editais/programa-de-integridade/": {
       type: "text/html; charset=utf-8",
@@ -137,7 +152,8 @@ describe("runMonitor (varredura)", () => {
       source_id: "fonte-1",
       agency: "Instituição Fictícia",
       deadline: "2026-11-30T23:59:00-03:00",
-      status: "open",
+      // Inscrições abrem em 01/10 e "hoje" é 26/09: em breve (etapa 7).
+      status: "upcoming",
       total_amount: 10000000,
       summary: "Edital fictício de apoio à produção de longas-metragens de ficção e documentário.",
       eligible_territories: ["BR"],
@@ -146,7 +162,40 @@ describe("runMonitor (varredura)", () => {
     expect([...supabase.files.keys()].every((path) => path.startsWith(`${ORG}/captures/`))).toBe(
       true,
     );
-    expect(supabase.files.size).toBe(2);
+    // 2 páginas + o regulamento em PDF da primeira.
+    expect(supabase.files.size).toBe(3);
+  });
+
+  it("extração ampliada (etapa 7): regulamento em PDF lido, guardado como anexo, com evidência por campo", () => {
+    const edital = db.editais!.find((e) => String(e.official_url).includes("longa"))!;
+    expect(edital).toMatchObject({
+      max_amount_per_project: 2000000,
+      accepted_formats: ["feature_film"],
+      extraction_notes: [],
+    });
+    const evidence = edital.field_evidence as Record<
+      string,
+      { value: unknown; source: string; snippet: string }
+    >;
+    expect(evidence.deadline).toMatchObject({
+      value: "2026-11-30",
+      source: "pdf",
+      label: "Regulamento (PDF)",
+    });
+    expect(evidence.deadline!.snippet).toContain("encerram-se em 30/11/2026");
+    expect(evidence.maxAmountPerProject).toMatchObject({ value: 2000000, source: "pdf" });
+    expect(evidence.projectCount).toMatchObject({ value: 5, source: "pdf" });
+    expect(evidence.opensAt).toMatchObject({ value: "2026-10-01", source: "page" });
+    expect(edital.extracted_at).toBeTruthy();
+    // O regulamento é o PDF certo (não o resultado anterior) e fica como anexo do edital.
+    const annex = db.edital_documents!.find((doc) => String(doc.source_url).endsWith(".pdf"));
+    expect(annex).toMatchObject({
+      edital_id: edital.id,
+      kind: "annex",
+      mime_type: "application/pdf",
+    });
+    expect(String(annex!.source_url)).toContain("edital-longas-2026.pdf");
+    expect((annex!.metadata as { role: string }).role).toBe("regulation");
   });
 
   it("diretriz territorial: exclusivo de outro município fica visível como restrição territorial, com motivo e evidência (não é descartado)", () => {
@@ -196,8 +245,8 @@ describe("runMonitor (varredura)", () => {
       page_type: "institutional",
     });
     expect(String((db.monitor_ignored_urls![0]!.reasons as string[])[0])).toContain("integridade");
-    // Nada guardado no Storage para a página ignorada (só as 2 importadas).
-    expect(supabase.files.size).toBe(2);
+    // Nada guardado no Storage para a página ignorada (2 importadas + 1 regulamento).
+    expect(supabase.files.size).toBe(3);
     expect(db.monitor_runs!.find((run) => run.source_id === "fonte-1")).toMatchObject({
       ignored_pages: 1,
     });

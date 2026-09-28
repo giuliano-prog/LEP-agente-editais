@@ -4,15 +4,16 @@ import { randomUUID } from "node:crypto";
 import {
   assessEligibility,
   classifyPage,
+  extractFields,
   IMPORTABLE_PAGE_TYPES,
   opportunityKind,
   parseSourceAdapter,
+  pickRegulationLink,
   RESTRICTED_ELIGIBILITY,
-  findDeadline,
-  findTotalAmount,
   selectCandidates,
-  statusFromDeadline,
+  suggestionColumns,
   type Proponent,
+  type TextSource,
 } from "@lep/funding";
 import {
   decodeHtml,
@@ -29,6 +30,7 @@ import {
 import {
   documentColumns,
   fetchUrlDocument,
+  type FetchedDocument,
   findDuplicate,
   IngestError,
   removeStored,
@@ -113,6 +115,45 @@ async function robotsFor(url: URL): Promise<RobotsRules> {
 async function allowed(rawUrl: string) {
   const url = new URL(rawUrl);
   return isAllowedByRobots(await robotsFor(url), url.pathname + url.search);
+}
+
+/**
+ * Baixa o regulamento (PDF) linkado na página do edital, lê o texto e o guarda
+ * como anexo. Falhas viram aviso: nunca impedem a importação do edital.
+ */
+async function fetchRegulation(
+  admin: Admin,
+  orgId: string,
+  page: FetchedDocument,
+  editalId: string,
+): Promise<{ text?: string; pdf?: FetchedDocument["pdf"]; notes: string[] } | null> {
+  if (page.mimeType !== "text/html") return null;
+  const url = pickRegulationLink(page.metadata.pdf_links ?? []);
+  if (!url) return null;
+  try {
+    if (!(await allowed(url))) {
+      return { notes: ["Regulamento em PDF não lido: o robots.txt do site não permite."] };
+    }
+    const pdf = await fetchUrlDocument(url);
+    if (pdf.mimeType !== "application/pdf") return null;
+    const stored = await storeFetchedDocument(admin, orgId, pdf);
+    const { error } = await admin.from("edital_documents").insert({
+      ...documentColumns(stored),
+      metadata: {
+        ...(documentColumns(stored).metadata as object),
+        role: "regulation",
+        discovered_by: "monitor",
+      },
+      org_id: orgId,
+      edital_id: editalId,
+      kind: "annex",
+    });
+    if (error) await removeStored(admin, stored.storagePath);
+    return { text: pdf.text, pdf: pdf.pdf, notes: [] };
+  } catch (error) {
+    const message = error instanceof IngestError ? error.message : "falha ao baixar";
+    return { notes: [`Regulamento em PDF não lido (${message}).`] };
+  }
 }
 
 type IgnoredPageType = "listing" | "result" | "rectification" | "news" | "institutional";
@@ -333,15 +374,32 @@ async function importCandidate(
     throw new Error(error?.message ?? "falha ao criar edital");
   }
 
-  // Sugestões por regras de texto (sem IA). O edital fica com revisão pendente.
-  const text = document.text ?? "";
-  const deadline = findDeadline(text);
+  // Etapa 7: o regulamento em PDF linkado na página também é lido (texto, sem OCR)
+  // e guardado como anexo — é a fonte oficial das regras e da evidência.
+  const regulation = await fetchRegulation(admin, source.org_id, fetched, String(editalId));
+  const sources: TextSource[] = [
+    {
+      kind: fetched.mimeType === "application/pdf" ? "pdf" : "page",
+      text: document.text ?? "",
+      label: fetched.mimeType === "application/pdf" ? "Documento (PDF)" : "Página do edital",
+    },
+    ...(regulation?.text
+      ? [{ kind: "pdf" as const, text: regulation.text, label: "Regulamento (PDF)" }]
+      : []),
+  ];
+
+  // Sugestões por regras de texto (sem IA), com evidência. O edital fica com revisão pendente.
+  const fields = extractFields(sources);
+  const suggestions = suggestionColumns(fields, {
+    today: todayInBrasilia(now),
+    pdf: regulation?.pdf ?? fetched.pdf,
+  });
   // Diretrizes LEP 1 e 2 + taxonomia (etapa 5): a elegibilidade é um eixo próprio.
   // Restrição territorial fica visível com motivo e trecho; a triagem continua pendente.
-  const eligibility = assessEligibility(`${candidate.title}\n${text}`, {
-    proponent,
-    partnerTerritories,
-  });
+  const eligibility = assessEligibility(
+    [candidate.title, ...sources.map((item) => item.text)].join("\n"),
+    { proponent, partnerTerritories },
+  );
   await admin
     .from("editais")
     .update({
@@ -350,9 +408,12 @@ async function importCandidate(
       discovered_at: now.toISOString(),
       agency: source.agency ?? source.name,
       summary: document.metadata.description ?? null,
-      deadline: deadline ? `${deadline}T23:59:00-03:00` : null,
-      status: statusFromDeadline(deadline, todayInBrasilia(now)),
-      total_amount: findTotalAmount(text),
+      ...suggestions,
+      extraction_notes: [
+        ...(suggestions.extraction_notes as string[]),
+        ...(regulation?.notes ?? []),
+      ],
+      extracted_at: now.toISOString(),
       eligible_territories: eligibility.territories,
       eligibility_status: eligibility.status,
       eligibility_reason: eligibility.reason,

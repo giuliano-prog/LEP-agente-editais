@@ -7,6 +7,7 @@
  */
 
 import { isEligibilityStatus, type EligibilityStatus } from "./eligibility";
+import { FIELD_LABELS, type FieldKey } from "./extract";
 import { OPPORTUNITY_KINDS, type OpportunityKind } from "./page-classifier";
 
 export type EditalLink = { label: string; url: string };
@@ -49,7 +50,45 @@ export type Edital = {
   pageType: "opportunity" | "uncertain" | null;
   opportunityKind: OpportunityKind | null;
   pageTypeReasons: string[];
+  /** Evidência por campo extraído (etapa 7). */
+  fieldEvidence: Partial<Record<FieldKey, FieldEvidence>>;
+  /** Campos em que página e regulamento divergem. */
+  evidenceConflicts: FieldKey[];
+  extractionNotes: string[];
 };
+
+export type FieldEvidence = {
+  value: unknown;
+  snippet: string;
+  source: "page" | "pdf";
+  label: string | null;
+};
+
+function asEvidence(value: unknown): Pick<Edital, "fieldEvidence" | "evidenceConflicts"> {
+  const record = (typeof value === "string" ? safeJson(value) : value) as Row | null | undefined;
+  const fieldEvidence: Partial<Record<FieldKey, FieldEvidence>> = {};
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    return { fieldEvidence, evidenceConflicts: [] };
+  }
+  for (const key of Object.keys(FIELD_LABELS) as FieldKey[]) {
+    const item = record[key] as Row | undefined;
+    const snippet = asText(item?.snippet);
+    if (!item || !snippet) continue;
+    fieldEvidence[key] = {
+      value: item.value ?? null,
+      snippet,
+      source: item.source === "pdf" ? "pdf" : "page",
+      label: asText(item.label),
+    };
+  }
+  const conflicts = Array.isArray(record.conflicts) ? record.conflicts : [];
+  return {
+    fieldEvidence,
+    evidenceConflicts: conflicts.filter(
+      (key): key is FieldKey => typeof key === "string" && key in FIELD_LABELS,
+    ),
+  };
+}
 
 export const EDITAL_STATUS_LABELS: Record<string, string> = {
   open: "Inscrições abertas",
@@ -217,6 +256,8 @@ export function toEdital(row: Row): Edital {
       ? (row.opportunity_kind as OpportunityKind)
       : null,
     pageTypeReasons: asStringArray(row.page_type_reasons),
+    ...asEvidence(row.field_evidence),
+    extractionNotes: asStringArray(row.extraction_notes),
   };
 }
 

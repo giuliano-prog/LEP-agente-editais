@@ -191,6 +191,27 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3b4. Evidência por campo (etapa 7).
+  const evidenceColumns = await supabase
+    .from("editais")
+    .select("field_evidence, extraction_notes, extracted_at")
+    .limit(1);
+  checks.push(
+    evidenceColumns.error
+      ? {
+          label: "Extração com evidência por campo",
+          status: "fail",
+          detail: evidenceColumns.error.message,
+          fix: "Aplique a migração 20261004120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Extração com evidência por campo",
+          status: "ok",
+          detail:
+            "Prazo, valores, quantidade, formatos e estágios sugeridos com o trecho de origem (página ou PDF, sem OCR).",
+        },
+  );
+
   // 3c. Resumo detalhado da varredura (colunas novas do histórico).
   const summaryColumns = await supabase
     .from("monitor_runs")

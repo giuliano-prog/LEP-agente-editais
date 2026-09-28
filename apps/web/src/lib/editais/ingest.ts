@@ -7,6 +7,8 @@ import {
   extractDescription,
   extractHtmlMetadata,
   extractLinks,
+  extractPdfText,
+  PdfTextError,
   htmlToText,
   FetchError,
   isPdf,
@@ -41,9 +43,25 @@ export type IngestedDocument = {
     description?: string | null;
     pdf_links?: { label: string; url: string }[];
   };
-  /** Texto legível da página (somente HTML; não é gravado). Usado pela varredura. */
+  /** Texto legível (página HTML ou camada de texto do PDF; não é gravado). */
   text?: string;
+  /** Leitura do PDF (sem OCR): páginas, se parece digitalizado, se foi cortado ou falhou. */
+  pdf?: { pages: number; scanned: boolean; truncated: boolean; error?: string };
 };
+
+/** Texto de um PDF para a extração; falhas não impedem o cadastro (viram aviso). */
+async function readPdf(body: Buffer): Promise<Pick<IngestedDocument, "text" | "pdf">> {
+  try {
+    const result = await extractPdfText(body, { maxPages: 60, timeoutMs: 15_000 });
+    return {
+      text: result.text,
+      pdf: { pages: result.pages, scanned: result.scanned, truncated: result.truncated },
+    };
+  } catch (error) {
+    const message = error instanceof PdfTextError ? error.message : "Falha ao ler o PDF.";
+    return { pdf: { pages: 0, scanned: false, truncated: false, error: message } };
+  }
+}
 
 export class IngestError extends Error {}
 
@@ -91,6 +109,7 @@ export async function fetchUrlDocument(rawUrl: string): Promise<FetchedDocument>
     text = htmlToText(source).slice(0, 200_000);
     links = extractLinks(source, fetched.finalUrl);
   }
+  const pdf = kind === "pdf" ? await readPdf(fetched.body) : {};
 
   return {
     source: "url",
@@ -104,6 +123,7 @@ export async function fetchUrlDocument(rawUrl: string): Promise<FetchedDocument>
     suggestedTitle,
     metadata,
     text,
+    ...pdf,
     body: fetched.body,
     links,
   };
@@ -131,6 +151,7 @@ export async function storeFetchedDocument(
     suggestedTitle: fetched.suggestedTitle,
     metadata: fetched.metadata,
     text: fetched.text,
+    pdf: fetched.pdf,
   };
 }
 
@@ -185,6 +206,7 @@ export async function ingestFromUpload(
     httpStatus: null,
     suggestedTitle: titleFromFileName(safeName),
     metadata: {},
+    ...(await readPdf(body)),
   };
 }
 
