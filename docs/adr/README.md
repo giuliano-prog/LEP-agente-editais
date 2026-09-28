@@ -26,5 +26,6 @@ Decisões não são apagadas; quando mudam, um novo ADR "substitui" o anterior.
 | 0019 | [Deduplicação multi-fonte e avistamentos](0019-deduplicacao-multifonte.md)                     | Aceita |
 | 0020 | [Aderência explicável e Match v2 persistido](0020-match-v2.md)                                 | Aceita |
 | 0021 | [Detecção de alterações e retificações](0021-alteracoes-retificacoes.md)                       | Aceita |
+| 0022 | [Novas fontes por configuração e teste antes de ativar](0022-novas-fontes-configuracao.md)     | Aceita |
 
 Modelo para novos ADRs: copie um existente e mantenha as seções.

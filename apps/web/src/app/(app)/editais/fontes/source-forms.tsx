@@ -4,7 +4,18 @@ import { useActionState } from "react";
 import { Field, FormError, FormSuccess, SubmitButton, TextArea } from "@/components/form";
 import type { MonitorSummary } from "@/lib/monitor/summary";
 import type { SourceAdapter } from "@lep/funding";
-import { createSource, runMonitorNow, updateSourceConfig, type SourceActionState } from "./actions";
+import type { CatalogEntry } from "@/lib/monitor/catalog";
+import type { SourcePreview } from "@/lib/monitor/run";
+import {
+  addCatalogSource,
+  createSource,
+  runMonitorNow,
+  testCatalogSource,
+  testExistingSource,
+  updateSourceConfig,
+  type PreviewState,
+  type SourceActionState,
+} from "./actions";
 
 export function SourceForm() {
   const [state, action] = useActionState<SourceActionState, FormData>(createSource, {});
@@ -236,5 +247,125 @@ function Check({
       />
       <span>{children}</span>
     </label>
+  );
+}
+
+const PAGE_TYPE_TEXT: Record<string, string> = {
+  opportunity: "Oportunidade",
+  uncertain: "Incerta (entraria para revisão)",
+  listing: "Lista de editais (ignorada)",
+  result: "Resultado (ignorada)",
+  rectification: "Retificação (ignorada)",
+  news: "Notícia (ignorada)",
+  institutional: "Institucional (ignorada)",
+};
+
+/** Resultado do "Testar fonte": nada foi gravado. */
+export function PreviewResult({ preview }: { preview: SourcePreview }) {
+  return (
+    <section
+      aria-label="Resultado do teste"
+      className={`space-y-2 rounded-lg border p-3 text-sm ${preview.ok ? "border-line bg-card-raised/40" : "border-bad/40 bg-bad/10"}`}
+    >
+      <p className={preview.ok ? "font-medium" : "font-medium text-bad"}>{preview.message}</p>
+      {preview.finalUrl && (
+        <p className="break-all text-xs text-muted">Página lida: {preview.finalUrl}</p>
+      )}
+      {preview.warnings.map((warning) => (
+        <p key={warning} className="text-xs text-warn">
+          ⚠ {warning}
+        </p>
+      ))}
+      {preview.samples.length > 0 && (
+        <ul className="space-y-2">
+          {preview.samples.map((sample) => (
+            <li key={sample.url} className="text-xs">
+              <a
+                href={sample.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium hover:text-brand"
+              >
+                {sample.title} ↗
+              </a>
+              <span className="block text-muted">
+                {sample.pageType
+                  ? (PAGE_TYPE_TEXT[sample.pageType] ?? sample.pageType)
+                  : "Não classificada"}
+                {sample.deadline && ` · prazo ${sample.deadline.split("-").reverse().join("/")}`}
+                {sample.reasons.length > 0 && ` · ${sample.reasons.join(" · ")}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-muted">Teste: nada foi gravado nem importado.</p>
+    </section>
+  );
+}
+
+/** Catálogo (etapa 11): cola o endereço oficial, testa e cadastra pausada. */
+export function CatalogSourceForm({ entry }: { entry: CatalogEntry }) {
+  const [testState, test, testing] = useActionState<PreviewState, FormData>(
+    testCatalogSource.bind(null, entry.key),
+    {},
+  );
+  const [addState, add, adding] = useActionState<PreviewState, FormData>(
+    addCatalogSource.bind(null, entry.key),
+    {},
+  );
+  return (
+    <form className="mt-3 space-y-3">
+      <Field label="Nome" name="name" defaultValue={entry.name} maxLength={120} required />
+      <Field label="Instituição" name="agency" defaultValue={entry.agency} maxLength={200} />
+      <Field
+        label="Página oficial de editais"
+        name="list_url"
+        type="url"
+        required
+        placeholder="https://…"
+        hint="Cole o endereço oficial da listagem (não é preenchido automaticamente)."
+      />
+      <div className="flex flex-wrap gap-2">
+        <button
+          formAction={test}
+          disabled={testing}
+          className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand disabled:opacity-60"
+        >
+          {testing ? "Testando…" : "Testar"}
+        </button>
+        <button
+          formAction={add}
+          disabled={adding}
+          className="rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-surface hover:bg-brand-strong disabled:opacity-60"
+        >
+          Adicionar (pausada)
+        </button>
+      </div>
+      <FormError message={testState.error ?? addState.error} />
+      <FormSuccess message={addState.success} />
+      {testState.preview && <PreviewResult preview={testState.preview} />}
+    </form>
+  );
+}
+
+/** "Testar fonte" para uma fonte já cadastrada. */
+export function TestSourceButton({ sourceId }: { sourceId: string }) {
+  const [state, action, pending] = useActionState<PreviewState>(
+    testExistingSource.bind(null, sourceId),
+    {},
+  );
+  return (
+    <form action={action} className="w-full space-y-2">
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md border border-line px-3 py-1 text-xs hover:border-brand hover:text-brand disabled:opacity-60"
+      >
+        {pending ? "Testando… (até 30 s)" : "Testar fonte"}
+      </button>
+      <FormError message={state.error} />
+      {state.preview && <PreviewResult preview={state.preview} />}
+    </form>
   );
 }

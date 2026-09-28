@@ -661,3 +661,129 @@ export async function runMonitor(
   }
   return results;
 }
+
+export type SourcePreview = {
+  ok: boolean;
+  /** Mensagem principal (erro ou resumo). */
+  message: string;
+  finalUrl: string | null;
+  linksFound: number;
+  candidatesFound: number;
+  /** Amostra das primeiras oportunidades: como a varredura as classificaria. */
+  samples: {
+    title: string;
+    url: string;
+    pageType: string | null;
+    reasons: string[];
+    deadline: string | null;
+  }[];
+  warnings: string[];
+};
+
+/**
+ * "Testar fonte" (etapa 11): mesmo caminho da varredura — robots.txt, página de
+ * listagem, seleção com o adaptador e classificação de algumas páginas — sem
+ * gravar nada. Serve para validar a configuração no site real antes de ativar.
+ */
+export async function previewSource(
+  source: Pick<SourceRow, "list_url" | "audiovisual_only" | "link_contains" | "adapter_config">,
+  { sampleSize = 3, timeBudgetMs = 25_000 }: { sampleSize?: number; timeBudgetMs?: number } = {},
+): Promise<SourcePreview> {
+  const deadlineAt = Date.now() + timeBudgetMs;
+  robotsCache.clear();
+  const empty = { finalUrl: null, linksFound: 0, candidatesFound: 0, samples: [] };
+  const { adapter, warning } = parseSourceAdapter(source.adapter_config);
+  const warnings = warning ? [warning] : [];
+  try {
+    if (!(await allowed(source.list_url))) {
+      return {
+        ok: false,
+        message: "O robots.txt do site não permite a leitura desta página.",
+        warnings,
+        ...empty,
+      };
+    }
+    const page = await safeFetch(source.list_url, { timeoutMs: 15_000, maxBytes: 5 * 1024 * 1024 });
+    if (detectKind(page.contentType, page.body) !== "html") {
+      return { ok: false, message: "O endereço não é uma página web.", warnings, ...empty };
+    }
+    const links = extractLinks(decodeHtml(page.contentType, page.body), page.finalUrl);
+    const candidates = selectCandidates(
+      links,
+      {
+        listUrl: page.finalUrl,
+        audiovisualOnly: source.audiovisual_only,
+        linkContains: source.link_contains,
+        linkExcludes: adapter.linkExcludes,
+        titleExcludes: adapter.titleExcludes,
+        allowPdfLinks: adapter.allowPdfLinks,
+      },
+      new Set(),
+      50,
+    );
+    if (links.length < 5) {
+      warnings.push(
+        "Poucos links na página: ela pode ser montada por JavaScript ou exigir login (a varredura lê só o HTML).",
+      );
+    }
+    if (candidates.length === 0) {
+      warnings.push(
+        "Nenhum link parece oportunidade: confira o endereço, o filtro de endereço e se a fonte é só de audiovisual.",
+      );
+    }
+
+    const samples: SourcePreview["samples"] = [];
+    for (const candidate of candidates.slice(0, sampleSize)) {
+      if (Date.now() > deadlineAt) break;
+      if (!(await allowed(candidate.url))) {
+        samples.push({
+          ...candidate,
+          pageType: null,
+          reasons: ["bloqueada pelo robots.txt"],
+          deadline: null,
+        });
+        continue;
+      }
+      try {
+        const fetched = await fetchUrlDocument(candidate.url);
+        const classification = adapter.classifyPages
+          ? classifyPage({
+              title: candidate.title,
+              url: fetched.finalUrl ?? candidate.url,
+              text: fetched.text ?? "",
+              editalLinkCount: countEditalLinks(fetched.links, fetched.finalUrl ?? candidate.url),
+            })
+          : null;
+        samples.push({
+          ...candidate,
+          pageType: classification?.type ?? null,
+          reasons: classification?.reasons ?? ["classificação desligada nesta fonte"],
+          deadline:
+            extractFields([{ kind: "page", text: fetched.text ?? "" }]).deadline?.value ?? null,
+        });
+      } catch (error) {
+        samples.push({
+          ...candidate,
+          pageType: null,
+          reasons: [error instanceof IngestError ? error.message : "falha ao abrir a página"],
+          deadline: null,
+        });
+      }
+    }
+    return {
+      ok: true,
+      message: `${links.length} link(s) na página; ${candidates.length} parecem oportunidades.`,
+      finalUrl: page.finalUrl,
+      linksFound: links.length,
+      candidatesFound: candidates.length,
+      samples,
+      warnings,
+    };
+  } catch (error) {
+    const message =
+      error instanceof UnsafeUrlError || error instanceof FetchError || error instanceof IngestError
+        ? error.message
+        : "Falha inesperada ao testar a fonte.";
+    return { ok: false, message, warnings, ...empty };
+  }
+}

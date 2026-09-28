@@ -6,7 +6,8 @@ import { linesToList, sourceAdapterSchema } from "@lep/funding";
 import { assertSafeUrl, UnsafeUrlError } from "@lep/ingestion";
 import { requireMembership } from "@/lib/auth/session";
 import { checkMonitorAccess } from "@/lib/monitor/access";
-import { runMonitor } from "@/lib/monitor/run";
+import { catalogEntry } from "@/lib/monitor/catalog";
+import { previewSource, runMonitor, type SourcePreview } from "@/lib/monitor/run";
 import { summarize, type MonitorSummary } from "@/lib/monitor/summary";
 import { SUGGESTED_SOURCES } from "@/lib/monitor/suggested";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -194,4 +195,97 @@ export async function forgetIgnoredUrl(ignoredId: string): Promise<void> {
     .eq("id", ignoredId)
     .eq("org_id", membership.orgId);
   revalidatePath("/editais/fontes");
+}
+
+export type PreviewState = { error?: string; success?: string; preview?: SourcePreview };
+
+const catalogSchema = z.object({
+  name: z.string().trim().min(2, "Informe o nome da fonte.").max(120),
+  agency: z.string().trim().max(200),
+  list_url: z.string().trim().min(8, "Cole o endereço da página oficial de editais.").max(2000),
+});
+
+function parseCatalogForm(key: string, formData: FormData) {
+  const entry = catalogEntry(key);
+  if (!entry) return { error: "Fonte do catálogo não encontrada." } as const;
+  const parsed = catalogSchema.safeParse({
+    name: formData.get("name") ?? entry.name,
+    agency: formData.get("agency") ?? entry.agency,
+    list_url: formData.get("list_url") ?? "",
+  });
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." } as const;
+  try {
+    assertSafeUrl(parsed.data.list_url);
+  } catch (error) {
+    return {
+      error: error instanceof UnsafeUrlError ? error.message : "Endereço inválido.",
+    } as const;
+  }
+  return { entry, data: parsed.data } as const;
+}
+
+/** Catálogo (etapa 11): testa o endereço colado com a configuração da fonte, sem gravar. */
+export async function testCatalogSource(
+  key: string,
+  _prev: PreviewState,
+  formData: FormData,
+): Promise<PreviewState> {
+  await requireMembership("admin");
+  const form = parseCatalogForm(key, formData);
+  if ("error" in form) return { error: form.error };
+  const preview = await previewSource({
+    list_url: form.data.list_url,
+    audiovisual_only: form.entry.audiovisualOnly,
+    link_contains: null,
+    adapter_config: form.entry.adapter,
+  });
+  return { preview };
+}
+
+/** Catálogo: cadastra a fonte PAUSADA (ativar depois de testar). */
+export async function addCatalogSource(
+  key: string,
+  _prev: PreviewState,
+  formData: FormData,
+): Promise<PreviewState> {
+  const { membership } = await requireMembership("admin");
+  const form = parseCatalogForm(key, formData);
+  if ("error" in form) return { error: form.error };
+  const supabase = await createClient();
+  const { error } = await supabase.from("edital_sources").insert({
+    org_id: membership.orgId,
+    name: form.data.name,
+    agency: form.data.agency || null,
+    list_url: form.data.list_url,
+    audiovisual_only: form.entry.audiovisualOnly,
+    link_contains: null,
+    adapter_config: form.entry.adapter,
+    active: false,
+  });
+  if (error) {
+    return {
+      error:
+        error.code === "23505"
+          ? "Esta fonte já está cadastrada."
+          : "Não foi possível cadastrar. Confira no Diagnóstico se as migrações foram aplicadas.",
+    };
+  }
+  revalidatePath("/editais/fontes");
+  return { success: "Fonte cadastrada PAUSADA. Teste e, se estiver certa, clique em “Reativar”." };
+}
+
+/** "Testar fonte" de uma fonte já cadastrada (sem gravar nada). */
+export async function testExistingSource(sourceId: string): Promise<PreviewState> {
+  const { membership } = await requireMembership("admin");
+  if (!ID.safeParse(sourceId).success) return { error: "Fonte inválida." };
+  const supabase = await createClient();
+  const { data: source } = await supabase
+    .from("edital_sources")
+    .select("*")
+    .eq("id", sourceId)
+    .eq("org_id", membership.orgId)
+    .maybeSingle();
+  if (!source) return { error: "Fonte não encontrada." };
+  return { preview: await previewSource(source) };
 }

@@ -5,10 +5,17 @@ import { PAGE_TYPE_LABELS, parseSourceAdapter, type PageType } from "@lep/fundin
 import { DbErrorNotice } from "@/components/db-error-notice";
 import { Badge, Card, EmptyState, PageHeader, SectionTitle, type BadgeTone } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
+import { CATALOG_KIND_LABELS, SOURCE_CATALOG } from "@/lib/monitor/catalog";
 import { SUGGESTED_SOURCES } from "@/lib/monitor/suggested";
 import { createClient } from "@/lib/supabase/server";
 import { addSuggestedSources, deleteSource, forgetIgnoredUrl, toggleSource } from "./actions";
-import { RunNowButton, SourceConfigForm, SourceForm } from "./source-forms";
+import {
+  CatalogSourceForm,
+  RunNowButton,
+  SourceConfigForm,
+  SourceForm,
+  TestSourceButton,
+} from "./source-forms";
 
 export const metadata: Metadata = { title: "Fontes monitoradas" };
 
@@ -139,7 +146,7 @@ export default async function SourcesPage() {
                   </details>
                 )}
                 {isAdmin && (
-                  <div className="mt-3 flex gap-2 text-xs">
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
                     <form action={toggleSource.bind(null, source.id, !source.active)}>
                       <button className="rounded-md border border-line px-3 py-1 hover:border-brand hover:text-brand">
                         {source.active ? "Pausar" : "Reativar"}
@@ -150,6 +157,7 @@ export default async function SourcesPage() {
                         Remover
                       </button>
                     </form>
+                    <TestSourceButton sourceId={source.id} />
                   </div>
                 )}
               </article>
@@ -177,6 +185,27 @@ export default async function SourcesPage() {
                 </p>
               </Card>
             )}
+            <Card>
+              <SectionTitle>Catálogo de novas fontes</SectionTitle>
+              <p className="mb-3 text-xs text-muted">
+                Configuração pronta (sem seletores frágeis). Cole a página oficial, clique em
+                “Testar” e adicione: a fonte entra pausada até você reativá-la.
+              </p>
+              <div className="space-y-2">
+                {SOURCE_CATALOG.map((entry) => (
+                  <details key={entry.key} className="rounded-md border border-line p-3 text-sm">
+                    <summary className="cursor-pointer">
+                      <span className="font-medium">{entry.name}</span>{" "}
+                      <span className="text-xs text-muted">
+                        · {CATALOG_KIND_LABELS[entry.kind]}
+                      </span>
+                    </summary>
+                    <p className="mt-2 text-xs text-muted">{entry.notes}</p>
+                    <CatalogSourceForm entry={entry} />
+                  </details>
+                ))}
+              </div>
+            </Card>
             <Card>
               <SectionTitle>Nova fonte</SectionTitle>
               <SourceForm />

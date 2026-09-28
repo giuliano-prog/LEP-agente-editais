@@ -433,4 +433,39 @@ describe("runMonitor (varredura)", () => {
     });
     expect(db.edital_changes!.length).toBe(before);
   });
+
+  it("Testar fonte (etapa 11): mesmo caminho da varredura, sem gravar nada", async () => {
+    const { previewSource } = await import("./run");
+    const snapshot = JSON.stringify(db);
+    const filesBefore = supabase.files.size;
+    const preview = await previewSource({
+      list_url: `${site.url}/editais/`,
+      audiovisual_only: true,
+      link_contains: null,
+      adapter_config: { linkExcludes: ["/acervo/"] },
+    });
+    expect(preview.ok).toBe(true);
+    expect(preview.candidatesFound).toBeGreaterThanOrEqual(3);
+    expect(preview.samples[0]).toMatchObject({ pageType: "opportunity" });
+    expect(preview.samples.some((sample) => sample.url.includes("/acervo/"))).toBe(false);
+    // Nada gravado nem guardado.
+    expect(JSON.stringify(db)).toBe(snapshot);
+    expect(supabase.files.size).toBe(filesBefore);
+  });
+
+  it("Testar fonte: robots.txt, endereço fora do ar e configuração inválida viram mensagens claras", async () => {
+    const { previewSource } = await import("./run");
+    const base = { audiovisual_only: true, link_contains: null, adapter_config: {} };
+    expect(await previewSource({ ...base, list_url: `${site.url}/privado/lista/` })).toMatchObject({
+      ok: false,
+      message: "O robots.txt do site não permite a leitura desta página.",
+    });
+    expect((await previewSource({ ...base, list_url: `${site.url}/nao-existe/` })).ok).toBe(false);
+    const invalid = await previewSource({
+      ...base,
+      list_url: `${site.url}/editais/`,
+      adapter_config: { cssSelector: ".lista a" },
+    });
+    expect(invalid.warnings[0]).toContain("seletores CSS não são aceitos");
+  });
 });

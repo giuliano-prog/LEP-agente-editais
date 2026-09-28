@@ -206,6 +206,17 @@ listagem com opções "fonte exclusiva de audiovisual" e filtro de endereço.
   máximo de novas por verificação (1–10), classificar páginas, aceitar PDFs. **Sem seletores CSS**; configuração
   inválida no banco não para a varredura (usa o padrão e mostra o aviso).
 
+### Novas fontes por configuração (🟡, etapa 11, ADR-0022)
+
+- **Catálogo** (`apps/web/src/lib/monitor/catalog.ts`): Cultura SP (SCEIC), Ministério da Cultura, BRDE/FSA, Prosas
+  (agregador) e modelo para programas de patrocínio — só regras do adaptador (exclusões, limites), **sem seletores
+  CSS** e **sem endereço preenchido** (nenhum endereço inventado).
+- Fontes > Catálogo: colar a página oficial → **Testar** → **Adicionar (pausada)**. Toda fonte tem **"Testar fonte"**:
+  robots.txt, página, links, oportunidades e amostra classificada, **sem gravar nada**. Ativar ("Reativar") só
+  depois do teste.
+- **Pendente (depende da LEP/admin em produção):** informar os endereços oficiais e testar cada fonte no site real —
+  a rede deste ambiente bloqueia sites externos, então nenhuma dessas fontes foi testada contra o site verdadeiro.
+
 ### Regras territoriais (✅, ADR-0013, `docs/diretrizes-lep.md`)
 
 Aceita nacionais, estado de SP, município de São Paulo e locais abertos a SP; nacional com cota regional = aceito com
@@ -325,13 +336,13 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Testes unitários/integração (Vitest)                     | ✅ **276** passando — core 8, ai 2, projects 3, ingestion 53 (inclui texto de PDF), funding 146 (inclui benchmark, elegibilidade, classificador, extração, deduplicação, Match v2 e alterações), web 64 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **196** verificações em 13 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2; alterações), com migrações aplicadas 2x                                                                                                                     |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Testes unitários/integração (Vitest)                     | ✅ **280** passando — core 8, ai 2, projects 3, ingestion 53 (inclui texto de PDF), funding 146 (inclui benchmark, elegibilidade, classificador, extração, deduplicação, Match v2 e alterações), web 68 (inclui catálogo e “Testar fonte”) (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **196** verificações em 13 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2; alterações), com migrações aplicadas 2x                                                                                                                                                        |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 **Problemas conhecidos**
 
@@ -411,7 +422,8 @@ futuro (hoje só lê).
 7. ✅ Deduplicação multi-fonte (chave canônica + avistamentos) (etapa 8).
 8. ✅ Aderência por fatores e Match v2 gravados (etapa 9).
 9. ✅ Detecção de alterações/retificações com revisão (etapa 10).
-10. Novas fontes.
+10. 🟡 Novas fontes por configuração (etapa 11): catálogo + "Testar fonte"; **falta** colar os endereços oficiais e
+    testar no site real (depende do administrador em produção).
 11. IA atrás de uma interface única de análise (`EditalAnalyzer`) usando `packages/ai`.
 
 ---
