@@ -303,3 +303,50 @@ export async function setEditalEligibility(
   revalidatePath(`/editais/${editalId}`);
   return { success: "Elegibilidade atualizada pela equipe." };
 }
+
+/**
+ * Possível duplicado (etapa 8): "não é duplicado" limpa o aviso; "é duplicado"
+ * descarta este edital na triagem, com o motivo (link para o original). Nada é apagado.
+ */
+export async function resolveDuplicate(
+  editalId: string,
+  decision: "not_duplicate" | "duplicate",
+): Promise<void> {
+  if (!ID_PATTERN.test(editalId)) return;
+  const { membership } = await requireMembership("editor");
+  const supabase = await createClient();
+  const { data: edital } = await supabase
+    .from("editais")
+    .select("id, title, official_url, possible_duplicate_of")
+    .eq("id", editalId)
+    .eq("org_id", membership.orgId)
+    .maybeSingle();
+  if (!edital?.possible_duplicate_of) return;
+
+  if (decision === "not_duplicate") {
+    await supabase
+      .from("editais")
+      .update({ possible_duplicate_of: null, possible_duplicate_reason: null })
+      .eq("id", editalId)
+      .eq("org_id", membership.orgId);
+  } else {
+    const { data: original } = await supabase
+      .from("editais")
+      .select("id, title")
+      .eq("id", edital.possible_duplicate_of)
+      .eq("org_id", membership.orgId)
+      .maybeSingle();
+    if (!original) return;
+    await supabase
+      .from("editais")
+      .update({
+        review_status: "discarded",
+        triage_reason: `Duplicado de: ${original.title ?? "edital já cadastrado"}`.slice(0, 500),
+      })
+      .eq("id", editalId)
+      .eq("org_id", membership.orgId);
+    revalidatePath(`/editais/${original.id}`);
+  }
+  revalidatePath("/editais");
+  revalidatePath(`/editais/${editalId}`);
+}

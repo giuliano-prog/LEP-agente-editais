@@ -55,6 +55,10 @@ export type Edital = {
   /** Campos em que página e regulamento divergem. */
   evidenceConflicts: FieldKey[];
   extractionNotes: string[];
+  /** Deduplicação (etapa 8). */
+  canonicalKey: string | null;
+  possibleDuplicateOf: string | null;
+  possibleDuplicateReason: string | null;
 };
 
 export type FieldEvidence = {
@@ -258,6 +262,12 @@ export function toEdital(row: Row): Edital {
     pageTypeReasons: asStringArray(row.page_type_reasons),
     ...asEvidence(row.field_evidence),
     extractionNotes: asStringArray(row.extraction_notes),
+    canonicalKey: asText(row.canonical_key),
+    possibleDuplicateOf:
+      row.possible_duplicate_of === null || row.possible_duplicate_of === undefined
+        ? null
+        : String(row.possible_duplicate_of),
+    possibleDuplicateReason: asText(row.possible_duplicate_reason),
   };
 }
 

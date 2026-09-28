@@ -212,6 +212,28 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3b5. Deduplicação multi-fonte (etapa 8).
+  const [dedupColumns, sightingsTable] = await Promise.all([
+    supabase.from("editais").select("canonical_key, possible_duplicate_of").limit(1),
+    supabase.from("edital_sightings").select("id").eq("org_id", orgId).limit(1),
+  ]);
+  const dedupError = dedupColumns.error ?? sightingsTable.error;
+  checks.push(
+    dedupError
+      ? {
+          label: "Deduplicação multi-fonte",
+          status: "fail",
+          detail: dedupError.message,
+          fix: "Aplique a migração 20261005120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Deduplicação multi-fonte",
+          status: "ok",
+          detail:
+            "Mesmo edital em outra fonte vira avistamento; parecidos são sinalizados para a equipe.",
+        },
+  );
+
   // 3c. Resumo detalhado da varredura (colunas novas do histórico).
   const summaryColumns = await supabase
     .from("monitor_runs")

@@ -23,5 +23,6 @@ Decisões não são apagadas; quando mudam, um novo ADR "substitui" o anterior.
 | 0016 | [Taxonomia em três eixos e elegibilidade visível](0016-taxonomia-elegibilidade.md)             | Aceita |
 | 0017 | [Classificador de páginas e configuração por fonte](0017-classificador-paginas-adaptadores.md) | Aceita |
 | 0018 | [Extração com evidência por campo e texto de PDF](0018-extracao-evidencias-pdf.md)             | Aceita |
+| 0019 | [Deduplicação multi-fonte e avistamentos](0019-deduplicacao-multifonte.md)                     | Aceita |
 
 Modelo para novos ADRs: copie um existente e mantenha as seções.

@@ -264,6 +264,9 @@ export default async function EditaisPage({
                       <EditalStatusBadge status={edital.status} />
                       <EligibilityBadge status={edital.eligibilityStatus} />
                       {edital.origin === "monitor" && <Badge tone="brand">Varredura</Badge>}
+                      {edital.possibleDuplicateOf && edital.reviewStatus !== "discarded" && (
+                        <Badge tone="warn">Possível duplicado</Badge>
+                      )}
                       {edital.reviewStatus === "discarded" ? (
                         <Badge>Descartado</Badge>
                       ) : (

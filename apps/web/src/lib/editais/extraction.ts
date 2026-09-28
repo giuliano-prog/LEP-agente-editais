@@ -1,6 +1,13 @@
 import "server-only";
 
-import { assessEligibility, extractFields, suggestionColumns } from "@lep/funding";
+import {
+  assessEligibility,
+  canonicalKey,
+  extractFields,
+  findDuplicateEdital,
+  fingerprint,
+  suggestionColumns,
+} from "@lep/funding";
 import { loadPartnerTerritories, loadProponent } from "@/lib/proponent";
 import type { createClient } from "@/lib/supabase/server";
 import type { IngestedDocument } from "./ingest";
@@ -51,4 +58,37 @@ export async function applyAutomaticSuggestions(
     .eq("id", editalId)
     .eq("org_id", orgId);
   if (error) console.error("Sugestões automáticas não gravadas:", error.code);
+
+  // Deduplicação (etapa 8): no cadastro manual nada é mesclado; só avisa.
+  const print = fingerprint({
+    title: document.suggestedTitle,
+    text,
+    deadline: fields.deadline?.value,
+  });
+  const others = await supabase
+    .from("editais")
+    .select("id, title, deadline, canonical_key")
+    .eq("org_id", orgId)
+    .neq("id", editalId);
+  if (others.error) return;
+  const match = findDuplicateEdital(
+    print,
+    (others.data ?? []).map((row) => {
+      const known = fingerprint({ title: row.title ?? "", deadline: row.deadline });
+      if (!known.number && row.canonical_key?.startsWith("n:"))
+        known.number = row.canonical_key.slice(2);
+      return { id: String(row.id), title: row.title ?? "Edital sem título", print: known };
+    }),
+  );
+  await supabase
+    .from("editais")
+    .update({
+      canonical_key: canonicalKey(print),
+      possible_duplicate_of: match ? match.id : null,
+      possible_duplicate_reason: match
+        ? `${match.verdict === "same" ? "Provavelmente o mesmo edital" : "Parecido"}: ${match.reason}`
+        : null,
+    })
+    .eq("id", editalId)
+    .eq("org_id", orgId);
 }

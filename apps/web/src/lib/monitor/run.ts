@@ -3,8 +3,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import {
   assessEligibility,
+  canonicalKey,
   classifyPage,
   extractFields,
+  findDuplicateEdital,
+  fingerprint,
   IMPORTABLE_PAGE_TYPES,
   opportunityKind,
   parseSourceAdapter,
@@ -12,6 +15,7 @@ import {
   RESTRICTED_ELIGIBILITY,
   selectCandidates,
   suggestionColumns,
+  type KnownEdital,
   type Proponent,
   type TextSource,
 } from "@lep/funding";
@@ -156,6 +160,52 @@ async function fetchRegulation(
   }
 }
 
+/** Editais da organização com a impressão digital (vazio se algo falhar: nunca bloqueia). */
+async function loadKnownEditais(admin: Admin, orgId: string): Promise<KnownEdital[]> {
+  const withKey = await admin
+    .from("editais")
+    .select("id, title, deadline, canonical_key")
+    .eq("org_id", orgId);
+  const rows = withKey.error
+    ? ((await admin.from("editais").select("id, title, deadline").eq("org_id", orgId)).data ?? [])
+    : (withKey.data ?? []);
+  return rows.map((row) => {
+    const key = "canonical_key" in row ? (row.canonical_key as string | null) : null;
+    const print = fingerprint({ title: row.title ?? "", deadline: row.deadline });
+    // O número pode ter vindo do texto da página na importação.
+    if (!print.number && key?.startsWith("n:")) print.number = key.slice(2);
+    return { id: String(row.id), title: row.title ?? "Edital sem título", print };
+  });
+}
+
+/** Avistamento: onde o edital apareceu (sem duplicar o mesmo endereço). */
+async function recordSighting(
+  admin: Admin,
+  sighting: {
+    orgId: string;
+    editalId: string;
+    sourceId: string;
+    url: string;
+    title: string;
+    reason: string;
+    now: Date;
+  },
+): Promise<void> {
+  const { error } = await admin.from("edital_sightings").upsert(
+    {
+      org_id: sighting.orgId,
+      edital_id: sighting.editalId,
+      source_id: sighting.sourceId,
+      url: sighting.url,
+      title: sighting.title.slice(0, 300),
+      match_reason: sighting.reason.slice(0, 300),
+      last_seen_at: sighting.now.toISOString(),
+    },
+    { onConflict: "org_id,edital_id,url" },
+  );
+  if (error) console.error("Avistamento não registrado:", error.code);
+}
+
 type IgnoredPageType = "listing" | "result" | "rectification" | "news" | "institutional";
 
 /** Páginas já classificadas como "não é oportunidade" (vazio se a migração não existir). */
@@ -180,9 +230,11 @@ function countEditalLinks(links: { text: string; url: string }[], pageUrl: strin
 
 /** Links já conhecidos na organização (editais e documentos), para não importar de novo. */
 async function knownUrls(admin: Admin, orgId: string): Promise<Set<string>> {
-  const [editais, documents] = await Promise.all([
+  const [editais, documents, sightings] = await Promise.all([
     admin.from("editais").select("official_url").eq("org_id", orgId),
     admin.from("edital_documents").select("source_url, final_url").eq("org_id", orgId),
+    // Endereços em que um edital já foi avistado (etapa 8; vazio antes da migração).
+    admin.from("edital_sightings").select("url").eq("org_id", orgId),
   ]);
   const urls = new Set<string>();
   const add = (value: string | null | undefined) => {
@@ -198,6 +250,7 @@ async function knownUrls(admin: Admin, orgId: string): Promise<Set<string>> {
     add(row.source_url);
     add(row.final_url);
   });
+  if (!sightings.error) sightings.data?.forEach((row) => add(row.url));
   return urls;
 }
 
@@ -249,6 +302,8 @@ export async function scanSource(
     const known = await knownUrls(admin, source.org_id);
     // Páginas já classificadas como "não é oportunidade" não são lidas de novo.
     const ignored = await ignoredUrls(admin, source.org_id);
+    // Etapa 8: editais já cadastrados, para reconhecer o mesmo edital vindo de outra fonte.
+    const knownEditais = await loadKnownEditais(admin, source.org_id);
     // Seleciona sem excluir os conhecidos, para contar duplicadas separadamente.
     const opportunities = selectCandidates(
       links,
@@ -280,6 +335,7 @@ export async function scanSource(
       const outcome = await importCandidate(admin, source, candidate, {
         ...options,
         classifyPages: adapter.classifyPages,
+        knownEditais,
       }).catch((error) => {
         console.error(
           `Varredura: falha ao importar ${candidate.url}:`,
@@ -319,7 +375,14 @@ async function importCandidate(
     proponent,
     partnerTerritories,
     classifyPages,
-  }: { now: Date; proponent: Proponent; partnerTerritories: string[]; classifyPages: boolean },
+    knownEditais,
+  }: {
+    now: Date;
+    proponent: Proponent;
+    partnerTerritories: string[];
+    classifyPages: boolean;
+    knownEditais: KnownEdital[];
+  },
 ): Promise<"imported" | "restricted" | "duplicate" | "ignored"> {
   const fetched = await fetchUrlDocument(candidate.url);
   if (await findDuplicate(admin, source.org_id, fetched)) return "duplicate";
@@ -348,6 +411,27 @@ async function importCandidate(
       { onConflict: "org_id,url" },
     );
     return "ignored";
+  }
+
+  // Etapa 8: mesmo edital já cadastrado (ex.: visto no site do órgão e agora num
+  // agregador) → só registra o avistamento, sem criar outro edital.
+  const print = fingerprint({
+    title: candidate.title,
+    text: fetched.text,
+    deadline: extractFields([{ kind: "page", text: fetched.text ?? "" }]).deadline?.value,
+  });
+  const match = findDuplicateEdital(print, knownEditais);
+  if (match?.verdict === "same") {
+    await recordSighting(admin, {
+      orgId: source.org_id,
+      editalId: match.id,
+      sourceId: source.id,
+      url: candidate.url,
+      title: candidate.title,
+      reason: `Mesmo edital: ${match.reason}`,
+      now,
+    });
+    return "duplicate";
   }
 
   const document = await storeFetchedDocument(admin, source.org_id, fetched);
@@ -426,6 +510,27 @@ async function importCandidate(
     })
     .eq("id", editalId)
     .eq("org_id", source.org_id);
+
+  // Deduplicação (etapa 8): chave canônica, possível duplicado e o avistamento de origem.
+  await admin
+    .from("editais")
+    .update({
+      canonical_key: canonicalKey(print),
+      possible_duplicate_of: match?.verdict === "possible" ? match.id : null,
+      possible_duplicate_reason: match?.verdict === "possible" ? match.reason : null,
+    })
+    .eq("id", editalId)
+    .eq("org_id", source.org_id);
+  await recordSighting(admin, {
+    orgId: source.org_id,
+    editalId: String(editalId),
+    sourceId: source.id,
+    url: candidate.url,
+    title: candidate.title,
+    reason: "Primeira fonte onde o edital foi encontrado",
+    now,
+  });
+  knownEditais.push({ id: String(editalId), title: candidate.title, print });
   return RESTRICTED_ELIGIBILITY.has(eligibility.status) ? "restricted" : "imported";
 }
 

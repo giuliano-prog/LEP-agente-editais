@@ -179,3 +179,21 @@ describe("toEdital — evidências (etapa 7)", () => {
     });
   });
 });
+
+describe("toEdital — deduplicação (etapa 8)", () => {
+  it("lê chave canônica e possível duplicado (id numérico ou uuid)", () => {
+    expect(
+      toEdital({
+        id: 2,
+        canonical_key: "n:5/2026",
+        possible_duplicate_of: 1,
+        possible_duplicate_reason: "x",
+      }),
+    ).toMatchObject({
+      canonicalKey: "n:5/2026",
+      possibleDuplicateOf: "1",
+      possibleDuplicateReason: "x",
+    });
+    expect(toEdital({ id: 3 })).toMatchObject({ canonicalKey: null, possibleDuplicateOf: null });
+  });
+});

@@ -22,7 +22,7 @@ import { EligibilityForm } from "@/components/editais/eligibility-form";
 import { EvidencePanel } from "@/components/editais/evidence-panel";
 import { EditalHistory, type AuditEntry } from "@/components/editais/edital-history";
 import { DocumentsSection, type EditalDocument } from "@/components/editais/documents-section";
-import { setEditalTriage } from "../actions";
+import { resolveDuplicate, setEditalTriage } from "../actions";
 import { MatchPanel } from "@/components/match-panel";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
@@ -117,6 +117,24 @@ export default async function EditalPage({
   if (!editalQuery.data) notFound();
 
   const edital = toEdital(editalQuery.data);
+  // Deduplicação (etapa 8): onde foi encontrado e o possível original.
+  const [sightings, duplicateOf] = await Promise.all([
+    supabase
+      .from("edital_sightings")
+      .select("id, url, title, match_reason, first_seen_at, last_seen_at, edital_sources ( name )")
+      .eq("edital_id", edital.id)
+      .eq("org_id", membership.orgId)
+      .order("first_seen_at", { ascending: true }),
+    edital.possibleDuplicateOf
+      ? supabase
+          .from("editais")
+          .select("id, title")
+          .eq("id", edital.possibleDuplicateOf)
+          .eq("org_id", membership.orgId)
+          .maybeSingle()
+      : Promise.resolve(null),
+  ]);
+  const original = duplicateOf?.data ?? null;
   const matches = matchProjects(edital, projectsQuery.data ?? [], new Date(), proponent);
 
   return (
@@ -169,6 +187,31 @@ export default async function EditalPage({
               ` em ${new Date(edital.discoveredAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`}
             . Prazo e valor foram sugeridos a partir da página e precisam ser conferidos na revisão.
           </p>
+        )}
+        {original && edital.reviewStatus !== "discarded" && (
+          <div className="space-y-2 rounded-md border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+            <p>
+              Possível duplicado de{" "}
+              <Link href={`/editais/${original.id}`} className="font-medium underline">
+                {original.title ?? "edital já cadastrado"}
+              </Link>
+              {edital.possibleDuplicateReason && ` — ${edital.possibleDuplicateReason}`}.
+            </p>
+            {canEdit && (
+              <div className="flex flex-wrap gap-2">
+                <form action={resolveDuplicate.bind(null, edital.id, "not_duplicate")}>
+                  <button className="rounded-md border border-line px-3 py-1 text-xs text-fg hover:border-brand hover:text-brand">
+                    Não é duplicado
+                  </button>
+                </form>
+                <form action={resolveDuplicate.bind(null, edital.id, "duplicate")}>
+                  <button className="rounded-md border border-line px-3 py-1 text-xs text-fg hover:border-bad hover:text-bad">
+                    É duplicado — descartar este
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
         )}
         {edital.reviewStatus === "discarded" && (
           <div className="space-y-1 text-sm text-warn">
@@ -299,6 +342,37 @@ export default async function EditalPage({
             </aside>
           </div>
           <EvidencePanel edital={edital} />
+          <Card>
+            <SectionTitle>Onde foi encontrado</SectionTitle>
+            {sightings.error || (sightings.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted">
+                {edital.origin === "monitor"
+                  ? "Sem avistamentos registrados."
+                  : "Cadastro manual (sem fonte monitorada)."}
+              </p>
+            ) : (
+              <ul className="space-y-3 text-sm">
+                {(sightings.data ?? []).map((item) => (
+                  <li key={item.id}>
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="break-all font-medium hover:text-brand"
+                    >
+                      {item.edital_sources?.name ?? "Fonte removida"} ↗
+                    </a>
+                    <p className="text-xs text-muted">
+                      {item.match_reason} · primeira vez em{" "}
+                      {new Date(item.first_seen_at).toLocaleDateString("pt-BR", {
+                        timeZone: "America/Sao_Paulo",
+                      })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </>
       )}
 

@@ -179,6 +179,64 @@ export type Database = {
           },
         ];
       };
+      edital_sightings: {
+        Row: {
+          edital_id: string;
+          first_seen_at: string;
+          id: string;
+          last_seen_at: string;
+          match_reason: string;
+          org_id: string;
+          source_id: string | null;
+          title: string | null;
+          url: string;
+        };
+        Insert: {
+          edital_id: string;
+          first_seen_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          match_reason: string;
+          org_id: string;
+          source_id?: string | null;
+          title?: string | null;
+          url: string;
+        };
+        Update: {
+          edital_id?: string;
+          first_seen_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          match_reason?: string;
+          org_id?: string;
+          source_id?: string | null;
+          title?: string | null;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "edital_sightings_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_sightings_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_sources";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_sightings_edital_id_fkey";
+            columns: ["edital_id"];
+            isOneToOne: false;
+            referencedRelation: "editais";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       edital_sources: {
         Row: {
           active: boolean;
@@ -288,6 +346,9 @@ export type Database = {
           field_evidence: Json;
           extraction_notes: string[];
           extracted_at: string | null;
+          canonical_key: string | null;
+          possible_duplicate_of: string | null;
+          possible_duplicate_reason: string | null;
         };
         Insert: {
           accepted_formats?: string[];
@@ -335,6 +396,9 @@ export type Database = {
           field_evidence?: Json;
           extraction_notes?: string[];
           extracted_at?: string | null;
+          canonical_key?: string | null;
+          possible_duplicate_of?: string | null;
+          possible_duplicate_reason?: string | null;
         };
         Update: {
           accepted_formats?: string[];
@@ -382,6 +446,9 @@ export type Database = {
           field_evidence?: Json;
           extraction_notes?: string[];
           extracted_at?: string | null;
+          canonical_key?: string | null;
+          possible_duplicate_of?: string | null;
+          possible_duplicate_reason?: string | null;
         };
         Relationships: [
           {

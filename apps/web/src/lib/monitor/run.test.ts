@@ -28,6 +28,7 @@ function startFakeSite() {
       body: `<html><head><title>Edital de Produção | Site</title>
         <meta name="description" content="Edital fictício de apoio à produção de longas-metragens de ficção e documentário."></head>
         <body><h1>Edital de Produção de Longas-Metragens 2026</h1>
+        <p>Edital nº 5/2026.</p>
         <p>O edital tem valor total de R$ 10.000.000,00 para até 5 projetos.</p>
         <p>Inscrições de 01/10/2026 a 30/11/2026, exclusivamente pela internet.</p>
         <p>Podem participar produtoras independentes de todo o território nacional.</p>
@@ -45,6 +46,20 @@ function startFakeSite() {
           "Art. 5o As inscrições encerram-se em 30/11/2026.",
         ],
       ]),
+    },
+    // Agregador fictício que republica o mesmo edital nº 5/2026 (etapa 8).
+    "/agregador/": {
+      type: "text/html; charset=utf-8",
+      body: `<html><body>
+        <a href="/agregador/oportunidade-5-2026/">Instituição Fictícia - Edital 5/2026 - Produção de Longas-Metragens</a>
+      </body></html>`,
+    },
+    "/agregador/oportunidade-5-2026/": {
+      type: "text/html; charset=utf-8",
+      body: `<html><head><title>Oportunidade | Agregador</title></head><body>
+        <h1>Edital nº 5/2026 — Produção de Longas-Metragens</h1>
+        <p>Inscrições até 30/11/2026. Podem participar produtoras de todo o território nacional.</p>
+        <p>Leia o regulamento completo no site da instituição.</p></body></html>`,
     },
     "/editais/programa-de-integridade/": {
       type: "text/html; charset=utf-8",
@@ -83,6 +98,7 @@ const db: FakeDb = {
   edital_sources: [],
   monitor_runs: [],
   monitor_ignored_urls: [],
+  edital_sightings: [],
 };
 
 beforeAll(async () => {
@@ -111,6 +127,16 @@ beforeAll(async () => {
       name: "Fonte fora do ar",
       agency: null,
       list_url: `${site.url}/nao-existe/`,
+      audiovisual_only: true,
+      link_contains: null,
+      active: true,
+    },
+    {
+      id: "fonte-3",
+      org_id: ORG,
+      name: "Agregador Fictício",
+      agency: null,
+      list_url: `${site.url}/agregador/`,
       audiovisual_only: true,
       link_contains: null,
       active: true,
@@ -196,6 +222,27 @@ describe("runMonitor (varredura)", () => {
     });
     expect(String(annex!.source_url)).toContain("edital-longas-2026.pdf");
     expect((annex!.metadata as { role: string }).role).toBe("regulation");
+  });
+
+  it("deduplicação multi-fonte (etapa 8): mesmo edital no agregador vira avistamento, não edital novo", () => {
+    expect(db.editais).toHaveLength(2);
+    const longa = db.editais!.find((e) => String(e.official_url).includes("longa"))!;
+    expect(longa.canonical_key).toBe("n:5/2026");
+    expect(db.edital_sightings!.filter((item) => item.edital_id === longa.id)).toEqual([
+      expect.objectContaining({
+        source_id: "fonte-1",
+        match_reason: "Primeira fonte onde o edital foi encontrado",
+      }),
+      expect.objectContaining({
+        source_id: "fonte-3",
+        url: `${site.url}/agregador/oportunidade-5-2026/`,
+        match_reason: expect.stringContaining("mesmo número (5/2026)"),
+      }),
+    ]);
+    expect(db.monitor_runs!.find((run) => run.source_id === "fonte-3")).toMatchObject({
+      imported: 0,
+      duplicates: 1,
+    });
   });
 
   it("diretriz territorial: exclusivo de outro município fica visível como restrição territorial, com motivo e evidência (não é descartado)", () => {
