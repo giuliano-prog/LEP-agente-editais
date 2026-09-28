@@ -169,6 +169,35 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3d. Membros: status do vínculo (convite, suspensão).
+  const memberStatus = await supabase
+    .from("memberships")
+    .select("status, invited_at, accepted_at, suspended_at")
+    .eq("org_id", orgId)
+    .limit(1);
+  checks.push(
+    memberStatus.error
+      ? {
+          label: "Membros: status do vínculo e convites",
+          status: "fail",
+          detail: memberStatus.error.message,
+          fix: "Aplique a migração 20261001120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Membros: status do vínculo e convites",
+          status: "ok",
+          detail:
+            "Convidado / ativo / suspenso controlados pelo banco (só vínculos ativos acessam).",
+        },
+  );
+  checks.push({
+    label: "E-mail de convite (Supabase Auth)",
+    status: "warn",
+    detail:
+      "Não verificável daqui: o envio depende do SMTP e do modelo “Invite user” configurados no painel do Supabase.",
+    fix: `Supabase → Authentication → Emails: SMTP próprio e modelo “Invite user” igual a supabase/templates/invite.html (link para /auth/confirm com token_hash). URL Configuration: Site URL e Redirect URLs com o domínio do app.${process.env.SITE_URL ? "" : " Opcional: defina SITE_URL na Vercel (senão o convite usa o endereço da requisição)."}`,
+  });
+
   // 4. Armazenamento de documentos.
   const storage = await supabase.storage.from(DOCUMENTS_BUCKET).list(orgId, { limit: 1 });
   checks.push(

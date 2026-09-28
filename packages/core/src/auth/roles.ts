@@ -6,11 +6,33 @@ export const ROLES = ["viewer", "editor", "admin"] as const;
 
 export type Role = (typeof ROLES)[number];
 
+/** Perfis exibidos na interface (nomes usados pela LEP). */
 export const ROLE_LABELS: Record<Role, string> = {
-  viewer: "Visualização",
-  editor: "Editor/Revisor",
+  viewer: "Equipe",
+  editor: "Diretoria",
   admin: "Administrador",
 };
+
+export const ROLE_DESCRIPTIONS: Record<Role, string> = {
+  viewer: "Consulta editais, projetos e aderência. Não altera dados.",
+  editor: "Cadastra, edita e revisa editais e projetos; faz a triagem.",
+  admin: "Tudo da Diretoria + membros, fontes monitoradas e diagnóstico.",
+};
+
+/** Status do vínculo com a organização. Deve ficar igual ao CHECK de core.memberships.status. */
+export const MEMBERSHIP_STATUSES = ["invited", "active", "suspended"] as const;
+
+export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
+
+export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
+  invited: "Convidado",
+  active: "Ativo",
+  suspended: "Suspenso",
+};
+
+export function isMembershipStatus(value: unknown): value is MembershipStatus {
+  return typeof value === "string" && (MEMBERSHIP_STATUSES as readonly string[]).includes(value);
+}
 
 export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as readonly string[]).includes(value);

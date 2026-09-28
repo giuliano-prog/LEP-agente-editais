@@ -13,17 +13,24 @@ export default async function NoAccessPage({
   const session = await requireUser();
   const { motivo } = await searchParams;
   const lackingPermission = motivo === "permissao" && session.membership;
+  const suspended = !session.membership && session.membershipStatus === "suspended";
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md space-y-4 rounded-xl border border-line bg-card p-8 text-center shadow-2xl shadow-black/40">
         <h1 className="text-lg font-semibold">
-          {lackingPermission ? "Permissão insuficiente" : "Acesso ainda não liberado"}
+          {lackingPermission
+            ? "Permissão insuficiente"
+            : suspended
+              ? "Acesso suspenso"
+              : "Acesso ainda não liberado"}
         </h1>
         <p className="text-sm text-muted">
           {lackingPermission
             ? "Seu papel não permite acessar esta página. Fale com um administrador."
-            : `A conta ${session.email} ainda não está vinculada a uma organização. Peça acesso a um administrador.`}
+            : suspended
+              ? `O acesso da conta ${session.email} foi suspenso por um administrador. Fale com a administração da LEP para reativá-lo.`
+              : `A conta ${session.email} ainda não está vinculada a uma organização. Peça acesso a um administrador.`}
         </p>
         <div className="flex justify-center gap-3 text-sm">
           {lackingPermission && (

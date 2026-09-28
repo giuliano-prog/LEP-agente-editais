@@ -342,6 +342,12 @@ export type Database = {
           id: string;
           org_id: string;
           role: Database["core"]["Enums"]["app_role"];
+          status: "invited" | "active" | "suspended";
+          invited_at: string | null;
+          invited_by: string | null;
+          accepted_at: string | null;
+          suspended_at: string | null;
+          suspended_by: string | null;
           updated_at: string;
           user_id: string;
         };
@@ -350,6 +356,12 @@ export type Database = {
           id?: string;
           org_id: string;
           role?: Database["core"]["Enums"]["app_role"];
+          status?: "invited" | "active" | "suspended";
+          invited_at?: string | null;
+          invited_by?: string | null;
+          accepted_at?: string | null;
+          suspended_at?: string | null;
+          suspended_by?: string | null;
           updated_at?: string;
           user_id: string;
         };
@@ -358,6 +370,12 @@ export type Database = {
           id?: string;
           org_id?: string;
           role?: Database["core"]["Enums"]["app_role"];
+          status?: "invited" | "active" | "suspended";
+          invited_at?: string | null;
+          invited_by?: string | null;
+          accepted_at?: string | null;
+          suspended_at?: string | null;
+          suspended_by?: string | null;
           updated_at?: string;
           user_id?: string;
         };
@@ -372,6 +390,20 @@ export type Database = {
           {
             foreignKeyName: "memberships_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "memberships_invited_by_fkey";
+            columns: ["invited_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "memberships_suspended_by_fkey";
+            columns: ["suspended_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -568,6 +600,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      accept_my_invitations: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
       create_edital_with_document: {
         Args: {
           p_file_name: string | null;

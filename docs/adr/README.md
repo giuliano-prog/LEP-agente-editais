@@ -19,5 +19,6 @@ Decisões não são apagadas; quando mudam, um novo ADR "substitui" o anterior.
 | 0012 | [Monitoramento automático de fontes](0012-monitoramento-automatico.md)             | Aceita |
 | 0013 | [Diretrizes territoriais e foco exclusivo na LEP](0013-diretrizes-territoriais.md) | Aceita |
 | 0014 | [Migrações idempotentes e aplicação automática](0014-migracoes-automaticas.md)     | Aceita |
+| 0015 | [Status do vínculo e convites pela interface](0015-membros-status-convites.md)     | Aceita |
 
 Modelo para novos ADRs: copie um existente e mantenha as seções.

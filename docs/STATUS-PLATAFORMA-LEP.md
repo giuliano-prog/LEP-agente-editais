@@ -190,24 +190,29 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 - **Login (✅):** Supabase Auth com e-mail e senha; **cadastro público desligado**; sessão em cookies renovada por
   `src/proxy.ts`; convite/recuperação por link com `token_hash` → `/auth/confirm` → `/conta/senha`.
 - **Organização e vínculo (✅):** `core.organizations` (tenant; hoje só LEP, com `hq_state/hq_city`), `core.profiles`
-  (criado por trigger no cadastro do Auth), `core.memberships` (usuário ↔ organização ↔ papel). Trava impede remover o
-  último administrador.
-- **Papéis existentes (✅):** `viewer` (Visualização) < `editor` (Editor/Revisor) < `admin` (Administrador) — enum
-  `core.app_role` = `packages/core/src/auth/roles.ts`.
+  (criado por trigger no cadastro do Auth), `core.memberships` (usuário ↔ organização ↔ papel ↔ **status**).
+- **Perfis (✅, ADR-0015):** Administrador = `admin`, Diretoria = `editor`, Equipe = `viewer` (só rótulos; enum
+  `core.app_role` = `packages/core/src/auth/roles.ts` inalterado).
+- **Status do vínculo (✅, migração `20261001120000`):** `invited` (Convidado) · `active` (Ativo) · `suspended`
+  (Suspenso). Só vínculos ativos acessam (`role_in_org` → `has_role` → RLS). Regras no banco: vínculo criado pela
+  interface nasce convidado; só a própria pessoa aceita o convite ao entrar; ninguém suspende o próprio acesso;
+  convite nunca aceito volta a ser convite ao reativar; sempre há ao menos um administrador **ativo**. Vínculos
+  anteriores continuam ativos. Suspensos veem a tela "Acesso suspenso".
 - **Permissões atuais (✅)** (`packages/core/src/auth/permissions.ts`; a garantia real é o RLS):
   `content.read` viewer · `content.edit` editor · `content.review` editor · `org.manage` admin ·
   `members.manage` admin · `ai_usage.read` admin · `audit.read` admin. Diagnóstico, Membros e cadastro de fontes exigem admin.
-- **Alterações realizadas:** página Membros com listagem e edição da sede do proponente (admin).
-- **Convite hoje:** somente pelo script `pnpm members:invite` (chave de serviço, fora da interface).
-- **Falta para Administrador / Diretoria / Equipe (⬜, proposta aguardando decisão):** fase 1 = renomear rótulos
-  (Diretoria = `editor`, Equipe = `viewer`) sem migração de papel; fase 2 (se necessário) = permissões por módulo;
-  `memberships.status` (convidado/ativo/suspenso) com `has_role` exigindo ativo.
-- **Fluxo planejado de convite (⬜):** admin preenche nome, e-mail e perfil em Membros → ação no servidor (admin) chama
-  o convite do Supabase Auth → vínculo "convidado" → pessoa define a própria senha pelo link → "ativo". A plataforma
-  nunca pede nem guarda senhas. **Pré-requisitos em produção (não verificados):** SMTP próprio (o envio padrão do
-  Supabase só entrega para a equipe do projeto Supabase), modelo de e-mail de convite com `token_hash` configurado no
-  painel e Site URL/Redirect URLs apontando para o domínio da Vercel. Primeira convidada prevista: perfil Diretoria,
-  pelo fluxo normal (não fixada no código).
+- **Tela Membros (✅):** sede do proponente; convite (e-mail, nome, perfil); lista com perfil, status e data;
+  ações Reenviar convite, Suspender, Reativar. Validada com Supabase simulado (convite e reenvio de ponta a ponta,
+  desktop e celular).
+- **Convite (✅ código / ⚠ produção não verificada):** ação no servidor exige admin e só então usa a chave de serviço
+  (`inviteUserByEmail`) e grava o vínculo "convidado" no `org_id` do admin (`lib/members/invite.ts`). A pessoa define
+  a própria senha no link (`/auth/confirm` → `/conta/senha`); a plataforma nunca pede nem guarda senhas. Quem já tem
+  conta recebe só o vínculo (acesso no próximo login). Script `pnpm members:invite` mantido para o primeiro admin.
+- **Configuração manual necessária em produção (não feita, não verificável daqui):** Supabase → Authentication →
+  Emails: **SMTP próprio** (o envio padrão do Supabase tem limite baixo e só entrega para a equipe do projeto) e
+  modelo **"Invite user"** igual a `supabase/templates/invite.html`; URL Configuration: **Site URL** e **Redirect
+  URLs** com o domínio da Vercel. Opcional: `SITE_URL` na Vercel. Depois disso, convidar a primeira pessoa pela tela
+  (perfil Diretoria) — nenhum usuário é criado pelo código.
 
 ---
 
@@ -220,8 +225,8 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 - **Storage:** bucket privado `edital-documents` (PDF/HTML, 25 MB), caminho `<org_id>/...`.
 - **Migrations** (`supabase/migrations/`, todas idempotentes — ADR-0014):
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
-  `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo`
-  (branch `claude/melhorias-editais`, ainda não aplicada em produção: entra pelo workflow quando o branch for
+  `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo` · `20261001120000_membros_status`
+  (branch `claude/melhorias-editais`, ainda não aplicadas em produção: entra pelo workflow quando o branch for
   integrado ao de produção).
 - **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
   (`SUPABASE_MIGRATIONS_BRANCH`, padrão `main`) que altere migrações, ou manual → testes em banco descartável →
@@ -230,14 +235,14 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 - **Vercel:** app `apps/web` (Root Directory `apps/web`); cron em `apps/web/vercel.json`.
 - **Cron:** `/api/cron/monitor`, diário às 10:00 UTC.
 - **Variáveis de ambiente (nomes apenas):**
-  | Onde                                   | Nome                                                               | Uso                                                           |
-  | -------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
-  | Vercel/local                           | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | cliente (precisam existir no build)                           |
-  | Vercel/local (servidor)                | `SUPABASE_SECRET_KEY`                                              | varredura, cron, diagnóstico, sede do proponente na varredura |
-  | Vercel                                 | `CRON_SECRET`                                                      | autenticação do cron                                          |
-  | Local (script)                         | `SITE_URL`                                                         | links de convite do `members:invite`                          |
-  | GitHub (secret, ambiente `production`) | `SUPABASE_DB_URL`                                                  | aplicação das migrações                                       |
-  | GitHub (variable)                      | `SUPABASE_MIGRATIONS_BRANCH`                                       | branch de produção das migrações                              |
+  | Onde                                   | Nome                                                               | Uso                                                        |
+  | -------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------- |
+  | Vercel/local                           | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | cliente (precisam existir no build)                        |
+  | Vercel/local (servidor)                | `SUPABASE_SECRET_KEY`                                              | varredura, cron, diagnóstico, sede do proponente, convites |
+  | Vercel                                 | `CRON_SECRET`                                                      | autenticação do cron                                       |
+  | Local (script) / Vercel (opcional)     | `SITE_URL`                                                         | links de convite (script e tela Membros)                   |
+  | GitHub (secret, ambiente `production`) | `SUPABASE_DB_URL`                                                  | aplicação das migrações                                    |
+  | GitHub (variable)                      | `SUPABASE_MIGRATIONS_BRANCH`                                       | branch de produção das migrações                           |
 
 ---
 
@@ -259,13 +264,13 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                |
-| Testes unitários/integração (Vitest)                     | ✅ **163** passando — core 6, ai 2, projects 3, ingestion 48, funding 63, web 41 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **104** verificações em 6 arquivos, com migrações aplicadas 2x                                                                                                                                                                           |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                 |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                 |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                        |
+| Testes unitários/integração (Vitest)                     | ✅ **176** passando — core 8, ai 2, projects 3, ingestion 48, funding 63, web 52 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **132** verificações em 7 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo), com migrações aplicadas 2x                                                                                                                                            |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                         |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                         |
 
 **Problemas conhecidos**
 
@@ -312,19 +317,20 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 10. Pendências
 
-1. Membros: convite pela tela, status do vínculo (convidado/ativo/suspenso), perfis Administrador/Diretoria/Equipe.
-2. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
-3. Motor: classificação do tipo de página/oportunidade; elegibilidade separada da aderência; extração ampliada com
+1. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
+2. Motor: classificação do tipo de página/oportunidade; elegibilidade separada da aderência; extração ampliada com
    evidência por campo; leitura de texto de PDF; deduplicação multi-fonte; aderência explicável por fatores (gravada).
-4. Detecção de alterações/retificações a partir dos documentos e hashes guardados.
-5. Novas fontes via adaptadores (Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores).
-6. Extração/interpretação por IA (depende da escolha do fornecedor).
-7. Alertas por e-mail.
+3. Detecção de alterações/retificações a partir dos documentos e hashes guardados.
+4. Novas fontes via adaptadores (Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores).
+5. Extração/interpretação por IA (depende da escolha do fornecedor).
+6. Alertas por e-mail.
 
-**Decisões pendentes da LEP:** (a) trocar o descarte territorial automático por classificação visível; (b) mapeamento
-Diretoria = `editor` / Equipe = `viewer` e se a Equipe precisa editar; (c) prioridade entre Membros e motor;
-(d) provedor de SMTP e remetente; (e) envio da planilha do benchmark de 26/09/2026 (38 oportunidades);
-(f) biblioteca de extração de texto de PDF; (g) remoção do `logo.jpg` antigo; (h) fornecedor de IA.
+**Decididas (2026-09-28):** classificação visível de restrição territorial (etapa 5); Diretoria = `editor`, Equipe =
+`viewer`; ordem das etapas 1–12 do plano de melhorias.
+
+**Decisões pendentes da LEP:** (a) provedor de SMTP e remetente; (b) envio da planilha do benchmark de 26/09/2026
+(38 oportunidades); (c) remoção do `logo.jpg` antigo; (d) fornecedor de IA; (e) se a Equipe precisará editar algo no
+futuro (hoje só lê).
 
 ---
 
@@ -332,8 +338,8 @@ Diretoria = `editor` / Equipe = `viewer` e se a Equipe precisa editar; (c) prior
 
 1. ✅ Coerência de fontes ativas + validação real da chave de serviço + resumo detalhado por execução
    (branch `claude/melhorias-editais`, etapa 2).
-2. Membros: status do vínculo, convite pela tela, rótulos Administrador/Diretoria/Equipe, suspender/reativar
-   (após SMTP e modelo de e-mail em produção); então o convite da primeira usuária de teste pelo fluxo normal.
+2. ✅ Membros: status do vínculo, convite pela tela, rótulos Administrador/Diretoria/Equipe, suspender/reativar
+   (etapa 3). Falta só a configuração manual de SMTP/modelo em produção e o convite da primeira pessoa pela tela.
 3. Benchmark: transformar os 38 casos em fixtures de teste + relatório comparativo (sem regras fixas no motor).
 4. Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros.
 5. Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte.

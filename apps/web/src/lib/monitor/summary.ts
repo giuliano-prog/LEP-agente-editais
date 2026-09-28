@@ -35,6 +35,12 @@ export function summarize(results: SourceResult[]): MonitorSummary {
       failed: sum("failed"),
       sourcesWithError: results.filter((result) => result.status !== "ok").length,
     },
-    sources: results.map(({ sourceId: _id, candidates: _c, linksFound: _l, ...rest }) => rest),
+    sources: results.map((result) => {
+      const rest: Partial<SourceResult> = { ...result };
+      delete rest.sourceId;
+      delete rest.candidates;
+      delete rest.linksFound;
+      return rest as SourceSummary;
+    }),
   };
 }

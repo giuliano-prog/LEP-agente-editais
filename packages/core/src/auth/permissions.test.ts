@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { can, hasRole, isRole, ROLES } from "../index";
+import { can, hasRole, isMembershipStatus, isRole, ROLE_LABELS, ROLES } from "../index";
 
 describe("hasRole", () => {
   it("respeita a hierarquia viewer < editor < admin", () => {
@@ -40,5 +40,18 @@ describe("isRole", () => {
     for (const role of ROLES) expect(isRole(role)).toBe(true);
     expect(isRole("owner")).toBe(false);
     expect(isRole(1)).toBe(false);
+  });
+});
+
+describe("perfis e status", () => {
+  it("rótulos da LEP: Administrador = admin, Diretoria = editor, Equipe = viewer", () => {
+    expect(ROLE_LABELS).toEqual({ admin: "Administrador", editor: "Diretoria", viewer: "Equipe" });
+  });
+
+  it("status do vínculo iguais ao CHECK da migração", () => {
+    expect(isMembershipStatus("invited")).toBe(true);
+    expect(isMembershipStatus("active")).toBe(true);
+    expect(isMembershipStatus("suspended")).toBe(true);
+    expect(isMembershipStatus("removed")).toBe(false);
   });
 });

@@ -58,17 +58,17 @@ Abra o convite no Mailpit, clique em **Aceitar convite**, defina a senha e você
 
 ## Comandos
 
-| Comando                     | O que faz                                                                 |
-| --------------------------- | ------------------------------------------------------------------------- |
-| `pnpm dev`                  | App em modo desenvolvimento                                               |
-| `pnpm build`                | Build de produção                                                         |
-| `pnpm check`                | Formatação + lint + tipos + testes (rode antes de cada commit)            |
-| `pnpm test`                 | Testes de unidade                                                         |
-| `pnpm db:start` / `db:stop` | Liga/desliga o Supabase local                                             |
-| `pnpm db:reset`             | Recria o banco local do zero (migrações + seed). **Apaga dados locais.**  |
-| `pnpm db:test`              | Testes de permissões (RLS) no Supabase local                              |
-| `pnpm db:types`             | Regenera `packages/db/src/database.types.ts` a partir do banco local      |
-| `pnpm members:invite`       | Convida membro / define papel (`--email`, `--role admin\|editor\|viewer`) |
+| Comando                     | O que faz                                                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                  | App em modo desenvolvimento                                                                                                   |
+| `pnpm build`                | Build de produção                                                                                                             |
+| `pnpm check`                | Formatação + lint + tipos + testes (rode antes de cada commit)                                                                |
+| `pnpm test`                 | Testes de unidade                                                                                                             |
+| `pnpm db:start` / `db:stop` | Liga/desliga o Supabase local                                                                                                 |
+| `pnpm db:reset`             | Recria o banco local do zero (migrações + seed). **Apaga dados locais.**                                                      |
+| `pnpm db:test`              | Testes de permissões (RLS) no Supabase local                                                                                  |
+| `pnpm db:types`             | Regenera `packages/db/src/database.types.ts` a partir do banco local                                                          |
+| `pnpm members:invite`       | Convida membro / define papel (`--email`, `--role admin\|editor\|viewer`) — o primeiro admin; os demais pela tela **Membros** |
 
 Painel do banco local (Supabase Studio): http://127.0.0.1:54323
 
