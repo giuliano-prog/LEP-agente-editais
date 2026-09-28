@@ -191,6 +191,7 @@ export type Database = {
           last_run_at: string | null;
           last_status: string | null;
           link_contains: string | null;
+          adapter_config: Json;
           list_url: string;
           name: string;
           org_id: string;
@@ -207,6 +208,7 @@ export type Database = {
           last_run_at?: string | null;
           last_status?: string | null;
           link_contains?: string | null;
+          adapter_config?: Json;
           list_url: string;
           name: string;
           org_id: string;
@@ -223,6 +225,7 @@ export type Database = {
           last_run_at?: string | null;
           last_status?: string | null;
           link_contains?: string | null;
+          adapter_config?: Json;
           list_url?: string;
           name?: string;
           org_id?: string;
@@ -279,6 +282,9 @@ export type Database = {
           eligibility_evidence: string | null;
           eligibility_source: "auto" | "manual";
           eligibility_checked_at: string | null;
+          page_type: "opportunity" | "uncertain" | null;
+          opportunity_kind: string | null;
+          page_type_reasons: string[];
         };
         Insert: {
           accepted_formats?: string[];
@@ -320,6 +326,9 @@ export type Database = {
           eligibility_evidence?: string | null;
           eligibility_source?: "auto" | "manual";
           eligibility_checked_at?: string | null;
+          page_type?: "opportunity" | "uncertain" | null;
+          opportunity_kind?: string | null;
+          page_type_reasons?: string[];
         };
         Update: {
           accepted_formats?: string[];
@@ -361,6 +370,9 @@ export type Database = {
           eligibility_evidence?: string | null;
           eligibility_source?: "auto" | "manual";
           eligibility_checked_at?: string | null;
+          page_type?: "opportunity" | "uncertain" | null;
+          opportunity_kind?: string | null;
+          page_type_reasons?: string[];
         };
         Relationships: [
           {
@@ -446,6 +458,57 @@ export type Database = {
           },
         ];
       };
+      monitor_ignored_urls: {
+        Row: {
+          first_seen_at: string;
+          id: string;
+          last_seen_at: string;
+          org_id: string;
+          page_type: "listing" | "result" | "rectification" | "news" | "institutional";
+          reasons: string[];
+          source_id: string | null;
+          title: string | null;
+          url: string;
+        };
+        Insert: {
+          first_seen_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          org_id: string;
+          page_type: "listing" | "result" | "rectification" | "news" | "institutional";
+          reasons?: string[];
+          source_id?: string | null;
+          title?: string | null;
+          url: string;
+        };
+        Update: {
+          first_seen_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          org_id?: string;
+          page_type?: "listing" | "result" | "rectification" | "news" | "institutional";
+          reasons?: string[];
+          source_id?: string | null;
+          title?: string | null;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "monitor_ignored_urls_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "monitor_ignored_urls_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_sources";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       monitor_runs: {
         Row: {
           candidates: number;
@@ -465,6 +528,7 @@ export type Database = {
           duplicates: number;
           execution_id: string | null;
           failed: number;
+          ignored_pages: number;
           found: number;
           pending_review: number;
           updated: number;
@@ -487,6 +551,7 @@ export type Database = {
           duplicates?: number;
           execution_id?: string | null;
           failed?: number;
+          ignored_pages?: number;
           found?: number;
           pending_review?: number;
           updated?: number;
@@ -509,6 +574,7 @@ export type Database = {
           duplicates?: number;
           execution_id?: string | null;
           failed?: number;
+          ignored_pages?: number;
           found?: number;
           pending_review?: number;
           updated?: number;

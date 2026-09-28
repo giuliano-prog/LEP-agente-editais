@@ -16,17 +16,27 @@ const base: SourceResult = {
   pendingReview: 0,
   blockedByRobots: 0,
   failed: 0,
+  ignored: 0,
 };
 
 describe("summarize", () => {
   it("soma os contadores e mantém o detalhe por fonte", () => {
     const summary = summarize([
-      { ...base, name: "A", found: 5, imported: 2, pendingReview: 2, duplicates: 2, rejected: 1 },
+      {
+        ...base,
+        name: "A",
+        found: 6,
+        imported: 2,
+        pendingReview: 2,
+        duplicates: 2,
+        rejected: 1,
+        ignored: 1,
+      },
       { ...base, name: "B", status: "error", error: "HTTP 404", failed: 1 },
     ]);
     expect(summary.sourcesChecked).toBe(2);
     expect(summary.totals).toEqual({
-      found: 5,
+      found: 6,
       imported: 2,
       updated: 0,
       duplicates: 2,
@@ -34,6 +44,7 @@ describe("summarize", () => {
       pendingReview: 2,
       blockedByRobots: 0,
       failed: 1,
+      ignored: 1,
       sourcesWithError: 1,
     });
     expect(summary.sources[1]).toMatchObject({ name: "B", status: "error", error: "HTTP 404" });

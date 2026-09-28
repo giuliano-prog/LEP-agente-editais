@@ -27,6 +27,18 @@ export const benchmarkCaseSchema = z.object({
     .object({
       /** É uma oportunidade (edital/chamada/prêmio) e não página genérica/resultado. */
       isOpportunity: z.boolean().optional(),
+      /** Tipo da página (classificador da etapa 6). */
+      pageType: z
+        .enum([
+          "opportunity",
+          "uncertain",
+          "listing",
+          "result",
+          "rectification",
+          "news",
+          "institutional",
+        ])
+        .optional(),
       /** Elegibilidade territorial da LEP (São Paulo/SP). */
       territory: z.enum(["eligible", "ineligible", "unknown"]).optional(),
       /** Elegibilidade geral (taxonomia da etapa 5). */

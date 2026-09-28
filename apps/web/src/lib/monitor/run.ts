@@ -3,6 +3,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import {
   assessEligibility,
+  classifyPage,
+  IMPORTABLE_PAGE_TYPES,
+  opportunityKind,
+  parseSourceAdapter,
   RESTRICTED_ELIGIBILITY,
   findDeadline,
   findTotalAmount,
@@ -24,18 +28,19 @@ import {
 } from "@lep/ingestion";
 import {
   documentColumns,
+  fetchUrlDocument,
   findDuplicate,
   IngestError,
-  ingestFromUrl,
   removeStored,
+  storeFetchedDocument,
 } from "@/lib/editais/ingest";
 import { loadPartnerTerritories, loadProponent } from "@/lib/proponent";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-/** Limites por execução (cabem no tempo máximo de uma função da Vercel). */
-const MAX_IMPORTS_PER_SOURCE = 5;
+/** Limite de tempo por execução (cabe no tempo máximo de uma função da Vercel).
+ * O limite de importações por fonte vem do adaptador (padrão 5). */
 const TIME_BUDGET_MS = 50_000;
 
 export type SourceRow = {
@@ -46,6 +51,8 @@ export type SourceRow = {
   list_url: string;
   audiovisual_only: boolean;
   link_contains: string | null;
+  /** Configuração do adaptador (etapa 6); ausente antes da migração. */
+  adapter_config?: unknown;
 };
 
 /** Resumo de uma fonte em uma execução (exibido no "Verificar agora" e gravado no histórico). */
@@ -72,7 +79,11 @@ export type SourceResult = {
   blockedByRobots: number;
   /** Falhas ao importar um item (a fonte continua). */
   failed: number;
+  /** Páginas lidas e não transformadas em edital (resultado, notícia, institucional…). */
+  ignored: number;
   error?: string;
+  /** Aviso não fatal (ex.: configuração da fonte inválida, usando o padrão). */
+  warning?: string;
 };
 
 function todayInBrasilia(now: Date) {
@@ -102,6 +113,28 @@ async function robotsFor(url: URL): Promise<RobotsRules> {
 async function allowed(rawUrl: string) {
   const url = new URL(rawUrl);
   return isAllowedByRobots(await robotsFor(url), url.pathname + url.search);
+}
+
+type IgnoredPageType = "listing" | "result" | "rectification" | "news" | "institutional";
+
+/** Páginas já classificadas como "não é oportunidade" (vazio se a migração não existir). */
+async function ignoredUrls(admin: Admin, orgId: string): Promise<Set<string>> {
+  const { data, error } = await admin
+    .from("monitor_ignored_urls")
+    .select("url")
+    .eq("org_id", orgId);
+  if (error) return new Set();
+  return new Set((data ?? []).map((row) => row.url));
+}
+
+/** Quantos links da página parecem editais (índices de editais têm vários). */
+function countEditalLinks(links: { text: string; url: string }[], pageUrl: string): number {
+  return selectCandidates(
+    links,
+    { listUrl: pageUrl, audiovisualOnly: true, linkContains: null },
+    new Set(),
+    50,
+  ).length;
 }
 
 /** Links já conhecidos na organização (editais e documentos), para não importar de novo. */
@@ -152,7 +185,10 @@ export async function scanSource(
     pendingReview: 0,
     blockedByRobots: 0,
     failed: 0,
+    ignored: 0,
   };
+  const { adapter, warning } = parseSourceAdapter(source.adapter_config);
+  if (warning) result.warning = warning;
 
   try {
     if (!(await allowed(source.list_url))) {
@@ -170,6 +206,8 @@ export async function scanSource(
     const links = extractLinks(decodeHtml(page.contentType, page.body), page.finalUrl);
     result.linksFound = links.length;
     const known = await knownUrls(admin, source.org_id);
+    // Páginas já classificadas como "não é oportunidade" não são lidas de novo.
+    const ignored = await ignoredUrls(admin, source.org_id);
     // Seleciona sem excluir os conhecidos, para contar duplicadas separadamente.
     const opportunities = selectCandidates(
       links,
@@ -177,25 +215,31 @@ export async function scanSource(
         listUrl: page.finalUrl,
         audiovisualOnly: source.audiovisual_only,
         linkContains: source.link_contains,
+        linkExcludes: adapter.linkExcludes,
+        titleExcludes: adapter.titleExcludes,
+        allowPdfLinks: adapter.allowPdfLinks,
       },
       new Set(),
       100,
     );
     const candidates = opportunities
-      .filter((item) => !known.has(item.url))
-      .slice(0, MAX_IMPORTS_PER_SOURCE * 2);
+      .filter((item) => !known.has(item.url) && !ignored.has(item.url))
+      .slice(0, adapter.maxImports * 2);
     result.found = opportunities.length;
     result.duplicates =
       opportunities.length - opportunities.filter((item) => !known.has(item.url)).length;
     result.candidates = candidates.length;
 
     for (const candidate of candidates) {
-      if (result.imported >= MAX_IMPORTS_PER_SOURCE || Date.now() > options.deadlineAt) break;
+      if (result.imported >= adapter.maxImports || Date.now() > options.deadlineAt) break;
       if (!(await allowed(candidate.url))) {
         result.blockedByRobots++;
         continue;
       }
-      const outcome = await importCandidate(admin, source, candidate, options).catch((error) => {
+      const outcome = await importCandidate(admin, source, candidate, {
+        ...options,
+        classifyPages: adapter.classifyPages,
+      }).catch((error) => {
         console.error(
           `Varredura: falha ao importar ${candidate.url}:`,
           error instanceof Error ? error.message : error,
@@ -209,6 +253,8 @@ export async function scanSource(
         if (outcome === "restricted") result.rejected++;
       } else if (outcome === "duplicate") {
         result.duplicates++;
+      } else if (outcome === "ignored") {
+        result.ignored++;
       } else {
         result.failed++;
       }
@@ -231,13 +277,39 @@ async function importCandidate(
     now,
     proponent,
     partnerTerritories,
-  }: { now: Date; proponent: Proponent; partnerTerritories: string[] },
-): Promise<"imported" | "restricted" | "duplicate"> {
-  const document = await ingestFromUrl(admin, source.org_id, candidate.url);
-  if (await findDuplicate(admin, source.org_id, document)) {
-    await removeStored(admin, document.storagePath);
-    return "duplicate";
+    classifyPages,
+  }: { now: Date; proponent: Proponent; partnerTerritories: string[]; classifyPages: boolean },
+): Promise<"imported" | "restricted" | "duplicate" | "ignored"> {
+  const fetched = await fetchUrlDocument(candidate.url);
+  if (await findDuplicate(admin, source.org_id, fetched)) return "duplicate";
+
+  // Etapa 6: só oportunidades (ou páginas incertas) viram edital. As demais ficam
+  // registradas com o motivo, visíveis em Fontes, e não são baixadas de novo.
+  const page = classifyPages
+    ? classifyPage({
+        title: candidate.title,
+        url: fetched.finalUrl ?? candidate.url,
+        text: fetched.text ?? "",
+        editalLinkCount: countEditalLinks(fetched.links, fetched.finalUrl ?? candidate.url),
+      })
+    : null;
+  if (page && !IMPORTABLE_PAGE_TYPES.has(page.type)) {
+    await admin.from("monitor_ignored_urls").upsert(
+      {
+        org_id: source.org_id,
+        source_id: source.id,
+        url: candidate.url,
+        title: candidate.title.slice(0, 300),
+        page_type: page.type as IgnoredPageType,
+        reasons: page.reasons,
+        last_seen_at: now.toISOString(),
+      },
+      { onConflict: "org_id,url" },
+    );
+    return "ignored";
   }
+
+  const document = await storeFetchedDocument(admin, source.org_id, fetched);
 
   const columns = documentColumns(document);
   const { data: editalId, error } = await admin.rpc("create_edital_with_document", {
@@ -287,6 +359,9 @@ async function importCandidate(
       eligibility_evidence: eligibility.evidence,
       eligibility_source: "auto",
       eligibility_checked_at: now.toISOString(),
+      page_type: page?.type === "opportunity" || page?.type === "uncertain" ? page.type : null,
+      opportunity_kind: page?.kind ?? opportunityKind(candidate.title),
+      page_type_reasons: page?.reasons ?? ["classificação de página desligada nesta fonte"],
     })
     .eq("id", editalId)
     .eq("org_id", source.org_id);
@@ -307,7 +382,7 @@ export async function runMonitor(
 
   let query = admin
     .from("edital_sources")
-    .select("id, org_id, name, agency, list_url, audiovisual_only, link_contains")
+    .select("id, org_id, name, agency, list_url, audiovisual_only, link_contains, adapter_config")
     .eq("active", true)
     .order("last_run_at", { ascending: true, nullsFirst: true });
   if (options.orgId) query = query.eq("org_id", options.orgId);
@@ -351,6 +426,7 @@ export async function runMonitor(
         pending_review: result.pendingReview,
         blocked_by_robots: result.blockedByRobots,
         failed: result.failed,
+        ignored_pages: result.ignored,
         execution_id: executionId,
         error: result.error ?? null,
         started_at: startedAt,

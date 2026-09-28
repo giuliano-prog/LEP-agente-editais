@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { can } from "@lep/core";
+import { PAGE_TYPE_LABELS, parseSourceAdapter, type PageType } from "@lep/funding";
 import { DbErrorNotice } from "@/components/db-error-notice";
 import { Badge, Card, EmptyState, PageHeader, SectionTitle, type BadgeTone } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
 import { SUGGESTED_SOURCES } from "@/lib/monitor/suggested";
 import { createClient } from "@/lib/supabase/server";
-import { addSuggestedSources, deleteSource, toggleSource } from "./actions";
-import { RunNowButton, SourceForm } from "./source-forms";
+import { addSuggestedSources, deleteSource, forgetIgnoredUrl, toggleSource } from "./actions";
+import { RunNowButton, SourceConfigForm, SourceForm } from "./source-forms";
 
 export const metadata: Metadata = { title: "Fontes monitoradas" };
 
@@ -31,12 +32,11 @@ export default async function SourcesPage() {
   const isAdmin = can(membership.role, "org.manage");
   const supabase = await createClient();
 
-  const [sources, runs] = await Promise.all([
+  const [sources, runs, ignoredPages] = await Promise.all([
     supabase
       .from("edital_sources")
-      .select(
-        "id, name, agency, list_url, link_contains, audiovisual_only, active, last_run_at, last_status, last_error, last_imported",
-      )
+      // select("*"): a tela funciona antes e depois da migração do adaptador (etapa 6).
+      .select("*")
       .eq("org_id", membership.orgId)
       .order("name"),
     supabase
@@ -45,6 +45,12 @@ export default async function SourcesPage() {
       .eq("org_id", membership.orgId)
       .order("started_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("monitor_ignored_urls")
+      .select("id, source_id, url, title, page_type, reasons, last_seen_at")
+      .eq("org_id", membership.orgId)
+      .order("last_seen_at", { ascending: false })
+      .limit(30),
   ]);
   const sourceNames = new Map((sources.data ?? []).map((source) => [source.id, source.name]));
   const missingSuggestions = SUGGESTED_SOURCES.filter(
@@ -76,6 +82,7 @@ export default async function SourcesPage() {
           )}
           {(sources.data ?? []).map((source) => {
             const status = source.last_status ? STATUS[source.last_status] : null;
+            const { adapter, warning } = parseSourceAdapter(source.adapter_config);
             return (
               <article key={source.id} className="rounded-xl border border-line bg-card p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -107,7 +114,30 @@ export default async function SourcesPage() {
                     ? " · fonte de audiovisual"
                     : " · fonte geral (filtra audiovisual)"}
                 </p>
+                <p className="mt-1 text-xs text-muted">
+                  Até {adapter.maxImports} nova(s) por verificação
+                  {adapter.classifyPages
+                    ? " · classifica páginas"
+                    : " · sem classificação de páginas"}
+                  {adapter.linkExcludes.length + adapter.titleExcludes.length > 0 &&
+                    ` · ${adapter.linkExcludes.length + adapter.titleExcludes.length} regra(s) de exclusão`}
+                  {!adapter.allowPdfLinks && " · ignora links de PDF"}
+                </p>
+                {warning && <p className="mt-2 text-xs text-warn">{warning}</p>}
                 {source.last_error && <p className="mt-2 text-sm text-bad">{source.last_error}</p>}
+                {isAdmin && (
+                  <details className="mt-3 text-sm">
+                    <summary className="cursor-pointer text-muted hover:text-brand">
+                      Configurar fonte
+                    </summary>
+                    <SourceConfigForm
+                      sourceId={source.id}
+                      adapter={adapter}
+                      linkContains={source.link_contains}
+                      audiovisualOnly={source.audiovisual_only}
+                    />
+                  </details>
+                )}
                 {isAdmin && (
                   <div className="mt-3 flex gap-2 text-xs">
                     <form action={toggleSource.bind(null, source.id, !source.active)}>
@@ -172,6 +202,7 @@ export default async function SourcesPage() {
                   <th className="py-2 pr-4 text-right font-medium">Novas</th>
                   <th className="py-2 pr-4 text-right font-medium">Duplicadas</th>
                   <th className="py-2 pr-4 text-right font-medium">Com restrição</th>
+                  <th className="py-2 pr-4 text-right font-medium">Ignoradas</th>
                   <th className="py-2 text-right font-medium">Erros</th>
                 </tr>
               </thead>
@@ -204,6 +235,9 @@ export default async function SourcesPage() {
                       <td className="py-2 pr-4 text-right tabular-nums text-muted">
                         {run.rejected ?? 0}
                       </td>
+                      <td className="py-2 pr-4 text-right tabular-nums text-muted">
+                        {count(run.ignored_pages)}
+                      </td>
                       <td className="py-2 text-right tabular-nums">{count(run.failed)}</td>
                     </tr>
                   );
@@ -213,6 +247,44 @@ export default async function SourcesPage() {
           </div>
         )}
       </Card>
+      {!ignoredPages.error && (ignoredPages.data ?? []).length > 0 && (
+        <Card>
+          <SectionTitle>Páginas ignoradas pela varredura</SectionTitle>
+          <p className="mb-4 text-sm text-muted">
+            Lidas e não transformadas em edital, com o motivo. Não são lidas de novo até um
+            administrador pedir reavaliação.
+          </p>
+          <ul className="space-y-3 text-sm">
+            {(ignoredPages.data ?? []).map((item) => (
+              <li key={item.id} className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 space-y-1">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium hover:text-brand"
+                  >
+                    {item.title ?? item.url} ↗
+                  </a>
+                  <p className="text-xs text-muted">
+                    <Badge>{PAGE_TYPE_LABELS[item.page_type as PageType] ?? item.page_type}</Badge>{" "}
+                    {item.reasons.join(" · ")} ·{" "}
+                    {(item.source_id && sourceNames.get(item.source_id)) ?? "—"} ·{" "}
+                    {dateTime(item.last_seen_at)}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <form action={forgetIgnoredUrl.bind(null, item.id)}>
+                    <button className="rounded-md border border-line px-3 py-1 text-xs hover:border-brand hover:text-brand">
+                      Reavaliar
+                    </button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

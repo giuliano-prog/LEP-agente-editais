@@ -18,6 +18,8 @@ function startFakeSite() {
         <a href="/editais/resultado-edital-5/">Resultado final do Edital nº 5</a>
         <a href="/privado/edital-interno/">Edital interno de seleção</a>
         <a href="/fora/">Página fora do ar sobre edital de cinema</a>
+        <a href="/editais/programa-de-integridade/">Programa de Integridade dos editais</a>
+        <a href="/acervo/edital-antigo-cinema/">Edital antigo de cinema (acervo)</a>
       </body></html>`,
     },
     "/editais/edital-producao-longa/": {
@@ -28,6 +30,11 @@ function startFakeSite() {
         <p>O edital tem valor total de R$ 10.000.000,00 para até 5 projetos.</p>
         <p>Inscrições de 01/10/2026 a 30/11/2026, exclusivamente pela internet.</p>
         <p>Podem participar produtoras independentes de todo o território nacional.</p></body></html>`,
+    },
+    "/editais/programa-de-integridade/": {
+      type: "text/html; charset=utf-8",
+      body: `<html><head><title>Programa de Integridade</title></head><body>
+        <h1>Programa de Integridade</h1><p>Código de conduta, canal de denúncias e políticas internas da instituição fictícia.</p></body></html>`,
     },
     "/editais/chamada-curtas-rj/": {
       type: "text/html; charset=utf-8",
@@ -55,7 +62,13 @@ function startFakeSite() {
 
 let site: Awaited<ReturnType<typeof startFakeSite>>;
 let supabase: Awaited<ReturnType<typeof startFakeSupabase>>;
-const db: FakeDb = { editais: [], edital_documents: [], edital_sources: [], monitor_runs: [] };
+const db: FakeDb = {
+  editais: [],
+  edital_documents: [],
+  edital_sources: [],
+  monitor_runs: [],
+  monitor_ignored_urls: [],
+};
 
 beforeAll(async () => {
   process.env.LEP_TEST_ALLOW_PRIVATE_NETWORK = "1"; // só vale com NODE_ENV=test
@@ -74,6 +87,8 @@ beforeAll(async () => {
       audiovisual_only: true,
       link_contains: null,
       active: true,
+      // Adaptador da fonte (etapa 6): exclusão por endereço, sem seletores CSS.
+      adapter_config: { linkExcludes: ["/acervo/"] },
     },
     {
       id: "fonte-2",
@@ -104,7 +119,14 @@ describe("runMonitor (varredura)", () => {
     });
 
     const ok = results.find((result) => result.sourceId === "fonte-1");
-    expect(ok).toMatchObject({ status: "ok", imported: 2, rejected: 1, pendingReview: 2 });
+    expect(ok).toMatchObject({
+      status: "ok",
+      imported: 2,
+      rejected: 1,
+      pendingReview: 2,
+      ignored: 1,
+    });
+    expect(ok!.warning).toBeUndefined();
 
     expect(db.editais).toHaveLength(2);
     expect(db.editais!.find((e) => String(e.official_url).includes("longa"))).toMatchObject({
@@ -164,6 +186,42 @@ describe("runMonitor (varredura)", () => {
     expect(urls.some((url) => String(url).includes("/privado/"))).toBe(false);
   });
 
+  it("classificador (etapa 6): página institucional não vira edital; fica registrada com o motivo", () => {
+    const urls = db.editais!.map((edital) => String(edital.official_url));
+    expect(urls.some((url) => url.includes("integridade"))).toBe(false);
+    expect(db.monitor_ignored_urls).toHaveLength(1);
+    expect(db.monitor_ignored_urls![0]).toMatchObject({
+      org_id: ORG,
+      source_id: "fonte-1",
+      page_type: "institutional",
+    });
+    expect(String((db.monitor_ignored_urls![0]!.reasons as string[])[0])).toContain("integridade");
+    // Nada guardado no Storage para a página ignorada (só as 2 importadas).
+    expect(supabase.files.size).toBe(2);
+    expect(db.monitor_runs!.find((run) => run.source_id === "fonte-1")).toMatchObject({
+      ignored_pages: 1,
+    });
+  });
+
+  it("adaptador da fonte: link excluído por endereço nem é considerado", () => {
+    expect(db.editais!.some((edital) => String(edital.official_url).includes("/acervo/"))).toBe(
+      false,
+    );
+    expect(db.monitor_ignored_urls!.some((item) => String(item.url).includes("/acervo/"))).toBe(
+      false,
+    );
+  });
+
+  it("edital importado registra o tipo de página e os sinais", () => {
+    expect(db.editais!.find((e) => String(e.official_url).includes("longa"))).toMatchObject({
+      page_type: "opportunity",
+      opportunity_kind: "edital",
+    });
+    expect(
+      db.editais!.find((e) => String(e.official_url).includes("longa"))!.page_type_reasons,
+    ).toEqual(expect.arrayContaining(["período de inscrição", "valor em R$"]));
+  });
+
   it("fonte com problema é registrada como erro, sem interromper as demais", () => {
     const failed = db.monitor_runs!.find((run) => run.source_id === "fonte-2");
     expect(failed).toMatchObject({ status: "error", trigger: "cron" });
@@ -187,6 +245,9 @@ describe("runMonitor (varredura)", () => {
       duplicates: 2,
       pendingReview: 0,
     });
+    // Página ignorada não é baixada de novo.
+    expect(results.find((result) => result.sourceId === "fonte-1")!.ignored).toBe(0);
+    expect(db.monitor_ignored_urls).toHaveLength(1);
     // O restrito também não volta duplicado: o link continua conhecido.
     expect(db.editais).toHaveLength(2);
     expect(db.monitor_runs!.filter((run) => run.source_id === "fonte-1")).toHaveLength(2);

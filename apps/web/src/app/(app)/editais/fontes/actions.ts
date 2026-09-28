@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { linesToList, sourceAdapterSchema } from "@lep/funding";
 import { assertSafeUrl, UnsafeUrlError } from "@lep/ingestion";
 import { requireMembership } from "@/lib/auth/session";
 import { checkMonitorAccess } from "@/lib/monitor/access";
@@ -127,4 +128,70 @@ export async function runMonitorNow(): Promise<SourceActionState> {
     console.error("Varredura manual falhou:", error instanceof Error ? error.message : error);
     return { error: "A varredura falhou. Veja o Diagnóstico." };
   }
+}
+
+const ID = z.uuid();
+
+/** Configuração da fonte (adaptador): regras simples, validadas, sem seletores CSS. */
+export async function updateSourceConfig(
+  sourceId: string,
+  _prev: SourceActionState,
+  formData: FormData,
+): Promise<SourceActionState> {
+  const { membership } = await requireMembership("admin");
+  if (!ID.safeParse(sourceId).success) return { error: "Fonte inválida." };
+  const adapter = sourceAdapterSchema.safeParse({
+    linkExcludes: linesToList(formData.get("link_excludes")),
+    titleExcludes: linesToList(formData.get("title_excludes")),
+    maxImports: Number(formData.get("max_imports") ?? 5),
+    classifyPages: formData.get("classify_pages") === "on",
+    allowPdfLinks: formData.get("allow_pdf_links") === "on",
+  });
+  if (!adapter.success) {
+    const issue = adapter.error.issues[0];
+    const field: Record<string, string> = {
+      linkExcludes: "Ignorar endereços",
+      titleExcludes: "Ignorar títulos",
+      maxImports: "Máximo de importações (1 a 10)",
+    };
+    return { error: `${field[String(issue?.path[0])] ?? "Configuração"}: ${issue?.message}` };
+  }
+  const linkContains = String(formData.get("link_contains") ?? "").trim();
+  if (linkContains.length > 200) return { error: "Filtro de endereço longo demais." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("edital_sources")
+    .update({
+      adapter_config: adapter.data,
+      link_contains: linkContains || null,
+      audiovisual_only: formData.get("audiovisual_only") === "on",
+    })
+    .eq("id", sourceId)
+    .eq("org_id", membership.orgId)
+    .select("id");
+  if (error || !data?.length) {
+    return {
+      error:
+        "Não foi possível salvar. Confira no Diagnóstico se a migração 20261003120000 foi aplicada.",
+    };
+  }
+  revalidatePath("/editais/fontes");
+  return {
+    success: "Configuração salva. Vale a partir da próxima verificação.",
+    savedAt: Date.now(),
+  };
+}
+
+/** Página ignorada: apagar o registro faz a varredura avaliá-la de novo. */
+export async function forgetIgnoredUrl(ignoredId: string): Promise<void> {
+  const { membership } = await requireMembership("admin");
+  if (!ID.safeParse(ignoredId).success) return;
+  const supabase = await createClient();
+  await supabase
+    .from("monitor_ignored_urls")
+    .delete()
+    .eq("id", ignoredId)
+    .eq("org_id", membership.orgId);
+  revalidatePath("/editais/fontes");
 }

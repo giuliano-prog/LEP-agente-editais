@@ -158,8 +158,20 @@ Vercel Cron diário 10:00 UTC (7h Brasília) → GET /api/cron/monitor (Bearer C
 ### Fontes monitoradas (✅)
 
 Sugestões no código: **RioFilme** (`/editais/`), **Spcine** (`/editais/`), **ANCINE/FSA**. Cadastro por página de
-listagem com opções "fonte exclusiva de audiovisual" e filtro de endereço. ⬜ Planejado: adaptadores/configuração por
-fonte para Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores.
+listagem com opções "fonte exclusiva de audiovisual" e filtro de endereço.
+
+### Classificador de páginas e configuração por fonte (✅, etapa 6, ADR-0017)
+
+- `classifyPage` (`packages/modules/funding/src/page-classifier.ts`): oportunidade · incerta · lista de editais ·
+  resultado · retificação · notícia · institucional, com os sinais que justificam. Na dúvida, **incerta** (entra
+  para revisão). Tipo de oportunidade: edital, chamada, prêmio, concurso, credenciamento, seleção, programa,
+  festival, laboratório.
+- A varredura classifica **antes de guardar**: só oportunidade/incerta vira edital (tipo e sinais na aba Dados); as
+  demais vão para `core.monitor_ignored_urls` com o motivo, aparecem em Fontes → "Páginas ignoradas" e não são
+  baixadas de novo até um admin clicar em **Reavaliar**. Contador "Ignoradas" no resumo e no histórico.
+- Configuração por fonte (`edital_sources.adapter_config`, tela "Configurar fonte"): ignorar endereços/títulos,
+  máximo de novas por verificação (1–10), classificar páginas, aceitar PDFs. **Sem seletores CSS**; configuração
+  inválida no banco não para a varredura (usa o padrão e mostra o aviso).
 
 ### Regras territoriais (✅, ADR-0013, `docs/diretrizes-lep.md`)
 
@@ -240,7 +252,7 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 - **Migrations** (`supabase/migrations/`, todas idempotentes — ADR-0014):
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
   `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo` · `20261001120000_membros_status` ·
-  `20261002120000_elegibilidade`
+  `20261002120000_elegibilidade` · `20261003120000_classificador_paginas`
   (branch `claude/melhorias-editais`, ainda não aplicadas em produção: entra pelo workflow quando o branch for
   integrado ao de produção).
 - **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
@@ -279,18 +291,19 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                              |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                           |
-| Testes unitários/integração (Vitest)                     | ✅ **196** passando — core 8, ai 2, projects 3, ingestion 48, funding 81 (inclui benchmark e elegibilidade), web 54 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **142** verificações em 8 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos), com migrações aplicadas 2x                                                                                                                          |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                            |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                            |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                           |
+| Testes unitários/integração (Vitest)                     | ✅ **219** passando — core 8, ai 2, projects 3, ingestion 48, funding 101 (inclui benchmark, elegibilidade e classificador), web 57 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **157** verificações em 9 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte), com migrações aplicadas 2x                                                                                                  |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                            |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                            |
 
 **Problemas conhecidos**
 
-1. A varredura cria editais a partir de páginas genéricas (ex.: "Programa de Integridade", índices de "Chamamento
-   Público"); não há classificação de tipo de página.
+1. 🟡 Páginas genéricas: o classificador (etapa 6) deixa de fora resultados, retificações, notícias, páginas
+   institucionais (ex.: "Programa de Integridade") e índices (ex.: "Chamamento Público"), com o motivo. Validado com
+   páginas fictícias e o benchmark; **não validado em sites reais** (a rede deste ambiente bloqueia sites externos).
 2. PDFs (regulamentos) não são lidos pela varredura; prazo/valor ficam ausentes quando só estão no PDF.
 3. Não há evidência por campo (só no motivo territorial), nem detecção de alterações/retificações.
 4. Limites: até 5 importações por fonte e 50 s por execução; cron diário.
@@ -358,7 +371,7 @@ futuro (hoje só lê).
 3. 🟡 Benchmark: ✅ estrutura, formato, avaliadores do motor atual, relatório (`pnpm benchmark:editais`) e testes
    (etapa 4); ⬜ casos reais — **dependem da planilha das 38 oportunidades, que não está no repositório**.
 4. ✅ Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros + abas (etapa 5).
-5. Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte.
+5. ✅ Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte (etapa 6).
 6. Extração ampliada + evidência por campo + texto de PDF.
 7. Deduplicação multi-fonte (chave canônica + avistamentos).
 8. Aderência por fatores e Match v2 gravados.

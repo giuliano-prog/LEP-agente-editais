@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import {
   ELIGIBILITY_DESCRIPTIONS,
   matchProjects,
+  OPPORTUNITY_KIND_LABELS,
+  PAGE_TYPE_LABELS,
   territoryLabel,
   toEdital,
   type Edital,
@@ -200,6 +202,25 @@ export default async function EditalPage({
 
       {tab === "dados" && (
         <>
+          {edital.pageType && (
+            <p
+              className={`rounded-md border px-4 py-3 text-sm ${
+                edital.pageType === "uncertain"
+                  ? "border-warn/40 bg-warn/10 text-warn"
+                  : "border-line bg-card text-muted"
+              }`}
+            >
+              <span className="font-medium">
+                {PAGE_TYPE_LABELS[edital.pageType]}
+                {edital.opportunityKind && ` · ${OPPORTUNITY_KIND_LABELS[edital.opportunityKind]}`}
+              </span>
+              {edital.pageType === "uncertain" &&
+                " — a varredura não teve certeza de que esta página é uma oportunidade. Confira na revisão."}
+              {edital.pageTypeReasons.length > 0 && (
+                <span className="block text-xs">Sinais: {edital.pageTypeReasons.join(" · ")}</span>
+              )}
+            </p>
+          )}
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Fact label="Prazo final">
               <Deadline value={edital.deadline} />

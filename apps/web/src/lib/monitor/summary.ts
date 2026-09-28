@@ -15,6 +15,7 @@ export type MonitorSummary = {
     | "pendingReview"
     | "blockedByRobots"
     | "failed"
+    | "ignored"
   > & { sourcesWithError: number };
   sources: SourceSummary[];
 };
@@ -33,6 +34,7 @@ export function summarize(results: SourceResult[]): MonitorSummary {
       pendingReview: sum("pendingReview"),
       blockedByRobots: sum("blockedByRobots"),
       failed: sum("failed"),
+      ignored: sum("ignored"),
       sourcesWithError: results.filter((result) => result.status !== "ok").length,
     },
     sources: results.map((result) => {

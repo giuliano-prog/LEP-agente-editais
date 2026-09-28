@@ -122,3 +122,25 @@ describe("toEdital — elegibilidade (terceiro eixo)", () => {
     );
   });
 });
+
+describe("toEdital — classificação da página (etapa 6)", () => {
+  it("lê tipo de página, tipo de oportunidade e sinais; valores desconhecidos viram null", () => {
+    expect(
+      toEdital({
+        id: 1,
+        page_type: "uncertain",
+        opportunity_kind: "award",
+        page_type_reasons: ["valor em R$"],
+      }),
+    ).toMatchObject({
+      pageType: "uncertain",
+      opportunityKind: "award",
+      pageTypeReasons: ["valor em R$"],
+    });
+    expect(toEdital({ id: 1, page_type: "result", opportunity_kind: "x" })).toMatchObject({
+      pageType: null,
+      opportunityKind: null,
+      pageTypeReasons: [],
+    });
+  });
+});

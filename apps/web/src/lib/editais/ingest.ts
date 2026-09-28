@@ -6,9 +6,11 @@ import {
   detectKind,
   extractDescription,
   extractHtmlMetadata,
+  extractLinks,
   htmlToText,
   FetchError,
   isPdf,
+  type PageLink,
   safeFetch,
   sha256,
   titleFromFileName,
@@ -47,15 +49,15 @@ export class IngestError extends Error {}
 
 export type Duplicate = { editalId: string; title: string };
 
-/**
- * Baixa uma URL pública (página ou PDF), guarda a cópia original no Storage e
- * devolve os metadados. Não usa IA: título e links de PDF vêm do próprio HTML.
- */
-export async function ingestFromUrl(
-  supabase: Supabase,
-  orgId: string,
-  rawUrl: string,
-): Promise<IngestedDocument> {
+/** Documento baixado, ainda não guardado (a varredura decide antes se vale guardar). */
+export type FetchedDocument = Omit<IngestedDocument, "storagePath"> & {
+  body: Buffer;
+  /** Links da página (somente HTML; não são gravados). */
+  links: PageLink[];
+};
+
+/** Baixa uma URL pública (página ou PDF) e lê os metadados, sem guardar nada. */
+export async function fetchUrlDocument(rawUrl: string): Promise<FetchedDocument> {
   let fetched;
   try {
     fetched = await safeFetch(rawUrl, { maxBytes: MAX_DOCUMENT_BYTES });
@@ -69,8 +71,6 @@ export async function ingestFromUrl(
   if (!kind) throw new IngestError("O link não é uma página web nem um PDF.");
 
   const mimeType = kind === "pdf" ? "application/pdf" : "text/html";
-  const extension = kind === "pdf" ? "pdf" : "html";
-  const storagePath = `${orgId}/captures/${randomUUID()}.${extension}`;
   const lastSegment = decodeURIComponent(
     new URL(fetched.finalUrl).pathname.split("/").filter(Boolean).pop() ?? "",
   );
@@ -78,6 +78,7 @@ export async function ingestFromUrl(
   let metadata: IngestedDocument["metadata"] = {};
   let suggestedTitle = titleFromFileName(lastSegment || new URL(fetched.finalUrl).hostname);
   let text: string | undefined;
+  let links: PageLink[] = [];
   if (kind === "html") {
     const source = decodeHtml(fetched.contentType, fetched.body);
     const html = extractHtmlMetadata(source, fetched.finalUrl);
@@ -88,15 +89,13 @@ export async function ingestFromUrl(
     };
     if (html.title) suggestedTitle = html.title.slice(0, 300);
     text = htmlToText(source).slice(0, 200_000);
+    links = extractLinks(source, fetched.finalUrl);
   }
-
-  await upload(supabase, storagePath, fetched.body, mimeType);
 
   return {
     source: "url",
     sourceUrl: rawUrl.trim(),
     finalUrl: fetched.finalUrl,
-    storagePath,
     fileName: kind === "pdf" ? lastSegment || null : null,
     mimeType,
     sizeBytes: fetched.body.byteLength,
@@ -105,7 +104,46 @@ export async function ingestFromUrl(
     suggestedTitle,
     metadata,
     text,
+    body: fetched.body,
+    links,
   };
+}
+
+/** Guarda a cópia original de um documento baixado no Storage (<org_id>/captures/...). */
+export async function storeFetchedDocument(
+  supabase: Supabase,
+  orgId: string,
+  fetched: FetchedDocument,
+): Promise<IngestedDocument> {
+  const extension = fetched.mimeType === "application/pdf" ? "pdf" : "html";
+  const storagePath = `${orgId}/captures/${randomUUID()}.${extension}`;
+  await upload(supabase, storagePath, fetched.body, fetched.mimeType);
+  return {
+    source: fetched.source,
+    sourceUrl: fetched.sourceUrl,
+    finalUrl: fetched.finalUrl,
+    storagePath,
+    fileName: fetched.fileName,
+    mimeType: fetched.mimeType,
+    sizeBytes: fetched.sizeBytes,
+    sha256: fetched.sha256,
+    httpStatus: fetched.httpStatus,
+    suggestedTitle: fetched.suggestedTitle,
+    metadata: fetched.metadata,
+    text: fetched.text,
+  };
+}
+
+/**
+ * Baixa uma URL pública (página ou PDF), guarda a cópia original no Storage e
+ * devolve os metadados. Não usa IA: título e links de PDF vêm do próprio HTML.
+ */
+export async function ingestFromUrl(
+  supabase: Supabase,
+  orgId: string,
+  rawUrl: string,
+): Promise<IngestedDocument> {
+  return storeFetchedDocument(supabase, orgId, await fetchUrlDocument(rawUrl));
 }
 
 /**

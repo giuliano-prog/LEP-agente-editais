@@ -1,5 +1,7 @@
 import {
   assessEligibility,
+  classifyPage,
+  IMPORTABLE_PAGE_TYPES,
   assessTerritory,
   findDeadline,
   findTotalAmount,
@@ -16,13 +18,21 @@ import type { BenchmarkCase, ExpectedField } from "./case-schema";
  */
 export type Evaluator = (item: BenchmarkCase) => unknown;
 
+const pageOf = (item: BenchmarkCase) =>
+  classifyPage({
+    title: item.input.title,
+    url: item.input.url,
+    text: [item.input.text, item.input.pdfText ?? ""].join("\n"),
+  });
+
 const fullText = (item: BenchmarkCase) =>
   [item.input.title, item.input.text, item.input.pdfText ?? ""].join("\n");
 
 export const EVALUATORS: Partial<Record<ExpectedField, Evaluator>> = {
+  // Link aceito pela seleção E página classificada como oportunidade/incerta (etapa 6).
   isOpportunity: (item) => {
     const url = new URL(item.input.url);
-    return (
+    const linkAccepted =
       selectCandidates(
         [{ text: item.input.title, url: item.input.url }],
         {
@@ -32,9 +42,10 @@ export const EVALUATORS: Partial<Record<ExpectedField, Evaluator>> = {
         },
         new Set(),
         1,
-      ).length > 0
-    );
+      ).length > 0;
+    return linkAccepted && IMPORTABLE_PAGE_TYPES.has(pageOf(item).type);
   },
+  pageType: (item) => pageOf(item).type,
   territory: (item) => assessTerritory(fullText(item)).verdict,
   eligibility: (item) => assessEligibility(fullText(item)).status,
   deadline: (item) => findDeadline(fullText(item))?.slice(0, 10) ?? null,

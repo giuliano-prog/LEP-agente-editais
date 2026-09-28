@@ -169,6 +169,28 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3b3. Classificador de páginas e adaptadores por fonte (etapa 6).
+  const [classifierColumns, ignoredTable] = await Promise.all([
+    supabase.from("editais").select("page_type, opportunity_kind, page_type_reasons").limit(1),
+    supabase.from("monitor_ignored_urls").select("id").eq("org_id", orgId).limit(1),
+  ]);
+  const classifierError = classifierColumns.error ?? ignoredTable.error;
+  checks.push(
+    classifierError
+      ? {
+          label: "Classificador de páginas e configuração por fonte",
+          status: "fail",
+          detail: classifierError.message,
+          fix: "Aplique a migração 20261003120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Classificador de páginas e configuração por fonte",
+          status: "ok",
+          detail:
+            "Resultados, notícias e páginas institucionais ficam fora, registrados com o motivo.",
+        },
+  );
+
   // 3c. Resumo detalhado da varredura (colunas novas do histórico).
   const summaryColumns = await supabase
     .from("monitor_runs")

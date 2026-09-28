@@ -17,7 +17,8 @@
       "eligibility": "eligible",
       "deadline": "2026-11-30",
       "totalAmount": 10000000,
-      "status": "open"
+      "status": "open",
+      "pageType": "opportunity"
     }
   },
   {
@@ -70,8 +71,11 @@
       "audiovisualSource": true,
       "text": "Conheça o programa de integridade da instituição, código de conduta e canal de denúncias."
     },
-    "expected": { "isOpportunity": false },
-    "notes": "Problema conhecido: o motor atual aceita páginas genéricas (classificador na etapa 6)."
+    "expected": {
+      "isOpportunity": false,
+      "pageType": "institutional"
+    },
+    "notes": "Página institucional: o classificador (etapa 6) a deixa de fora, com o motivo."
   },
   {
     "id": "exemplo-resultado",
@@ -84,7 +88,10 @@
       "audiovisualSource": true,
       "text": "Lista de projetos selecionados."
     },
-    "expected": { "isOpportunity": false }
+    "expected": {
+      "isOpportunity": false,
+      "pageType": "result"
+    }
   },
   {
     "id": "exemplo-prazo-so-no-pdf",
@@ -98,7 +105,11 @@
       "text": "Leia o regulamento completo no arquivo PDF.",
       "pdfText": "Valor total disponibilizado: R$ 3.000.000,00. As inscrições encerram-se em 20/10/2026."
     },
-    "expected": { "deadline": "2026-10-20", "totalAmount": 3000000, "status": "open" },
+    "expected": {
+      "deadline": "2026-10-20",
+      "totalAmount": 3000000,
+      "status": "open"
+    },
     "notes": "Hoje o motor não lê PDF na varredura (etapa 7); o benchmark já usa pdfText quando informado."
   }
 ]

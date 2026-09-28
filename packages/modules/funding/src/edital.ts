@@ -7,6 +7,7 @@
  */
 
 import { isEligibilityStatus, type EligibilityStatus } from "./eligibility";
+import { OPPORTUNITY_KINDS, type OpportunityKind } from "./page-classifier";
 
 export type EditalLink = { label: string; url: string };
 
@@ -44,6 +45,10 @@ export type Edital = {
   eligibilityEvidence: string | null;
   /** auto (regras) | manual (definida pela equipe). */
   eligibilitySource: "auto" | "manual";
+  /** Classificação da página pela varredura (etapa 6); null = cadastro manual/anterior. */
+  pageType: "opportunity" | "uncertain" | null;
+  opportunityKind: OpportunityKind | null;
+  pageTypeReasons: string[];
 };
 
 export const EDITAL_STATUS_LABELS: Record<string, string> = {
@@ -206,6 +211,12 @@ export function toEdital(row: Row): Edital {
     eligibilityReason: asText(row.eligibility_reason),
     eligibilityEvidence: asText(row.eligibility_evidence),
     eligibilitySource: row.eligibility_source === "manual" ? "manual" : "auto",
+    pageType:
+      row.page_type === "opportunity" || row.page_type === "uncertain" ? row.page_type : null,
+    opportunityKind: (OPPORTUNITY_KINDS as readonly unknown[]).includes(row.opportunity_kind)
+      ? (row.opportunity_kind as OpportunityKind)
+      : null,
+    pageTypeReasons: asStringArray(row.page_type_reasons),
   };
 }
 

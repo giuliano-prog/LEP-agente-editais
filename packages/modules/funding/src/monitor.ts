@@ -10,6 +10,10 @@ export type SourceConfig = {
   audiovisualOnly: boolean;
   /** Trecho obrigatório no endereço do link (ex.: "/editais/"), opcional. */
   linkContains: string | null;
+  /** Adaptador da fonte (source-adapter.ts): exclusões por endereço/título e PDFs. */
+  linkExcludes?: string[];
+  titleExcludes?: string[];
+  allowPdfLinks?: boolean;
 };
 
 export type Candidate = { title: string; url: string };
@@ -21,6 +25,12 @@ const AUDIOVISUAL_TERMS =
 /** Links que são sobre editais mas não são uma oportunidade nova. */
 const NOISE =
   /^(resultado|homologa|errata|retifica|ata\b|anexo|perguntas|d[uú]vidas|faq|todos os|ver (todos|mais)|leia mais|saiba mais|voltar|pr[oó]xim|anterior|p[aá]gina|login|entrar|cadastre)/i;
+
+const normalizeText = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 const slug = (url: URL) => decodeURIComponent(url.pathname).replace(/[-_/]+/g, " ");
 
@@ -42,6 +52,11 @@ export function selectCandidates(
       continue;
     }
     const isPdf = /\.pdf$/i.test(url.pathname);
+    if (isPdf && source.allowPdfLinks === false) continue;
+    const address = url.toString().toLowerCase();
+    if (source.linkExcludes?.some((part) => address.includes(part.toLowerCase()))) continue;
+    const plainTitle = normalizeText(link.text);
+    if (source.titleExcludes?.some((part) => plainTitle.includes(normalizeText(part)))) continue;
     const sameSite = url.hostname.replace(/^www\./, "") === listUrl.hostname.replace(/^www\./, "");
     if (!sameSite && !isPdf) continue;
     if (

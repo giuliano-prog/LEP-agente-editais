@@ -5,3 +5,5 @@ export * from "./monitor";
 export * from "./adherence";
 export * from "./territory";
 export * from "./eligibility";
+export * from "./page-classifier";
+export * from "./source-adapter";

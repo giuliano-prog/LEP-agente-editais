@@ -76,9 +76,12 @@ describe("benchmark de editais", () => {
     expect(outcome).toMatchObject({ result: "miss", critical: true });
   });
 
-  it("registra o problema conhecido do motor atual (página genérica aceita)", () => {
+  it("classificador (etapa 6) resolve o problema conhecido da página genérica", () => {
     const { cases } = loadCases([examples]);
     const generic = cases.find((item) => item.id === "exemplo-pagina-generica")!;
-    expect(evaluateCase(generic)[0]).toMatchObject({ field: "isOpportunity", result: "miss" });
+    expect(evaluateCase(generic)).toEqual([
+      expect.objectContaining({ field: "isOpportunity", result: "hit" }),
+      expect.objectContaining({ field: "pageType", result: "hit", actual: "institutional" }),
+    ]);
   });
 });

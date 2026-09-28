@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { Field, FormError, FormSuccess, SubmitButton } from "@/components/form";
+import { Field, FormError, FormSuccess, SubmitButton, TextArea } from "@/components/form";
 import type { MonitorSummary } from "@/lib/monitor/summary";
-import { createSource, runMonitorNow, type SourceActionState } from "./actions";
+import type { SourceAdapter } from "@lep/funding";
+import { createSource, runMonitorNow, updateSourceConfig, type SourceActionState } from "./actions";
 
 export function SourceForm() {
   const [state, action] = useActionState<SourceActionState, FormData>(createSource, {});
@@ -77,6 +78,7 @@ const COLUMNS = [
   ["updated", "Atualizadas"],
   ["duplicates", "Duplicadas"],
   ["rejected", "Com restrição"],
+  ["ignored", "Ignoradas"],
   ["pendingReview", "Pendentes de revisão"],
   ["failed", "Erros"],
 ] as const;
@@ -119,6 +121,9 @@ export function RunSummary({ summary }: { summary: MonitorSummary }) {
                 <td className="py-2 pr-3">
                   {source.name}
                   {source.error && <span className="block text-xs text-bad">{source.error}</span>}
+                  {source.warning && (
+                    <span className="block text-xs text-warn">{source.warning}</span>
+                  )}
                 </td>
                 {COLUMNS.map(([key, label]) => (
                   <td key={label} className="py-2 pr-3 text-right tabular-nums">
@@ -141,8 +146,95 @@ export function RunSummary({ summary }: { summary: MonitorSummary }) {
       <p className="text-xs text-muted">
         “Encontradas” não significa elegíveis: as novas entram como revisão pendente para triagem da
         equipe. “Com restrição” (ex.: exclusivo de outro território) também entram, visíveis com o
-        motivo — nada é descartado automaticamente.
+        motivo — nada é descartado automaticamente. “Ignoradas” são páginas que não são
+        oportunidades (resultado, notícia, página institucional, índice), listadas abaixo com o
+        motivo.
       </p>
     </section>
+  );
+}
+
+/** Configuração da fonte (adaptador). Regras por endereço/título; sem seletores CSS. */
+export function SourceConfigForm({
+  sourceId,
+  adapter,
+  linkContains,
+  audiovisualOnly,
+}: {
+  sourceId: string;
+  adapter: SourceAdapter;
+  linkContains: string | null;
+  audiovisualOnly: boolean;
+}) {
+  const [state, action] = useActionState<SourceActionState, FormData>(
+    updateSourceConfig.bind(null, sourceId),
+    {},
+  );
+  return (
+    <form action={action} className="mt-3 space-y-3">
+      <Field
+        label="Filtro de endereço (opcional)"
+        name="link_contains"
+        maxLength={200}
+        defaultValue={linkContains ?? ""}
+        placeholder="/editais/"
+        hint="Só considera links cujo endereço contém este trecho."
+      />
+      <TextArea
+        label="Ignorar endereços que contenham (um por linha)"
+        name="link_excludes"
+        defaultValue={adapter.linkExcludes.join("\n")}
+        placeholder={"/resultado\n/noticias/"}
+      />
+      <TextArea
+        label="Ignorar títulos que contenham (um por linha)"
+        name="title_excludes"
+        defaultValue={adapter.titleExcludes.join("\n")}
+        placeholder={"encerrado\nacervo"}
+      />
+      <Field
+        label="Máximo de novas por verificação"
+        name="max_imports"
+        type="number"
+        min={1}
+        max={10}
+        defaultValue={adapter.maxImports}
+      />
+      <Check name="audiovisual_only" defaultChecked={audiovisualOnly}>
+        Fonte exclusiva de audiovisual
+      </Check>
+      <Check name="classify_pages" defaultChecked={adapter.classifyPages}>
+        Classificar páginas antes de importar (recomendado: ignora resultados, notícias e páginas
+        institucionais, com o motivo)
+      </Check>
+      <Check name="allow_pdf_links" defaultChecked={adapter.allowPdfLinks}>
+        Aceitar links diretos para PDF
+      </Check>
+      <FormError message={state.error} />
+      <FormSuccess message={state.success} />
+      <SubmitButton>Salvar configuração</SubmitButton>
+    </form>
+  );
+}
+
+function Check({
+  name,
+  defaultChecked,
+  children,
+}: {
+  name: string;
+  defaultChecked: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex items-start gap-3 text-sm">
+      <input
+        type="checkbox"
+        name={name}
+        defaultChecked={defaultChecked}
+        className="mt-1 accent-brand"
+      />
+      <span>{children}</span>
+    </label>
   );
 }
