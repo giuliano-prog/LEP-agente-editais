@@ -1,6 +1,7 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-28 · **Branch:** `claude/epic-cerf-abwkc1` · **Commit de referência:** `fc3b550`
+> **Atualizado em:** 2026-09-28 · **Branch:** `claude/melhorias-editais` (etapas 1–12 do plano de melhorias) ·
+> **Commit de referência:** `013dcef` · **Produção:** ainda na versão anterior às etapas (branch não integrado)
 >
 > Documento de referência para qualquer assistente ou pessoa entender o projeto sem ler o histórico da conversa.
 > Legenda: **✅ IMPLEMENTADO** (no código, testado) · **🟡 EM ANDAMENTO** (decidido/parcial, aguardando algo) ·
@@ -22,9 +23,11 @@ explicável e **sem nunca afirmar que um projeto será aprovado**.
 apps/web (Next.js 16, Vercel) ──► Supabase (PostgreSQL + Auth + Storage, RLS em tudo)
    │  proxy.ts (sessão) · páginas por módulo · Server Actions · /api/cron/monitor
    ▼
-packages/core      papéis e permissões          packages/db         tipos do banco
-packages/ai        ponto único de IA (contrato) packages/ingestion  download seguro, HTML, robots.txt, hash
-packages/modules/  funding (editais, Match, varredura, território) · projects (vocabulário/validação)
+packages/core      papéis, permissões, status do vínculo    packages/db   tipos do banco
+packages/ai        contrato de IA + EditalAnalyzer (sem fornecedor)
+packages/ingestion download seguro (anti-SSRF), HTML, robots.txt, hash, texto de PDF (pdfjs-dist, sem OCR)
+packages/modules/  funding (edital, elegibilidade, classificador, extração, deduplicação, Match v2, alterações,
+                   adaptador de fonte, benchmark) · projects (vocabulário/validação)
 ```
 
 **Núcleo compartilhado (schema `core`)** — ✅ IMPLEMENTADO: organizações (com sede do proponente), perfis,
@@ -32,12 +35,12 @@ vínculos/papéis, auditoria (`audit_log`), registro de custos de IA (`ai_usage`
 
 **Módulos existentes**
 
-| Módulo                                      | Estado                                           |
-| ------------------------------------------- | ------------------------------------------------ |
-| Captação de Recursos / Editais              | ✅ em uso (evolução em andamento — ver §3 e §11) |
-| Projetos (cadastro básico usado pelo Match) | ✅ versão inicial                                |
-| Membros (listagem + sede do proponente)     | ✅ versão inicial (convite pela tela ⬜)         |
-| Diagnóstico de configuração                 | ✅                                               |
+| Módulo                                      | Estado                                              |
+| ------------------------------------------- | --------------------------------------------------- |
+| Captação de Recursos / Editais              | ✅ em uso; etapas 1–12 implementadas no branch (§2) |
+| Projetos (cadastro básico usado pelo Match) | ✅ versão inicial                                   |
+| Membros (perfis, status, convite pela tela) | ✅ no branch (e-mail em produção a configurar)      |
+| Diagnóstico de configuração                 | ✅ (verifica também as migrações das etapas)        |
 
 **Módulos planejados** (⬜, apenas nomeados; escopo e ordem ainda não definidos): Contratos, Equipe, Orçamentos,
 Prestação de contas, Direitos e clearance, Produção, Documentação, Assistente da LEP.
@@ -46,49 +49,59 @@ Prestação de contas, Direitos e clearance, Produção, Documentação, Assiste
 
 ## 2. Estado atual
 
-**✅ Implementado e funcionando (testado neste repositório)**
+**✅ Em produção (informado pela equipe; versão ANTERIOR às etapas 1–12)**: app publicado na Vercel; banco remoto
+sincronizado pelo workflow de migrações; varredura real executada (resultado relatado: 10 em acompanhamento, 6 novas
+da varredura, 5 descartadas; fontes Spcine, RioFilme, ANCINE/FSA). Login por convite, papéis, RLS, auditoria;
+editais (lista, detalhe, cadastro por link/PDF/manual, revisão humana, triagem); projetos; Match ✓/⚠/✕; varredura
+diária + "Verificar agora"; diretrizes territoriais; Diagnóstico; migrações automáticas.
 
-- Fundação: login por convite, papéis, RLS, auditoria, identidade visual (tema escuro LEP; logo oficial em alta
-  resolução no cabeçalho e no login, proporção preservada em desktop e celular).
-- Editais: listagem (Oportunidade | Instituição | Prazo | Valor | Aderência), detalhe, cadastro por link/PDF/manual,
-  cópia original guardada com SHA-256, revisão humana, triagem (descartar/restaurar).
-- Projetos: cadastro e listagem.
-- Match edital × projeto explicável (✓ / ⚠ / ✕) e Aderência (Alta/Média/Baixa/Sem projetos).
-- Varredura automática diária de fontes + "Verificar agora" + histórico de varreduras. Antes de rodar, compara as
-  fontes ativas vistas pela interface e pelo motor e identifica o tipo da chave de serviço (erro claro se divergir);
-  resumo por fonte e total (encontradas, novas, atualizadas, duplicadas, descartadas, pendentes, erros).
-- Diretrizes LEP no código: território (sede São Paulo/SP) e foco exclusivo na LEP como proponente.
-- Página Diagnóstico e script SQL de diagnóstico (somente leitura).
-- Migrações idempotentes + workflow de aplicação automática em produção via `supabase db push --db-url`.
+**✅ Implementado e testado no branch `claude/melhorias-editais` (etapas 1–12; ainda NÃO integrado à produção)** —
+detalhes em §2.1 e §3.
 
-**✅ Em produção (informado pela equipe)**: app publicado na Vercel; banco remoto sincronizado pelo workflow de
-migrações; varredura real executada (resultado relatado: 10 em acompanhamento, 6 novas da varredura, 5 descartadas;
-fontes Spcine, RioFilme, ANCINE/FSA).
-
-**✅ Implementado no branch `claude/melhorias-editais` (etapas 1–12, testado aqui; ainda não integrado ao branch de
-produção)**: logo; fontes ativas + resumo da varredura; membros (status, convite, perfis); benchmark (estrutura);
-taxonomia em 3 eixos; classificador de páginas + configuração por fonte; extração com evidência + texto de PDF;
-deduplicação multi-fonte; Match v2 explicável e gravado; alterações/retificações; catálogo de novas fontes + "Testar
-fonte"; interface `EditalAnalyzer` (sem fornecedor de IA).
-
-**🟡 Dependem da LEP / de produção**: SMTP e modelo de convite no Supabase; planilha das 38 oportunidades
-(benchmark); endereços oficiais e teste das novas fontes no site real; escolha do fornecedor de IA.
+**🟡 Dependem da LEP / de produção**: SMTP e modelo de convite no Supabase (etapa 3); planilha das 38 oportunidades
+(etapa 4); endereços oficiais e teste das novas fontes no site real (etapa 11); escolha do fornecedor de IA (etapa 12);
+decisão de integrar o branch à produção (aplica 8 migrações pelo workflow).
 
 **⬜ Planejado**: alertas por e-mail, Diários Oficiais, OCR (se necessário), tela de parcerias, módulos futuros.
+
+### 2.1 Plano de melhorias — resumo das 12 etapas
+
+| #   | Etapa                                        | Status | Commit    | Migração                               | ADR  | O que entrega                                                                                                                                                                                                                     |
+| --- | -------------------------------------------- | ------ | --------- | -------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Logo                                         | ✅     | `f28c329` | —                                      | —    | Logo oficial em alta resolução (`public/brand/lep-logo.png`) no cabeçalho e no login, proporção preservada (desktop/celular); `logo.jpg` antigo mantido só para reversão                                                          |
+| 2   | Fontes ativas + diagnóstico + resumo         | ✅     | `1372d51` | `20260930120000_monitor_resumo`        | —    | `checkMonitorAccess` compara fontes ativas (tela × motor) e identifica o tipo da chave de serviço; "Verificar agora" com resumo por fonte e total; histórico preservado                                                           |
+| 3   | Membros e perfis                             | ✅ ⚠   | `3d9a375` | `20261001120000_membros_status`        | 0015 | Administrador/Diretoria/Equipe = admin/editor/viewer; vínculo convidado/ativo/suspenso travado no banco; convidar, reenviar, suspender, reativar; convite via Supabase Auth no servidor após checar admin; nenhuma senha guardada |
+| 4   | Benchmark                                    | 🟡     | `c8a5953` | —                                      | —    | `pnpm benchmark:editais` (acurácia por campo, erros graves, `--json`, `--min-accuracy`), fora do código de produção; exemplos fictícios; **casos reais pendentes** (planilha das 38)                                              |
+| 5   | Taxonomia em 3 eixos + elegibilidade         | ✅     | `e9e8f29` | `20261002120000_elegibilidade`         | 0016 | Situação · triagem · elegibilidade separadas; restrição territorial visível com trecho (sem descarte automático, sem exceção fixa para RioFilme); "não elegível" só por decisão humana; filtros por eixo; detalhe em abas         |
+| 6   | Classificador de página + adaptador de fonte | ✅     | `ac4c20f` | `20261003120000_classificador_paginas` | 0017 | Resultado, notícia, institucional e índices ficam fora (com motivo, "Páginas ignoradas", "Reavaliar"); configuração por fonte sem seletores CSS                                                                                   |
+| 7   | Extração ampliada + evidência + PDF          | ✅     | `cd39a47` | `20261004120000_evidencias`            | 0018 | Texto de PDF com `pdfjs-dist` (sem OCR); prazo, abertura, valores, nº de projetos, formatos, gêneros, estágios, cada um com trecho e origem; regulamento em PDF seguido pela varredura; aba "Dados e evidências"                  |
+| 8   | Deduplicação multi-fonte                     | ✅     | `9516843` | `20261005120000_deduplicacao`          | 0019 | Chave canônica (número/ano + título + prazo); mesmo edital em outra fonte vira avistamento; possível duplicado com aviso e decisão da equipe; "Onde foi encontrado"                                                               |
+| 9   | Aderência explicável + Match v2              | ✅     | `a29f0ad` | `20261006120000_match_v2`              | 0020 | Fatores com peso, pontuação, confiança, impedimentos; "Dados insuficientes" em vez de "Baixa"; tabela "Como a aderência foi calculada"; gravado em `edital_matches`                                                               |
+| 10  | Alterações e retificações                    | ✅     | `3f2ef74` | `20261007120000_alteracoes`            | 0021 | Re-verificação periódica e manual; retificações guardadas; alteração pendente (antes → depois + trecho); nada sobrescrito sem a equipe aplicar                                                                                    |
+| 11  | Novas fontes                                 | 🟡     | `e0a19ac` | —                                      | 0022 | Catálogo Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores (sem endereço inventado); "Testar fonte" sem gravar; entram pausadas; **endereços e teste no site real pendentes**                                              |
+| 12  | Interface `EditalAnalyzer`                   | ✅     | `013dcef` | —                                      | 0023 | Contrato único de IA sem fornecedor (`NoopEditalAnalyzer` padrão); adaptador para qualquer `AiProvider`; trecho literal obrigatório, nenhuma afirmação de aprovação, "não elegível" só humano; nenhum SDK de IA                   |
+
+✅ ⚠ = código pronto e testado; depende de configuração manual em produção (§5).
 
 ---
 
 ## 3. Módulo Captação de Recursos / Editais
 
-### Funcionalidades atuais (✅)
+### Funcionalidades atuais (✅ no branch)
 
-- **Listagem** `/editais`: colunas Oportunidade · Instituição · Prazo · Valor · Aderência (Match); filtros
-  "Em acompanhamento", "Novos da varredura", "Revisão pendente", "Descartados"; ordenação no app (abertos por prazo →
-  sem prazo → encerrados). Leitura com `select("*")` e normalização defensiva (`toEdital`), tolerante a colunas
-  extras/ausentes.
-- **Detalhe** `/editais/[id]`: resumo, critérios, documentos exigidos, categorias, regras usadas no Match (inclui
-  território), links oficiais, documentos guardados, PDFs encontrados na página, painel de Match, Editar, Descartar/Restaurar.
-- **Fontes** `/editais/fontes`: cadastro (admin), sugestões, pausar/remover, "Verificar agora", histórico.
+- **Listagem** `/editais`: colunas Oportunidade · Instituição · Prazo · Valor · Aderência (Match) (inalteradas);
+  filtros em três eixos — **Triagem** (Em acompanhamento, Novos da varredura, Revisão pendente, Descartados),
+  **Elegibilidade** (Todas, Elegíveis, Não confirmadas, Necessita revisão, Com restrição) e **Situação** (Abertas, Em
+  breve, Encerradas, Não informada); selos de elegibilidade, varredura, possível duplicado e alteração a revisar.
+  Leitura com `select("*")` e normalização defensiva (`toEdital`).
+- **Detalhe** `/editais/[id]` em abas: **Dados e evidências** (fatos, resumo, critérios, tipo de página, evidência por
+  campo, onde foi encontrado) · **Elegibilidade** (motivo, trecho, territórios, decisão da equipe) · **Match**
+  (✓/⚠/✕ + fatores; estado do cálculo gravado) · **Documentos** · **Histórico** (alterações detectadas + auditoria
+  para admin). Avisos de possível duplicado e de alterações pendentes; botões Editar, Descartar/Restaurar e "Verificar
+  alterações agora".
+- **Fontes** `/editais/fontes`: cadastro, sugestões e **catálogo de novas fontes**; "Configurar fonte"; "Testar
+  fonte"; pausar/reativar/remover; "Verificar agora" com resumo; histórico com Encontradas, Novas, Duplicadas, Com
+  restrição, Ignoradas, Erros; **Páginas ignoradas** com "Reavaliar".
 
 ### Cadastro (✅, ADR-0011)
 
@@ -143,25 +156,30 @@ Parcerias: espaço reservado (`organizations.partner_territories`, sem tela) —
   inelegível) e campos **sem avaliador** (nunca contam como acerto). Opções `--json` e `--min-accuracy`.
 - Fora do código de produção (`packages/modules/funding/benchmark/`). Exemplos versionados são **fictícios**; casos
   reais ficam em `benchmark/private/` (ignorada pelo Git) ou `--cases`.
-- Resultado com os 6 exemplos fictícios: território, prazo, valor e situação 100%; "é oportunidade" 80% (página
-  genérica aceita — problema conhecido, etapa 6); elegibilidade sem avaliador (etapa 5).
+- Avaliadores atuais: é oportunidade, tipo de página, território, elegibilidade, prazo, valor total, valor por projeto,
+  quantidade de projetos e situação (atualizados nas etapas 5–7).
+- Resultado com os 6 exemplos fictícios (após as etapas 5–7): 100% em todos os campos avaliados, 0 erros graves.
+  Exemplos fictícios não medem a qualidade real — isso depende dos casos da planilha.
 - **Dependência externa:** a planilha das 38 oportunidades (26/09/2026) não está no repositório.
 
-### Fluxo de monitoramento (✅, ADR-0012)
+### Fluxo de monitoramento (✅, ADR-0012; ampliado nas etapas 2 e 5–11)
 
 ```
 Vercel Cron diário 10:00 UTC (7h Brasília) → GET /api/cron/monitor (Bearer CRON_SECRET)
-  ou "Verificar agora" (admin)
-→ runMonitor (cliente com chave de serviço): fontes active = true
-→ por fonte: robots.txt → página de listagem → extractLinks → selectCandidates
-   (termos de edital + audiovisual; exclui ruído e links conhecidos; até 5 importações/fonte, 50 s no total)
-→ por candidato: baixa página → guarda cópia → cria edital (origin = monitor, revisão pendente)
-   → prazo/valor/status/resumo sugeridos por regras de texto
-   → assessEligibility: elegibilidade (eligibility_status + motivo + trecho); restrição fica visível, triagem pendente
-→ grava core.monitor_runs (links, candidatos, encontradas, novas, duplicadas, com restrição, pendentes,
-   bloqueadas pelo robots.txt, falhas, erro, execution_id) e status da fonte
-→ "Verificar agora": antes de rodar, checkMonitorAccess compara fontes ativas (sessão × chave de serviço);
-   depois, mostra o resumo por fonte e o total
+  ou "Verificar agora" (admin) — antes, checkMonitorAccess compara fontes ativas (sessão × chave de serviço)
+→ runMonitor (cliente com chave de serviço): fontes active = true, cada uma com seu adaptador (adapter_config)
+→ por fonte: robots.txt → página de listagem → extractLinks → selectCandidates (termos de edital + audiovisual,
+   exclusões do adaptador; pula links conhecidos, avistados e páginas ignoradas; até maxImports/fonte, 50 s no total)
+→ por candidato: baixa (sem guardar) → classifyPage
+   ├─ resultado/notícia/institucional/índice/retificação → monitor_ignored_urls (motivo) → fim
+   ├─ mesmo edital já cadastrado (fingerprint) → edital_sightings (avistamento) → fim
+   └─ oportunidade/incerta → guarda cópia → cria edital (origin = monitor, revisão pendente)
+        → segue o regulamento em PDF (anexo) → extractFields (valores + evidência) → assessEligibility
+        → possível duplicado, chave canônica, avistamento de origem, linha de base (hash do texto)
+        → Match v2 gravado (edital_matches)
+→ re-verifica até 2 editais abertos da fonte (≥ 20 h): retificações/alterações → edital_changes (pendente)
+→ grava monitor_runs (encontradas, novas, atualizadas, duplicadas, com restrição, ignoradas, pendentes,
+   bloqueadas pelo robots.txt, falhas, execution_id) e o status da fonte; resumo por fonte na tela
 ```
 
 ### Fontes monitoradas (✅)
@@ -281,9 +299,16 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 ## 6. Banco e infraestrutura
 
 - **Supabase:** PostgreSQL 17 (local via CLI), Auth, Storage. Schema exposto na API: `core`.
-- **Tabelas principais (`core`):** `organizations`, `profiles`, `memberships`, `audit_log`, `ai_usage`, `editais`,
-  `projetos`, `edital_documents`, `edital_sources`, `monitor_runs`. Funções: `has_role`, `role_in_org`, `try_uuid`,
-  `create_edital_with_document`, triggers de auditoria/updated_at/perfil/último admin.
+- **Tabelas (`core`):** `organizations`, `profiles`, `memberships`, `audit_log`, `ai_usage`, `editais`, `projetos`,
+  `edital_documents`, `edital_sources`, `monitor_runs`; novas no branch: `monitor_ignored_urls` (etapa 6),
+  `edital_sightings` (etapa 8), `edital_matches` (etapa 9), `edital_changes` (etapa 10).
+- **Colunas novas relevantes:** `memberships.status/invited_at/accepted_at/suspended_*`; `editais.eligibility_*`,
+  `page_type/opportunity_kind/page_type_reasons`, `field_evidence/extraction_notes/extracted_at`,
+  `canonical_key/possible_duplicate_*`, `last_checked_at/content_hash`; `edital_sources.adapter_config`;
+  `organizations.partner_territories` (reservada, sem tela); contadores novos em `monitor_runs`.
+- **Funções:** `has_role`, `role_in_org` (só vínculos ativos), `try_uuid`, `create_edital_with_document`,
+  `accept_my_invitations`, `guard_membership_status`, `stamp_edital_change_resolution`, triggers de
+  auditoria/updated_at/perfil/último admin ativo.
 - **Storage:** bucket privado `edital-documents` (PDF/HTML, 25 MB), caminho `<org_id>/...`.
 - **Migrations** (`supabase/migrations/`, todas idempotentes — ADR-0014):
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
@@ -315,9 +340,17 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 - **RLS em todas as tabelas** com `core.has_role(org_id, papel)`; grants explícitos por coluna; `anon` sem acesso ao
   schema `core`; Storage protegido pela pasta da organização.
 - **Controle de acesso em 3 camadas:** `proxy.ts` (login) → `requireMembership(papel)` nas páginas/ações → RLS no banco.
-- **Auditoria:** trigger genérico em organizações, vínculos, editais, projetos, documentos e fontes.
+- **Auditoria:** trigger genérico em organizações, vínculos, editais, projetos, documentos, fontes, Match
+  (`edital_matches`) e alterações (`edital_changes`).
 - **Secrets:** nunca no código; `.env*` fora do Git; chave de serviço só no servidor e de uso restrito (varredura,
-  cron, diagnóstico); segredo do cron comparado em tempo constante; senha do banco mascarada no workflow.
+  cron, diagnóstico e convites — só depois de `requireMembership("admin")`, sempre com o `org_id` do admin);
+  diagnóstico mostra só o TIPO da chave, nunca o valor; segredo do cron comparado em tempo constante; senha do banco
+  mascarada no workflow.
+- **Membros:** status do vínculo imposto pelo banco; ninguém suspende o próprio acesso; sempre um admin ativo; a
+  plataforma não pede nem guarda senhas.
+- **PDF:** `pdfjs-dist` sem XFA/WebAssembly/fontes do sistema, com limites de páginas, caracteres e tempo.
+- **IA (etapa 12):** nenhum fornecedor; `validateAnalysis` exige trecho literal, remove afirmações de aprovação e
+  nunca produz "não elegível"; dados de projetos da LEP não entram na análise.
 - **Revisão humana:** nenhum edital é validado sem confirmação explícita; importados pela varredura entram pendentes.
 - **Coleta responsável:** anti-SSRF, `robots.txt`, sem login em sites de terceiros, HTML capturado nunca exibido
   (só baixado).
@@ -344,40 +377,45 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 2. PDFs digitalizados (imagem) não são lidos: não há OCR (decisão da etapa 7); a interface avisa para conferir.
 3. 🟡 Alterações/retificações: detectadas por regras (etapa 10); a varredura verifica até 2 editais abertos por fonte
    por execução (a cada 20 h no mínimo). Não validado em sites reais.
-4. Limites: até 5 importações por fonte e 50 s por execução; cron diário.
-5. Não verificado a partir daqui: execução do CI no GitHub, configuração de e-mail/SMTP e modelos no Supabase de produção.
+4. Limites: até 5 novas por fonte (configurável de 1 a 10), 2 re-verificações por fonte, 50 s por execução; cron diário.
+5. Não verificado a partir daqui: execução do CI no GitHub, configuração de e-mail/SMTP e modelos no Supabase de
+   produção, sites e PDFs reais (rede do ambiente bloqueia sites externos; validação com Supabase e sites simulados).
 
 ---
 
 ## 9. Documentação e arquivos importantes
 
-| Arquivo                                                     | Função                                                                 |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `README.md`                                                 | Como rodar, comandos, produção, solução de problemas                   |
-| `CLAUDE.md`                                                 | Regras obrigatórias para agentes (diretrizes LEP e convenções)         |
-| `docs/STATUS-PLATAFORMA-LEP.md`                             | Este documento (estado atual oficial)                                  |
-| `docs/arquitetura.md`                                       | Estrutura de pastas e checklist para novos módulos                     |
-| `docs/diretrizes-lep.md`                                    | Regras de negócio da LEP (território, foco na LEP, tabela/Match)       |
-| `docs/adr/0001…0014`                                        | Decisões de arquitetura (índice em `docs/adr/README.md`)               |
-| `supabase/migrations/*`                                     | Estrutura do banco (idempotente)                                       |
-| `supabase/tests/*`                                          | Testes SQL de permissão; `scenarios/` = banco parcial                  |
-| `supabase/scripts/diagnostico.sql`                          | Diagnóstico somente leitura para o SQL Editor                          |
-| `supabase/config.toml`, `supabase/templates/*`              | Supabase local e e-mails de convite/recuperação                        |
-| `.github/workflows/ci.yml`                                  | CI (qualidade, testes, build, migrações)                               |
-| `.github/workflows/supabase-migrations.yml`                 | Aplicação automática de migrações em produção                          |
-| `apps/web/vercel.json`                                      | Agendamento do cron                                                    |
-| `apps/web/src/lib/monitor/run.ts`                           | Motor da varredura                                                     |
-| `apps/web/src/lib/editais/ingest.ts`                        | Ingestão (download/upload, cópia, duplicidade)                         |
-| `apps/web/src/lib/diagnostics.ts`, `lib/supabase/errors.ts` | Diagnóstico e tradução de erros do banco                               |
-| `apps/web/src/lib/supabase/{server,client,admin,proxy}.ts`  | Clientes Supabase (sessão, navegador, serviço)                         |
-| `packages/modules/funding/src/*`                            | Edital, Match, aderência, varredura (regras), território, formulário   |
-| `packages/modules/projects/src/*`                           | Vocabulário e validação de projetos                                    |
-| `packages/ingestion/src/*`                                  | Download seguro, robots.txt, leitura de HTML, hash                     |
-| `packages/core/src/auth/*`                                  | Papéis e permissões                                                    |
-| `packages/ai/src/*`                                         | Contrato de IA, registro de custos e `EditalAnalyzer` (sem fornecedor) |
-| `apps/web/scripts/invite-member.ts`                         | Convite de membros por linha de comando                                |
-| `apps/web/public/brand/lep-logo.png`                        | Logo oficial em uso (alta resolução, `lib/brand.ts`)                   |
-| `apps/web/public/logo.jpg`                                  | Logo antigo — sem uso, mantido só para reversão                        |
+| Arquivo                                                     | Função                                                                                                    |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `README.md`                                                 | Como rodar, comandos, produção, solução de problemas                                                      |
+| `CLAUDE.md`                                                 | Regras obrigatórias para agentes (diretrizes LEP e convenções)                                            |
+| `docs/STATUS-PLATAFORMA-LEP.md`                             | Este documento (estado atual oficial)                                                                     |
+| `docs/arquitetura.md`                                       | Estrutura de pastas e checklist para novos módulos                                                        |
+| `docs/diretrizes-lep.md`                                    | Regras de negócio da LEP (território, foco na LEP, tabela/Match)                                          |
+| `docs/adr/0001…0023`                                        | Decisões de arquitetura (índice em `docs/adr/README.md`)                                                  |
+| `supabase/migrations/*`                                     | Estrutura do banco (idempotente)                                                                          |
+| `supabase/tests/*`                                          | Testes SQL de permissão; `scenarios/` = banco parcial                                                     |
+| `supabase/scripts/diagnostico.sql`                          | Diagnóstico somente leitura para o SQL Editor                                                             |
+| `supabase/config.toml`, `supabase/templates/*`              | Supabase local e e-mails de convite/recuperação                                                           |
+| `.github/workflows/ci.yml`                                  | CI (qualidade, testes, build, migrações)                                                                  |
+| `.github/workflows/supabase-migrations.yml`                 | Aplicação automática de migrações em produção                                                             |
+| `apps/web/vercel.json`                                      | Agendamento do cron                                                                                       |
+| `apps/web/src/lib/monitor/run.ts`                           | Motor da varredura e "Testar fonte" (`previewSource`)                                                     |
+| `apps/web/src/lib/monitor/{access,summary,catalog}.ts`      | Checagem tela × motor, resumo da execução, catálogo de novas fontes                                       |
+| `apps/web/src/lib/members/invite.ts`                        | Convite/reenvio de membros (Supabase Auth, só após checar admin)                                          |
+| `apps/web/src/lib/editais/{extraction,matches,changes}.ts`  | Sugestões com evidência, Match v2 gravado, detecção de alterações                                         |
+| `apps/web/src/lib/editais/ingest.ts`                        | Ingestão (download/upload, cópia, duplicidade)                                                            |
+| `apps/web/src/lib/diagnostics.ts`, `lib/supabase/errors.ts` | Diagnóstico e tradução de erros do banco                                                                  |
+| `apps/web/src/lib/supabase/{server,client,admin,proxy}.ts`  | Clientes Supabase (sessão, navegador, serviço)                                                            |
+| `packages/modules/funding/src/*`                            | Edital, elegibilidade, classificador, extração, deduplicação, Match v2, alterações, adaptador, território |
+| `packages/modules/funding/benchmark/*`                      | Benchmark (`pnpm benchmark:editais`); casos reais em `private/` (fora do Git)                             |
+| `packages/modules/projects/src/*`                           | Vocabulário e validação de projetos                                                                       |
+| `packages/ingestion/src/*`                                  | Download seguro, robots.txt, leitura de HTML, hash, texto de PDF                                          |
+| `packages/core/src/auth/*`                                  | Papéis e permissões                                                                                       |
+| `packages/ai/src/*`                                         | Contrato de IA, registro de custos e `EditalAnalyzer` (sem fornecedor)                                    |
+| `apps/web/scripts/invite-member.ts`                         | Convite de membros por linha de comando                                                                   |
+| `apps/web/public/brand/lep-logo.png`                        | Logo oficial em uso (alta resolução, `lib/brand.ts`)                                                      |
+| `apps/web/public/logo.jpg`                                  | Logo antigo — sem uso, mantido só para reversão                                                           |
 
 ---
 
@@ -430,5 +468,5 @@ futuro (hoje só lê).
 | Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·    |
 |                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·               |
 |                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes · |
-|                            | etapa 12 (`feat(ai): add EditalAnalyzer interface`)                                     |
+|                            | `013dcef` EditalAnalyzer                                                                |
 | Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado        |
