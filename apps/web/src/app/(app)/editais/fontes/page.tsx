@@ -171,7 +171,7 @@ export default async function SourcesPage() {
                   <th className="py-2 pr-4 text-right font-medium">Encontradas</th>
                   <th className="py-2 pr-4 text-right font-medium">Novas</th>
                   <th className="py-2 pr-4 text-right font-medium">Duplicadas</th>
-                  <th className="py-2 pr-4 text-right font-medium">Descartadas</th>
+                  <th className="py-2 pr-4 text-right font-medium">Com restrição</th>
                   <th className="py-2 text-right font-medium">Erros</th>
                 </tr>
               </thead>

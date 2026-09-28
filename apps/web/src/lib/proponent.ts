@@ -20,3 +20,17 @@ export async function loadProponent(client: Client, orgId: string): Promise<Prop
   if (error || !data?.hq_state) return LEP_HEADQUARTERS;
   return { state: data.hq_state, city: data.hq_city };
 }
+
+/**
+ * Territórios com parceria configurada (espaço para o futuro; hoje sempre vazio).
+ * Não tornam a LEP elegível: só classificam editais restritos como "via parceiro".
+ */
+export async function loadPartnerTerritories(client: Client, orgId: string): Promise<string[]> {
+  const { data, error } = await client
+    .from("organizations")
+    .select("partner_territories")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (error || !Array.isArray(data?.partner_territories)) return [];
+  return data.partner_territories.filter((item): item is string => typeof item === "string");
+}

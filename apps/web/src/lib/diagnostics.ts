@@ -137,7 +137,7 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         ? {
             label: "Diretrizes LEP (território e sede)",
             status: "ok",
-            detail: `Proponente sediado em ${hq.data.hq_city ?? "?"}/${hq.data.hq_state}. Editais exclusivos de outros territórios são descartados.`,
+            detail: `Proponente sediado em ${hq.data.hq_city ?? "?"}/${hq.data.hq_state}. Editais exclusivos de outros territórios ficam visíveis como “restrição territorial”.`,
           }
         : {
             label: "Diretrizes LEP (território e sede)",
@@ -146,6 +146,27 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
               "Sede do proponente não cadastrada: a análise usa São Paulo/SP (padrão da LEP Filmes).",
             fix: "Defina a sede em Membros → Proponente.",
           },
+  );
+
+  // 3b2. Taxonomia de elegibilidade (etapa 5).
+  const eligibilityColumns = await supabase
+    .from("editais")
+    .select("eligibility_status, eligibility_reason, eligibility_evidence, eligibility_source")
+    .limit(1);
+  checks.push(
+    eligibilityColumns.error
+      ? {
+          label: "Elegibilidade dos editais (terceiro eixo)",
+          status: "fail",
+          detail: eligibilityColumns.error.message,
+          fix: "Aplique a migração 20261002120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Elegibilidade dos editais (terceiro eixo)",
+          status: "ok",
+          detail:
+            "Situação, triagem e elegibilidade separadas; restrições visíveis com motivo e trecho.",
+        },
   );
 
   // 3c. Resumo detalhado da varredura (colunas novas do histórico).
@@ -165,7 +186,7 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
           label: "Resumo detalhado da varredura (core.monitor_runs)",
           status: "ok",
           detail:
-            "Contadores por fonte (encontradas, novas, duplicadas, descartadas, erros) disponíveis.",
+            "Contadores por fonte (encontradas, novas, duplicadas, com restrição, erros) disponíveis.",
         },
   );
 

@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildReport, evaluateCase } from "./evaluate";
+import { buildReport, evaluateCase, EVALUATORS } from "./evaluate";
 import { loadCases } from "./load-cases";
 
 const examples = join(import.meta.dirname, "cases");
@@ -41,14 +41,29 @@ describe("benchmark de editais", () => {
 
   it("avalia só os campos esperados; campo sem avaliador nunca conta como acerto", () => {
     const { cases } = loadCases([examples]);
+    // Simula um campo ainda sem avaliador.
+    const withoutEligibility = { ...EVALUATORS, eligibility: undefined };
     const report = buildReport(
       cases,
-      cases.flatMap((item) => evaluateCase(item)),
+      cases.flatMap((item) => evaluateCase(item, withoutEligibility)),
     );
     const eligibility = report.fields.find((stats) => stats.field === "eligibility");
     expect(eligibility).toMatchObject({ evaluated: 0, hits: 0, accuracy: null });
     expect(eligibility!.noEvaluator).toBeGreaterThan(0);
     expect(report.realCases).toBe(0);
+  });
+
+  it("elegibilidade (etapa 5): exemplos fictícios classificados sem erro grave", () => {
+    const { cases } = loadCases([examples]);
+    const report = buildReport(
+      cases,
+      cases.flatMap((item) => evaluateCase(item)),
+    );
+    expect(report.fields.find((stats) => stats.field === "eligibility")).toMatchObject({
+      noEvaluator: 0,
+      critical: 0,
+      accuracy: 1,
+    });
   });
 
   it("marca como erro grave descartar por território o que a pessoa não marcou inelegível", () => {

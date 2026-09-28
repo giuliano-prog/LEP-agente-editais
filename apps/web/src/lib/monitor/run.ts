@@ -2,7 +2,8 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import {
-  assessTerritory,
+  assessEligibility,
+  RESTRICTED_ELIGIBILITY,
   findDeadline,
   findTotalAmount,
   selectCandidates,
@@ -28,7 +29,7 @@ import {
   ingestFromUrl,
   removeStored,
 } from "@/lib/editais/ingest";
-import { loadProponent } from "@/lib/proponent";
+import { loadPartnerTerritories, loadProponent } from "@/lib/proponent";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -63,7 +64,7 @@ export type SourceResult = {
   updated: number;
   /** Já conhecidos (mesmo link ou mesmo arquivo). */
   duplicates: number;
-  /** Encontrados e descartados automaticamente pelas diretrizes LEP. */
+  /** Novos com restrição de elegibilidade (território, pessoa física…): entram visíveis, em revisão. */
   rejected: number;
   /** Novos que aguardam revisão humana. */
   pendingReview: number;
@@ -130,7 +131,12 @@ async function knownUrls(admin: Admin, orgId: string): Promise<Set<string>> {
 export async function scanSource(
   admin: Admin,
   source: SourceRow,
-  options: { now: Date; deadlineAt: number; proponent: Proponent },
+  options: {
+    now: Date;
+    deadlineAt: number;
+    proponent: Proponent;
+    partnerTerritories: string[];
+  },
 ): Promise<SourceResult> {
   const result: SourceResult = {
     sourceId: source.id,
@@ -184,11 +190,7 @@ export async function scanSource(
     result.candidates = candidates.length;
 
     for (const candidate of candidates) {
-      if (
-        result.imported + result.rejected >= MAX_IMPORTS_PER_SOURCE ||
-        Date.now() > options.deadlineAt
-      )
-        break;
+      if (result.imported >= MAX_IMPORTS_PER_SOURCE || Date.now() > options.deadlineAt) break;
       if (!(await allowed(candidate.url))) {
         result.blockedByRobots++;
         continue;
@@ -200,13 +202,15 @@ export async function scanSource(
         );
         return "failed" as const;
       });
-      if (outcome === "imported") {
+      if (outcome === "imported" || outcome === "restricted") {
+        // Com restrição também entra (visível, em triagem pendente): nada é descartado sozinho.
         result.imported++;
         result.pendingReview++;
+        if (outcome === "restricted") result.rejected++;
       } else if (outcome === "duplicate") {
         result.duplicates++;
       } else {
-        result[outcome]++;
+        result.failed++;
       }
     }
   } catch (error) {
@@ -223,8 +227,12 @@ async function importCandidate(
   admin: Admin,
   source: SourceRow,
   candidate: { title: string; url: string },
-  { now, proponent }: { now: Date; proponent: Proponent },
-): Promise<"imported" | "rejected" | "duplicate"> {
+  {
+    now,
+    proponent,
+    partnerTerritories,
+  }: { now: Date; proponent: Proponent; partnerTerritories: string[] },
+): Promise<"imported" | "restricted" | "duplicate"> {
   const document = await ingestFromUrl(admin, source.org_id, candidate.url);
   if (await findDuplicate(admin, source.org_id, document)) {
     await removeStored(admin, document.storagePath);
@@ -256,10 +264,12 @@ async function importCandidate(
   // Sugestões por regras de texto (sem IA). O edital fica com revisão pendente.
   const text = document.text ?? "";
   const deadline = findDeadline(text);
-  // Diretrizes LEP 1 e 2: exclusivo de outro território → descartado automaticamente,
-  // com motivo e trecho do texto (a equipe pode restaurar em "Descartados").
-  const territory = assessTerritory(`${candidate.title}\n${text}`, proponent);
-  const rejected = territory.verdict === "ineligible";
+  // Diretrizes LEP 1 e 2 + taxonomia (etapa 5): a elegibilidade é um eixo próprio.
+  // Restrição territorial fica visível com motivo e trecho; a triagem continua pendente.
+  const eligibility = assessEligibility(`${candidate.title}\n${text}`, {
+    proponent,
+    partnerTerritories,
+  });
   await admin
     .from("editais")
     .update({
@@ -271,17 +281,16 @@ async function importCandidate(
       deadline: deadline ? `${deadline}T23:59:00-03:00` : null,
       status: statusFromDeadline(deadline, todayInBrasilia(now)),
       total_amount: findTotalAmount(text),
-      eligible_territories: territory.territories,
-      ...(rejected
-        ? {
-            review_status: "discarded",
-            triage_reason: `Descartado automaticamente — ${territory.reason}${territory.evidence ? ` Trecho: “${territory.evidence}”` : ""}`,
-          }
-        : {}),
+      eligible_territories: eligibility.territories,
+      eligibility_status: eligibility.status,
+      eligibility_reason: eligibility.reason,
+      eligibility_evidence: eligibility.evidence,
+      eligibility_source: "auto",
+      eligibility_checked_at: now.toISOString(),
     })
     .eq("id", editalId)
     .eq("org_id", source.org_id);
-  return rejected ? "rejected" : "imported";
+  return RESTRICTED_ELIGIBILITY.has(eligibility.status) ? "restricted" : "imported";
 }
 
 /**
@@ -306,18 +315,22 @@ export async function runMonitor(
   if (error) throw new Error(`Não foi possível ler as fontes: ${error.message}`);
 
   const results: SourceResult[] = [];
-  const proponents = new Map<string, Proponent>();
+  const contexts = new Map<string, { proponent: Proponent; partnerTerritories: string[] }>();
   // Agrupa as linhas do histórico desta execução (uma por fonte).
   const executionId = randomUUID();
   for (const source of sources ?? []) {
     if (Date.now() > deadlineAt) break;
     const startedAt = new Date().toISOString();
-    if (!proponents.has(source.org_id))
-      proponents.set(source.org_id, await loadProponent(admin, source.org_id));
+    if (!contexts.has(source.org_id)) {
+      contexts.set(source.org_id, {
+        proponent: await loadProponent(admin, source.org_id),
+        partnerTerritories: await loadPartnerTerritories(admin, source.org_id),
+      });
+    }
     const result = await scanSource(admin, source, {
       now,
       deadlineAt,
-      proponent: proponents.get(source.org_id)!,
+      ...contexts.get(source.org_id)!,
     });
     results.push(result);
 

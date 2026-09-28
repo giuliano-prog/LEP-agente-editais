@@ -101,11 +101,13 @@ de membros pela tela, módulos futuros.
 Formulário completo (valores em R$, prazo em horário de Brasília — sem hora = 23h59, listas por linha, regras do
 Match, território). Só vira `validated` com a confirmação explícita "Revisei estas informações com o documento oficial".
 
-### Elegibilidade (✅ parcial)
+### Elegibilidade (✅, etapa 5)
 
-Hoje existe **apenas elegibilidade territorial** (`assessTerritory`) — não há campo/classificação de elegibilidade
-geral separado da aderência. ⬜ Planejado: classificação própria (elegível / não elegível / não confirmada / restrição
-territorial / via parceiro / pessoa física / necessita revisão).
+Terceiro eixo próprio (`eligibility_status`, ADR-0016, `packages/modules/funding/src/eligibility.ts`): elegível ·
+não elegível (só decisão humana, com motivo) · não confirmada · restrição territorial · via parceiro · pessoa física ·
+necessita revisão. Regras determinísticas com motivo e trecho (evidência); decisão manual da equipe prevalece e não é
+sobrescrita. Aba **Elegibilidade** no detalhe (motivo, trecho, territórios, formulário da equipe) e filtro na lista.
+Parcerias: espaço reservado (`organizations.partner_territories`, sem tela) — só geram "via parceiro".
 
 ### Aderência (✅)
 
@@ -146,8 +148,8 @@ Vercel Cron diário 10:00 UTC (7h Brasília) → GET /api/cron/monitor (Bearer C
    (termos de edital + audiovisual; exclui ruído e links conhecidos; até 5 importações/fonte, 50 s no total)
 → por candidato: baixa página → guarda cópia → cria edital (origin = monitor, revisão pendente)
    → prazo/valor/status/resumo sugeridos por regras de texto
-   → assessTerritory: se exclusivo de outro território → review_status = 'discarded' + triage_reason (motivo + trecho)
-→ grava core.monitor_runs (links, candidatos, encontradas, novas, duplicadas, descartadas, pendentes,
+   → assessEligibility: elegibilidade (eligibility_status + motivo + trecho); restrição fica visível, triagem pendente
+→ grava core.monitor_runs (links, candidatos, encontradas, novas, duplicadas, com restrição, pendentes,
    bloqueadas pelo robots.txt, falhas, erro, execution_id) e status da fonte
 → "Verificar agora": antes de rodar, checkMonitorAccess compara fontes ativas (sessão × chave de serviço);
    depois, mostra o resumo por fonte e o total
@@ -162,19 +164,20 @@ fonte para Cultura SP/SCEIC, MinC, BRDE/FSA, Prosas, patrocinadores.
 ### Regras territoriais (✅, ADR-0013, `docs/diretrizes-lep.md`)
 
 Aceita nacionais, estado de SP, município de São Paulo e locais abertos a SP; nacional com cota regional = aceito com
-aviso; sem informação = pendente (nunca rejeita sem evidência); exclusivo de outro território = **descartado
-automaticamente pela varredura** com motivo e trecho. Parceiras/coprodutoras não contam (LEP é sempre a proponente).
-🟡 Em discussão: trocar o descarte automático por classificação visível "restrição territorial" (caso RioFilme) e
-permitir configuração futura de parcerias/exceções — **aguardando decisão**.
+aviso para revisar; sem informação = não confirmada (nunca "não elegível" sem decisão humana); exclusivo de outro
+território = **restrição territorial visível** (motivo + trecho, triagem pendente) — desde a etapa 5 não há descarte
+automático. Descartes automáticos antigos foram convertidos pela migração `20261002120000`. Sem exceção fixa por
+instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre a proponente).
 
 ### Status utilizados (✅)
 
-| Campo                     | Valores                                                                                                         |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `status` (situação)       | `open` · `upcoming` · `closed` · `suspended` · `under_review` · `result_published` (aliases em PT normalizados) |
-| `review_status` (triagem) | `pending` · `validated` · `discarded`                                                                           |
-| `origin`                  | `manual` · `monitor`                                                                                            |
-| `eligible_territories`    | `BR` · UF (ex.: `SP`) · `UF:Município`                                                                          |
+| Campo                     | Valores                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `status` (situação)       | `open` · `upcoming` · `closed` · `suspended` · `under_review` · `result_published` (aliases em PT normalizados)           |
+| `review_status` (triagem) | `pending` · `validated` · `discarded` (só decisão da equipe)                                                              |
+| `eligibility_status`      | `eligible` · `not_eligible` · `not_confirmed` · `territorial_restriction` · `via_partner` · `individual` · `needs_review` |
+| `origin`                  | `manual` · `monitor`                                                                                                      |
+| `eligible_territories`    | `BR` · UF (ex.: `SP`) · `UF:Município`                                                                                    |
 
 ---
 
@@ -236,7 +239,8 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 - **Storage:** bucket privado `edital-documents` (PDF/HTML, 25 MB), caminho `<org_id>/...`.
 - **Migrations** (`supabase/migrations/`, todas idempotentes — ADR-0014):
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
-  `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo` · `20261001120000_membros_status`
+  `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo` · `20261001120000_membros_status` ·
+  `20261002120000_elegibilidade`
   (branch `claude/melhorias-editais`, ainda não aplicadas em produção: entra pelo workflow quando o branch for
   integrado ao de produção).
 - **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
@@ -275,13 +279,13 @@ Commits seguintes no branch (`87b4f83`, `fc3b550`) são uploads feitos pela equi
 
 ## 8. Testes (executados em 2026-09-28 neste repositório)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                              |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                           |
-| Testes unitários/integração (Vitest)                     | ✅ **181** passando — core 8, ai 2, projects 3, ingestion 48, funding 68 (inclui benchmark), web 52 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **132** verificações em 7 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo), com migrações aplicadas 2x                                                                                                                                                               |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                            |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                            |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                           |
+| Testes unitários/integração (Vitest)                     | ✅ **196** passando — core 8, ai 2, projects 3, ingestion 48, funding 81 (inclui benchmark e elegibilidade), web 54 (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **142** verificações em 8 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos), com migrações aplicadas 2x                                                                                                                          |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                            |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                            |
 
 **Problemas conhecidos**
 
@@ -353,7 +357,7 @@ futuro (hoje só lê).
    (etapa 3). Falta só a configuração manual de SMTP/modelo em produção e o convite da primeira pessoa pela tela.
 3. 🟡 Benchmark: ✅ estrutura, formato, avaliadores do motor atual, relatório (`pnpm benchmark:editais`) e testes
    (etapa 4); ⬜ casos reais — **dependem da planilha das 38 oportunidades, que não está no repositório**.
-4. Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros.
+4. ✅ Taxonomia em três eixos (situação · triagem · elegibilidade) + elegibilidade separada + filtros + abas (etapa 5).
 5. Classificador de página/tipo de oportunidade + configuração de adaptadores por fonte.
 6. Extração ampliada + evidência por campo + texto de PDF.
 7. Deduplicação multi-fonte (chave canônica + avistamentos).

@@ -1,10 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { matchProjects, territoryLabel, toEdital, type Edital } from "@lep/funding";
+import {
+  ELIGIBILITY_DESCRIPTIONS,
+  matchProjects,
+  territoryLabel,
+  toEdital,
+  type Edital,
+} from "@lep/funding";
 import { can } from "@lep/core";
 import { labelOf, PROJECT_FORMATS, PROJECT_GENRES, PROJECT_STAGES } from "@lep/projects";
-import { Deadline, EditalStatusBadge, ReviewBadge } from "@/components/edital-badges";
+import {
+  Deadline,
+  EditalStatusBadge,
+  EligibilityBadge,
+  ReviewBadge,
+} from "@/components/edital-badges";
+import { EligibilityForm } from "@/components/editais/eligibility-form";
+import { EditalHistory, type AuditEntry } from "@/components/editais/edital-history";
 import { DocumentsSection, type EditalDocument } from "@/components/editais/documents-section";
 import { setEditalTriage } from "../actions";
 import { MatchPanel } from "@/components/match-panel";
@@ -19,21 +32,33 @@ export const metadata: Metadata = { title: "Edital" };
 // Aceita UUID ou id numérico (a tabela remota pode usar qualquer um dos dois).
 const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
+const TABS = {
+  dados: "Dados",
+  elegibilidade: "Elegibilidade",
+  match: "Match",
+  documentos: "Documentos",
+  historico: "Histórico",
+} as const;
+
+type TabKey = keyof typeof TABS;
+
 export default async function EditalPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ salvo?: string }>;
+  searchParams: Promise<{ salvo?: string; aba?: string }>;
 }) {
   const { id } = await params;
-  const { salvo } = await searchParams;
+  const { salvo, aba } = await searchParams;
+  const tab: TabKey = aba && aba in TABS ? (aba as TabKey) : "dados";
   if (!ID_PATTERN.test(id)) notFound();
 
   const { membership } = await requireMembership();
   const supabase = await createClient();
 
   const canEdit = can(membership.role, "content.edit");
+  const canSeeAudit = can(membership.role, "audit.read");
 
   const [editalQuery, projectsQuery, documentsQuery, proponent] = await Promise.all([
     supabase.from("editais").select("*").eq("id", id).eq("org_id", membership.orgId).maybeSingle(),
@@ -52,6 +77,38 @@ export default async function EditalPage({
       .order("created_at", { ascending: true }),
     loadProponent(supabase, membership.orgId),
   ]);
+  // Histórico: somente administradores leem a auditoria (RLS de core.audit_log).
+  const history =
+    tab === "historico" && canSeeAudit
+      ? await supabase
+          .from("audit_log")
+          .select("id, action, actor_id, old_data, new_data, created_at")
+          .eq("org_id", membership.orgId)
+          .eq("table_name", "editais")
+          .eq("record_id", id)
+          .order("created_at", { ascending: false })
+          .limit(50)
+      : null;
+  // Nomes de quem alterou (perfis da mesma organização; RLS de core.profiles).
+  const actorIds = [
+    ...new Set((history?.data ?? []).map((entry) => entry.actor_id).filter(Boolean)),
+  ];
+  const actors =
+    actorIds.length > 0
+      ? ((
+          await supabase
+            .from("profiles")
+            .select("id, full_name, email")
+            .in("id", actorIds as string[])
+        ).data ?? [])
+      : [];
+  const historyEntries = (history?.data ?? []).map((entry) => ({
+    ...entry,
+    actor_name:
+      actors.find((actor) => actor.id === entry.actor_id)?.full_name ??
+      actors.find((actor) => actor.id === entry.actor_id)?.email ??
+      null,
+  })) as AuditEntry[];
 
   if (editalQuery.error) console.error("Erro ao carregar edital:", editalQuery.error.message);
   if (!editalQuery.data) notFound();
@@ -76,6 +133,7 @@ export default async function EditalPage({
           <div className="flex flex-wrap gap-2">
             <EditalStatusBadge status={edital.status} />
             <ReviewBadge reviewStatus={edital.reviewStatus} />
+            <EligibilityBadge status={edital.eligibilityStatus} />
           </div>
           {canEdit && (
             <div className="flex flex-wrap gap-2">
@@ -112,98 +170,197 @@ export default async function EditalPage({
         {edital.reviewStatus === "discarded" && (
           <div className="space-y-1 text-sm text-warn">
             <p>
-              Edital descartado na triagem: não aparece na lista principal nem é importado de novo.
+              Edital descartado na triagem pela equipe: fica fora de “Em acompanhamento” e não é
+              importado de novo.
             </p>
             {edital.triageReason && <p className="text-muted">{edital.triageReason}</p>}
           </div>
         )}
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Fact label="Prazo final">
-          <Deadline value={edital.deadline} />
-        </Fact>
-        <Fact label="Valor total">{formatBRL(edital.totalAmount)}</Fact>
-        <Fact label="Valor máximo por projeto">{formatBRL(edital.maxAmountPerProject)}</Fact>
-        <Fact label="Faixa de orçamento do projeto">{budgetRange(edital)}</Fact>
-      </section>
+      <nav
+        className="-mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 text-sm"
+        aria-label="Seções do edital"
+      >
+        {(Object.keys(TABS) as TabKey[]).map((key) => (
+          <Link
+            key={key}
+            href={key === "dados" ? `/editais/${edital.id}` : `/editais/${edital.id}?aba=${key}`}
+            aria-current={key === tab ? "page" : undefined}
+            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 transition ${
+              key === tab
+                ? "border-brand text-brand"
+                : "border-transparent text-muted hover:text-fg"
+            }`}
+          >
+            {TABS[key]}
+          </Link>
+        ))}
+      </nav>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <SectionTitle>Resumo</SectionTitle>
-            <p className="whitespace-pre-line leading-relaxed">
-              {edital.summary ?? "Resumo ainda não cadastrado."}
+      {tab === "dados" && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Fact label="Prazo final">
+              <Deadline value={edital.deadline} />
+            </Fact>
+            <Fact label="Valor total">{formatBRL(edital.totalAmount)}</Fact>
+            <Fact label="Valor máximo por projeto">{formatBRL(edital.maxAmountPerProject)}</Fact>
+            <Fact label="Faixa de orçamento do projeto">{budgetRange(edital)}</Fact>
+          </section>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="space-y-6 lg:col-span-2">
+              <Card>
+                <SectionTitle>Resumo</SectionTitle>
+                <p className="whitespace-pre-line leading-relaxed">
+                  {edital.summary ?? "Resumo ainda não cadastrado."}
+                </p>
+              </Card>
+
+              <Card>
+                <SectionTitle>Critérios de elegibilidade</SectionTitle>
+                <BulletList
+                  items={edital.eligibilityCriteria}
+                  empty="Nenhum critério cadastrado. Consulte o documento oficial."
+                />
+              </Card>
+
+              <Card>
+                <SectionTitle>Documentos exigidos</SectionTitle>
+                <BulletList items={edital.requiredDocuments} empty="Nenhum documento cadastrado." />
+              </Card>
+            </div>
+
+            <aside className="space-y-6">
+              <Card>
+                <SectionTitle>Categorias</SectionTitle>
+                {edital.categories.length === 0 ? (
+                  <p className="text-sm text-muted">Não informadas.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {edital.categories.map((category) => (
+                      <Badge key={category} tone="brand">
+                        {category}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card>
+                <SectionTitle>Regras usadas no Match</SectionTitle>
+                <dl className="space-y-3 text-sm">
+                  <Rule
+                    label="Território (sede do proponente)"
+                    values={edital.eligibleTerritories.map(territoryLabel)}
+                  />
+                  <Rule
+                    label="Formatos"
+                    values={edital.acceptedFormats.map((code) => labelOf(PROJECT_FORMATS, code))}
+                  />
+                  <Rule
+                    label="Gêneros"
+                    values={edital.acceptedGenres.map((code) => labelOf(PROJECT_GENRES, code))}
+                  />
+                  <Rule
+                    label="Estágios"
+                    values={edital.acceptedStages.map((code) => labelOf(PROJECT_STAGES, code))}
+                  />
+                </dl>
+              </Card>
+
+              <Card>
+                <SectionTitle>Links oficiais</SectionTitle>
+                <OfficialLinks edital={edital} />
+              </Card>
+            </aside>
+          </div>
+        </>
+      )}
+
+      {tab === "elegibilidade" && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="space-y-4 lg:col-span-2">
+            <SectionTitle>Elegibilidade da LEP (proponente)</SectionTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <EligibilityBadge status={edital.eligibilityStatus} />
+              <Badge>
+                {edital.eligibilitySource === "manual"
+                  ? "Definida pela equipe"
+                  : "Regras automáticas"}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted">
+              {ELIGIBILITY_DESCRIPTIONS[edital.eligibilityStatus]}
+            </p>
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wider text-muted">Motivo</p>
+              <p>{edital.eligibilityReason ?? "Ainda não avaliado."}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wider text-muted">
+                Evidência (trecho do edital)
+              </p>
+              {edital.eligibilityEvidence ? (
+                <blockquote className="border-l-2 border-brand/60 pl-3 text-sm italic">
+                  “{edital.eligibilityEvidence}”
+                </blockquote>
+              ) : (
+                <p className="text-sm text-muted">Nenhum trecho registrado.</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wider text-muted">
+                Territórios identificados
+              </p>
+              <p className="text-sm">
+                {edital.eligibleTerritories.length > 0
+                  ? edital.eligibleTerritories.map(territoryLabel).join(", ")
+                  : "Nenhum registrado."}
+              </p>
+            </div>
+            <p className="text-xs text-muted">
+              A proponente é sempre a própria LEP: empresas parceiras e coprodutoras não contam para
+              a elegibilidade. Restrições ficam visíveis — nada é descartado automaticamente.
             </p>
           </Card>
-
-          <Card>
-            <SectionTitle>Critérios de elegibilidade</SectionTitle>
-            <BulletList
-              items={edital.eligibilityCriteria}
-              empty="Nenhum critério cadastrado. Consulte o documento oficial."
-            />
-          </Card>
-
-          <Card>
-            <SectionTitle>Documentos exigidos</SectionTitle>
-            <BulletList items={edital.requiredDocuments} empty="Nenhum documento cadastrado." />
-          </Card>
+          {canEdit && (
+            <Card>
+              <SectionTitle>Revisão da equipe</SectionTitle>
+              <EligibilityForm
+                editalId={edital.id}
+                current={edital.eligibilityStatus}
+                currentReason={
+                  edital.eligibilitySource === "manual" ? edital.eligibilityReason : null
+                }
+              />
+            </Card>
+          )}
         </div>
+      )}
 
-        <aside className="space-y-6">
+      {tab === "match" && <MatchPanel results={matches} />}
+
+      {tab === "documentos" && (
+        <DocumentsSection
+          editalId={edital.id}
+          orgId={membership.orgId}
+          documents={(documentsQuery.data ?? []) as EditalDocument[]}
+          canEdit={canEdit}
+        />
+      )}
+
+      {tab === "historico" &&
+        (canSeeAudit ? (
+          <EditalHistory entries={historyEntries} error={history?.error ?? null} />
+        ) : (
           <Card>
-            <SectionTitle>Categorias</SectionTitle>
-            {edital.categories.length === 0 ? (
-              <p className="text-sm text-muted">Não informadas.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {edital.categories.map((category) => (
-                  <Badge key={category} tone="brand">
-                    {category}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            <p className="text-sm text-muted">
+              O histórico de alterações (auditoria) é visível para administradores.
+            </p>
           </Card>
-
-          <Card>
-            <SectionTitle>Regras usadas no Match</SectionTitle>
-            <dl className="space-y-3 text-sm">
-              <Rule
-                label="Território (sede do proponente)"
-                values={edital.eligibleTerritories.map(territoryLabel)}
-              />
-              <Rule
-                label="Formatos"
-                values={edital.acceptedFormats.map((code) => labelOf(PROJECT_FORMATS, code))}
-              />
-              <Rule
-                label="Gêneros"
-                values={edital.acceptedGenres.map((code) => labelOf(PROJECT_GENRES, code))}
-              />
-              <Rule
-                label="Estágios"
-                values={edital.acceptedStages.map((code) => labelOf(PROJECT_STAGES, code))}
-              />
-            </dl>
-          </Card>
-
-          <Card>
-            <SectionTitle>Links oficiais</SectionTitle>
-            <OfficialLinks edital={edital} />
-          </Card>
-        </aside>
-      </div>
-
-      <DocumentsSection
-        editalId={edital.id}
-        orgId={membership.orgId}
-        documents={(documentsQuery.data ?? []) as EditalDocument[]}
-        canEdit={canEdit}
-      />
-
-      <MatchPanel results={matches} />
+        ))}
     </div>
   );
 }

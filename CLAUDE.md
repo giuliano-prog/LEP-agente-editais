@@ -11,8 +11,10 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 ## Diretrizes de negócio da LEP (obrigatórias — `docs/diretrizes-lep.md`)
 
 1. **Território:** LEP sediada em São Paulo/SP. Aceitar editais federais/nacionais, de SP (estado e capital) e de
-   outros locais que aceitem proponentes de SP; rejeitar os exclusivos de outros territórios
-   (`assessTerritory` em `packages/modules/funding/src/territory.ts`; na dúvida, pendente — nunca rejeitar sem evidência).
+   outros locais que aceitem proponentes de SP; os exclusivos de outros territórios ficam visíveis como
+   “restrição territorial”, com motivo e trecho (`assessEligibility` em `packages/modules/funding/src/eligibility.ts`;
+   na dúvida, “não confirmada” — nunca “não elegível” sem decisão humana; nada é descartado automaticamente).
+   Situação, triagem e elegibilidade são eixos separados (ADR-0016).
 2. **Foco exclusivo na LEP:** a proponente é sempre a própria LEP; parceiras/coprodutoras não contam para elegibilidade.
 3. **Tabela de Editais:** colunas Oportunidade | Instituição | Prazo | Valor | Aderência (Match); painel de Match com ✓ / ⚠ / ✕.
 

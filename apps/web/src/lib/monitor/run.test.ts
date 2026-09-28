@@ -104,7 +104,7 @@ describe("runMonitor (varredura)", () => {
     });
 
     const ok = results.find((result) => result.sourceId === "fonte-1");
-    expect(ok).toMatchObject({ status: "ok", imported: 1, rejected: 1 });
+    expect(ok).toMatchObject({ status: "ok", imported: 2, rejected: 1, pendingReview: 2 });
 
     expect(db.editais).toHaveLength(2);
     expect(db.editais!.find((e) => String(e.official_url).includes("longa"))).toMatchObject({
@@ -127,20 +127,29 @@ describe("runMonitor (varredura)", () => {
     expect(supabase.files.size).toBe(2);
   });
 
-  it("diretriz territorial: edital exclusivo de outro município é descartado com motivo e evidência", () => {
-    const rejected = db.editais!.find((e) => String(e.official_url).includes("curtas-rj"));
-    expect(rejected).toMatchObject({
-      review_status: "discarded",
+  it("diretriz territorial: exclusivo de outro município fica visível como restrição territorial, com motivo e evidência (não é descartado)", () => {
+    const restricted = db.editais!.find((e) => String(e.official_url).includes("curtas-rj"));
+    expect(restricted).toMatchObject({
+      review_status: "pending",
       origin: "monitor",
       eligible_territories: ["RJ:Rio de Janeiro"],
+      eligibility_status: "territorial_restriction",
+      eligibility_source: "auto",
     });
-    expect(String(rejected!.triage_reason)).toContain("Descartado automaticamente");
-    expect(String(rejected!.triage_reason)).toContain("a LEP Filmes é sediada em São Paulo/SP");
-    expect(String(rejected!.triage_reason)).toContain("sediadas no municipio do rio de janeiro");
+    expect(restricted!.triage_reason).toBeUndefined();
+    expect(String(restricted!.eligibility_reason)).toContain(
+      "a LEP Filmes é sediada em São Paulo/SP",
+    );
+    expect(String(restricted!.eligibility_evidence)).toContain(
+      "sediadas no municipio do rio de janeiro",
+    );
+    expect(
+      db.editais!.find((e) => String(e.official_url).includes("longa"))!.eligibility_status,
+    ).toBe("eligible");
     expect(db.monitor_runs!.find((run) => run.source_id === "fonte-1")).toMatchObject({
-      imported: 1,
+      imported: 2,
       rejected: 1,
-      pending_review: 1,
+      pending_review: 2,
       duplicates: 0,
       blocked_by_robots: 1,
     });
@@ -163,7 +172,7 @@ describe("runMonitor (varredura)", () => {
     });
     expect(db.edital_sources!.find((source) => source.id === "fonte-1")).toMatchObject({
       last_status: "ok",
-      last_imported: 1,
+      last_imported: 2,
     });
   });
 
@@ -178,7 +187,7 @@ describe("runMonitor (varredura)", () => {
       duplicates: 2,
       pendingReview: 0,
     });
-    // O descartado também não volta: o link continua conhecido.
+    // O restrito também não volta duplicado: o link continua conhecido.
     expect(db.editais).toHaveLength(2);
     expect(db.monitor_runs!.filter((run) => run.source_id === "fonte-1")).toHaveLength(2);
   });

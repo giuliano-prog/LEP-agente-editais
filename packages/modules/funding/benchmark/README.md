@@ -56,7 +56,7 @@ confirmou que a informação não existe (ex.: edital sem valor divulgado).
 ## Leitura do relatório
 
 - **acurácia** = acertos ÷ avaliados, por campo.
-- **sem avaliador**: o motor ainda não produz aquele campo (ex.: `eligibility` até a etapa 5). Nunca conta como acerto.
+- **sem avaliador**: o motor ainda não produz aquele campo. Nunca conta como acerto.
 - **erro grave** (✕✕): o motor descartaria algo que a pessoa não marcou como inelegível, ou deixaria de fora uma
   oportunidade real. Incerteza nunca pode virar "não elegível".
 

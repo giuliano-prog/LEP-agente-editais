@@ -267,6 +267,18 @@ export type Database = {
           updated_at: string;
           eligible_territories: string[];
           triage_reason: string | null;
+          eligibility_status:
+            | "eligible"
+            | "not_eligible"
+            | "not_confirmed"
+            | "territorial_restriction"
+            | "via_partner"
+            | "individual"
+            | "needs_review";
+          eligibility_reason: string | null;
+          eligibility_evidence: string | null;
+          eligibility_source: "auto" | "manual";
+          eligibility_checked_at: string | null;
         };
         Insert: {
           accepted_formats?: string[];
@@ -296,6 +308,18 @@ export type Database = {
           updated_at?: string;
           eligible_territories?: string[];
           triage_reason?: string | null;
+          eligibility_status?:
+            | "eligible"
+            | "not_eligible"
+            | "not_confirmed"
+            | "territorial_restriction"
+            | "via_partner"
+            | "individual"
+            | "needs_review";
+          eligibility_reason?: string | null;
+          eligibility_evidence?: string | null;
+          eligibility_source?: "auto" | "manual";
+          eligibility_checked_at?: string | null;
         };
         Update: {
           accepted_formats?: string[];
@@ -325,6 +349,18 @@ export type Database = {
           updated_at?: string;
           eligible_territories?: string[];
           triage_reason?: string | null;
+          eligibility_status?:
+            | "eligible"
+            | "not_eligible"
+            | "not_confirmed"
+            | "territorial_restriction"
+            | "via_partner"
+            | "individual"
+            | "needs_review";
+          eligibility_reason?: string | null;
+          eligibility_evidence?: string | null;
+          eligibility_source?: "auto" | "manual";
+          eligibility_checked_at?: string | null;
         };
         Relationships: [
           {
@@ -502,6 +538,7 @@ export type Database = {
           slug: string;
           updated_at: string;
           hq_city: string | null;
+          partner_territories: string[];
           hq_state: string | null;
         };
         Insert: {
@@ -511,6 +548,7 @@ export type Database = {
           slug: string;
           updated_at?: string;
           hq_city?: string | null;
+          partner_territories?: string[];
           hq_state?: string | null;
         };
         Update: {
@@ -520,6 +558,7 @@ export type Database = {
           slug?: string;
           updated_at?: string;
           hq_city?: string | null;
+          partner_territories?: string[];
           hq_state?: string | null;
         };
         Relationships: [];

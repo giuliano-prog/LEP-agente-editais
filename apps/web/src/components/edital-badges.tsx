@@ -1,4 +1,9 @@
-import { CLOSED_STATUSES, editalStatusLabel } from "@lep/funding";
+import {
+  CLOSED_STATUSES,
+  editalStatusLabel,
+  ELIGIBILITY_LABELS,
+  type EligibilityStatus,
+} from "@lep/funding";
 import { Badge, type BadgeTone } from "@/components/ui";
 import { daysUntil, formatDate } from "@/lib/format";
 
@@ -19,6 +24,23 @@ export function ReviewBadge({ reviewStatus }: { reviewStatus: string | null }) {
     <Badge tone="ok">✓ Revisado pela equipe</Badge>
   ) : (
     <Badge tone="warn">⚠ Revisão humana pendente</Badge>
+  );
+}
+
+const ELIGIBILITY_TONES: Record<EligibilityStatus, BadgeTone> = {
+  eligible: "ok",
+  not_eligible: "bad",
+  not_confirmed: "neutral",
+  territorial_restriction: "bad",
+  via_partner: "warn",
+  individual: "bad",
+  needs_review: "warn",
+};
+
+/** Terceiro eixo: a LEP pode ser a proponente? (independe da situação e da triagem). */
+export function EligibilityBadge({ status }: { status: EligibilityStatus }) {
+  return (
+    <Badge tone={ELIGIBILITY_TONES[status]}>Elegibilidade: {ELIGIBILITY_LABELS[status]}</Badge>
   );
 }
 

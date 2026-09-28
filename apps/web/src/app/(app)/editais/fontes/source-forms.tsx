@@ -76,7 +76,7 @@ const COLUMNS = [
   ["imported", "Novas"],
   ["updated", "Atualizadas"],
   ["duplicates", "Duplicadas"],
-  ["rejected", "Descartadas"],
+  ["rejected", "Com restrição"],
   ["pendingReview", "Pendentes de revisão"],
   ["failed", "Erros"],
 ] as const;
@@ -140,7 +140,8 @@ export function RunSummary({ summary }: { summary: MonitorSummary }) {
       </div>
       <p className="text-xs text-muted">
         “Encontradas” não significa elegíveis: as novas entram como revisão pendente para triagem da
-        equipe.
+        equipe. “Com restrição” (ex.: exclusivo de outro território) também entram, visíveis com o
+        motivo — nada é descartado automaticamente.
       </p>
     </section>
   );

@@ -94,3 +94,31 @@ describe("compareEditais", () => {
     });
   });
 });
+
+describe("toEdital — elegibilidade (terceiro eixo)", () => {
+  it("lê status, motivo, evidência e origem", () => {
+    const edital = toEdital({
+      id: 1,
+      eligibility_status: "territorial_restriction",
+      eligibility_reason: "Exclusivo de outro município.",
+      eligibility_evidence: "sediadas no municipio x",
+      eligibility_source: "manual",
+    });
+    expect(edital).toMatchObject({
+      eligibilityStatus: "territorial_restriction",
+      eligibilityReason: "Exclusivo de outro município.",
+      eligibilityEvidence: "sediadas no municipio x",
+      eligibilitySource: "manual",
+    });
+  });
+
+  it("sem a coluna (antes da migração) ou valor desconhecido → não confirmada, automática", () => {
+    expect(toEdital({ id: 1 })).toMatchObject({
+      eligibilityStatus: "not_confirmed",
+      eligibilitySource: "auto",
+    });
+    expect(toEdital({ id: 1, eligibility_status: "talvez" }).eligibilityStatus).toBe(
+      "not_confirmed",
+    );
+  });
+});

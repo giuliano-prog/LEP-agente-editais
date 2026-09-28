@@ -44,8 +44,8 @@ export default async function MembersPage() {
         <SectionTitle>Proponente — {membership.orgName}</SectionTitle>
         <p className="mb-4 text-sm text-muted">
           A {membership.orgName} é sempre a proponente: empresas parceiras não contam para a
-          elegibilidade. A sede abaixo decide se editais com restrição territorial são aceitos ou
-          descartados pela varredura (docs/diretrizes-lep.md).
+          elegibilidade. A sede abaixo decide se um edital com regra de território é elegível ou
+          fica marcado como “restrição territorial” (visível, com motivo — docs/diretrizes-lep.md).
         </p>
         <ProponentForm state={proponent.state} city={proponent.city} />
       </Card>

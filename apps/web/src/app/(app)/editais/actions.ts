@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { DOCUMENT_KIND_LABELS, editalFormToInput, editalInputSchema } from "@lep/funding";
+import {
+  DOCUMENT_KIND_LABELS,
+  editalFormToInput,
+  editalInputSchema,
+  isEligibilityStatus,
+} from "@lep/funding";
 import { requireMembership } from "@/lib/auth/session";
 import {
   documentColumns,
@@ -252,4 +257,47 @@ export async function setEditalTriage(
   if (error) console.error("Erro na triagem do edital:", error.code);
   revalidatePath("/editais");
   revalidatePath(`/editais/${editalId}`);
+}
+
+export type EligibilityActionState = { error?: string; success?: string };
+
+/**
+ * Elegibilidade definida pela equipe (Diretoria/Administrador). "Não elegível" só
+ * existe por decisão humana e exige motivo. A varredura não sobrescreve (source = manual).
+ */
+export async function setEditalEligibility(
+  editalId: string,
+  _prev: EligibilityActionState,
+  formData: FormData,
+): Promise<EligibilityActionState> {
+  if (!ID_PATTERN.test(editalId)) return { error: "Edital inválido." };
+  const { membership } = await requireMembership("editor");
+  const status = formData.get("eligibility_status");
+  const reason = String(formData.get("eligibility_reason") ?? "").trim();
+  if (!isEligibilityStatus(status)) return { error: "Selecione a elegibilidade." };
+  if (reason.length < 5) return { error: "Explique o motivo (mínimo 5 caracteres)." };
+  if (reason.length > 1000) return { error: "Motivo longo demais (máximo 1000 caracteres)." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("editais")
+    .update({
+      eligibility_status: status,
+      eligibility_reason: reason,
+      eligibility_source: "manual",
+      eligibility_checked_at: new Date().toISOString(),
+    })
+    .eq("id", editalId)
+    .eq("org_id", membership.orgId)
+    .select("id");
+  if (error || !data?.length) {
+    console.error("Erro ao salvar elegibilidade:", error?.code);
+    return {
+      error:
+        "Não foi possível salvar. Confira no Diagnóstico se a migração de elegibilidade foi aplicada.",
+    };
+  }
+  revalidatePath("/editais");
+  revalidatePath(`/editais/${editalId}`);
+  return { success: "Elegibilidade atualizada pela equipe." };
 }

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { can } from "@lep/core";
 import {
+  CLOSED_STATUSES,
   compareEditais,
+  RESTRICTED_ELIGIBILITY,
   matchProjects,
   summarizeAdherence,
   toEdital,
@@ -10,7 +12,7 @@ import {
 } from "@lep/funding";
 import { AdherenceCell } from "@/components/adherence-badge";
 import { DbErrorNotice } from "@/components/db-error-notice";
-import { Deadline, EditalStatusBadge } from "@/components/edital-badges";
+import { Deadline, EditalStatusBadge, EligibilityBadge } from "@/components/edital-badges";
 import { Badge, EmptyState, PageHeader } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
 import { loadProponent } from "@/lib/proponent";
@@ -35,14 +37,70 @@ const FILTERS = {
 
 type FilterKey = keyof typeof FILTERS;
 
+/** Eixo "elegibilidade" (independe da triagem e da situação). */
+const ELIGIBILITY_FILTERS = {
+  todas: { label: "Todas", test: () => true },
+  elegiveis: { label: "Elegíveis", test: (e: Edital) => e.eligibilityStatus === "eligible" },
+  "nao-confirmadas": {
+    label: "Não confirmadas",
+    test: (e: Edital) => e.eligibilityStatus === "not_confirmed",
+  },
+  revisar: {
+    label: "Necessita revisão",
+    test: (e: Edital) => e.eligibilityStatus === "needs_review",
+  },
+  restricao: {
+    label: "Com restrição",
+    test: (e: Edital) => RESTRICTED_ELIGIBILITY.has(e.eligibilityStatus),
+  },
+} as const;
+
+/** Eixo "situação" do edital. */
+const SITUATION_FILTERS = {
+  todas: { label: "Todas", test: () => true },
+  abertas: { label: "Abertas", test: (e: Edital) => e.status === "open" },
+  "em-breve": { label: "Em breve", test: (e: Edital) => e.status === "upcoming" },
+  encerradas: {
+    label: "Encerradas",
+    test: (e: Edital) => e.status !== null && CLOSED_STATUSES.has(e.status),
+  },
+  "sem-situacao": { label: "Não informada", test: (e: Edital) => !e.status },
+} as const;
+
+type EligibilityKey = keyof typeof ELIGIBILITY_FILTERS;
+type SituationKey = keyof typeof SITUATION_FILTERS;
+
+function pick<T extends string>(
+  value: string | undefined,
+  options: Record<T, unknown>,
+  fallback: T,
+): T {
+  return value && value in options ? (value as T) : fallback;
+}
+
 export default async function EditaisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filtro?: string }>;
+  searchParams: Promise<{ filtro?: string; elegibilidade?: string; situacao?: string }>;
 }) {
   const { membership } = await requireMembership();
-  const { filtro } = await searchParams;
-  const filter: FilterKey = filtro && filtro in FILTERS ? (filtro as FilterKey) : "ativos";
+  const params = await searchParams;
+  const filter = pick<FilterKey>(params.filtro, FILTERS, "ativos");
+  const eligibility = pick<EligibilityKey>(params.elegibilidade, ELIGIBILITY_FILTERS, "todas");
+  const situation = pick<SituationKey>(params.situacao, SITUATION_FILTERS, "todas");
+  const href = (next: {
+    filtro?: FilterKey;
+    elegibilidade?: EligibilityKey;
+    situacao?: SituationKey;
+  }) => {
+    const query = new URLSearchParams();
+    const values = { filtro: filter, elegibilidade: eligibility, situacao: situation, ...next };
+    if (values.filtro !== "ativos") query.set("filtro", values.filtro);
+    if (values.elegibilidade !== "todas") query.set("elegibilidade", values.elegibilidade);
+    if (values.situacao !== "todas") query.set("situacao", values.situacao);
+    const text = query.toString();
+    return text ? `/editais?${text}` : "/editais";
+  };
   const canEdit = can(membership.role, "content.edit");
   const isAdmin = can(membership.role, "org.manage");
   const supabase = await createClient();
@@ -72,7 +130,11 @@ export default async function EditaisPage({
     .map((row) => toEdital(row))
     .sort((a, b) => compareEditais(a, b, now));
   const projects = projectsQuery.error ? null : (projectsQuery.data ?? []);
-  const rows = all.filter(FILTERS[filter].test);
+  const byOtherAxes = all
+    .filter(ELIGIBILITY_FILTERS[eligibility].test)
+    .filter(SITUATION_FILTERS[situation].test);
+  const rows = byOtherAxes.filter(FILTERS[filter].test);
+  const triaged = all.filter(FILTERS[filter].test);
   const lastRun = lastRunQuery.data?.started_at;
 
   return (
@@ -117,26 +179,54 @@ export default async function EditaisPage({
       <DbErrorNotice error={editaisQuery.error} isAdmin={isAdmin} context="os editais" />
 
       {!editaisQuery.error && (
-        <nav className="flex flex-wrap gap-2 text-sm" aria-label="Filtros">
-          {(Object.keys(FILTERS) as FilterKey[]).map((key) => {
-            const count = all.filter(FILTERS[key].test).length;
-            const active = key === filter;
-            return (
-              <Link
+        <div className="space-y-2">
+          <FilterRow label="Triagem">
+            {(Object.keys(FILTERS) as FilterKey[]).map((key) => (
+              <FilterChip key={key} href={href({ filtro: key })} active={key === filter}>
+                {FILTERS[key].label}{" "}
+                <span className="tabular-nums">
+                  ({byOtherAxes.filter(FILTERS[key].test).length})
+                </span>
+              </FilterChip>
+            ))}
+          </FilterRow>
+          <FilterRow label="Elegibilidade">
+            {(Object.keys(ELIGIBILITY_FILTERS) as EligibilityKey[]).map((key) => (
+              <FilterChip
                 key={key}
-                href={key === "ativos" ? "/editais" : `/editais?filtro=${key}`}
-                aria-current={active ? "page" : undefined}
-                className={`rounded-full border px-3 py-1 transition ${
-                  active
-                    ? "border-brand bg-brand/10 text-brand"
-                    : "border-line text-muted hover:text-fg"
-                }`}
+                href={href({ elegibilidade: key })}
+                active={key === eligibility}
               >
-                {FILTERS[key].label} <span className="tabular-nums">({count})</span>
-              </Link>
-            );
-          })}
-        </nav>
+                {ELIGIBILITY_FILTERS[key].label}{" "}
+                <span className="tabular-nums">
+                  (
+                  {
+                    triaged
+                      .filter(SITUATION_FILTERS[situation].test)
+                      .filter(ELIGIBILITY_FILTERS[key].test).length
+                  }
+                  )
+                </span>
+              </FilterChip>
+            ))}
+          </FilterRow>
+          <FilterRow label="Situação">
+            {(Object.keys(SITUATION_FILTERS) as SituationKey[]).map((key) => (
+              <FilterChip key={key} href={href({ situacao: key })} active={key === situation}>
+                {SITUATION_FILTERS[key].label}{" "}
+                <span className="tabular-nums">
+                  (
+                  {
+                    triaged
+                      .filter(ELIGIBILITY_FILTERS[eligibility].test)
+                      .filter(SITUATION_FILTERS[key].test).length
+                  }
+                  )
+                </span>
+              </FilterChip>
+            ))}
+          </FilterRow>
+        </div>
       )}
 
       {editaisQuery.error ? null : rows.length === 0 ? (
@@ -172,6 +262,7 @@ export default async function EditaisPage({
                     </Link>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       <EditalStatusBadge status={edital.status} />
+                      <EligibilityBadge status={edital.eligibilityStatus} />
                       {edital.origin === "monitor" && <Badge tone="brand">Varredura</Badge>}
                       {edital.reviewStatus === "discarded" ? (
                         <Badge>Descartado</Badge>
@@ -181,6 +272,10 @@ export default async function EditaisPage({
                         )
                       )}
                     </div>
+                    {RESTRICTED_ELIGIBILITY.has(edital.eligibilityStatus) &&
+                      edital.eligibilityReason && (
+                        <p className="mt-1.5 text-xs text-muted">{edital.eligibilityReason}</p>
+                      )}
                     {edital.reviewStatus === "discarded" && edital.triageReason && (
                       <p className="mt-1.5 text-xs text-muted">{edital.triageReason}</p>
                     )}
@@ -213,5 +308,36 @@ export default async function EditaisPage({
         </div>
       )}
     </div>
+  );
+}
+
+function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label={`Filtro: ${label}`}>
+      <span className="w-24 shrink-0 text-xs uppercase tracking-wider text-muted">{label}</span>
+      {children}
+    </nav>
+  );
+}
+
+function FilterChip({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`rounded-full border px-3 py-1 transition ${
+        active ? "border-brand bg-brand/10 text-brand" : "border-line text-muted hover:text-fg"
+      }`}
+    >
+      {children}
+    </Link>
   );
 }

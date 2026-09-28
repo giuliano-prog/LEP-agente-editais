@@ -6,6 +6,8 @@
  * texto, números como string etc.) para a interface nunca quebrar.
  */
 
+import { isEligibilityStatus, type EligibilityStatus } from "./eligibility";
+
 export type EditalLink = { label: string; url: string };
 
 export type Edital = {
@@ -34,8 +36,14 @@ export type Edital = {
   discoveredAt: string | null;
   /** Territórios de sede aceitos para o proponente ("BR", "SP", "SP:São Paulo"...). */
   eligibleTerritories: string[];
-  /** Motivo de descarte automático na triagem (ex.: restrição territorial). */
+  /** Motivo do descarte na triagem (legado: descartes automáticos anteriores à etapa 5). */
   triageReason: string | null;
+  /** Elegibilidade da LEP como proponente (terceiro eixo; ver eligibility.ts). */
+  eligibilityStatus: EligibilityStatus;
+  eligibilityReason: string | null;
+  eligibilityEvidence: string | null;
+  /** auto (regras) | manual (definida pela equipe). */
+  eligibilitySource: "auto" | "manual";
 };
 
 export const EDITAL_STATUS_LABELS: Record<string, string> = {
@@ -191,6 +199,13 @@ export function toEdital(row: Row): Edital {
     discoveredAt: asText(row.discovered_at),
     eligibleTerritories: asStringArray(row.eligible_territories),
     triageReason: asText(row.triage_reason),
+    // Antes da migração de elegibilidade a coluna não existe: "não confirmada".
+    eligibilityStatus: isEligibilityStatus(row.eligibility_status)
+      ? row.eligibility_status
+      : "not_confirmed",
+    eligibilityReason: asText(row.eligibility_reason),
+    eligibilityEvidence: asText(row.eligibility_evidence),
+    eligibilitySource: row.eligibility_source === "manual" ? "manual" : "auto",
   };
 }
 

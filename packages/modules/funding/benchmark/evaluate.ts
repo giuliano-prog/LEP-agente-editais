@@ -1,4 +1,5 @@
 import {
+  assessEligibility,
   assessTerritory,
   findDeadline,
   findTotalAmount,
@@ -9,7 +10,7 @@ import type { BenchmarkCase, ExpectedField } from "./case-schema";
 
 /**
  * Avaliadores: o que o motor ATUAL responde para cada campo esperado.
- * Campos sem avaliador (ex.: `eligibility`, antes da etapa 5) aparecem como
+ * Campos sem avaliador aparecem como
  * "sem avaliador" no relatório — nunca como acerto.
  * Nada aqui é usado pelo código de produção.
  */
@@ -35,6 +36,7 @@ export const EVALUATORS: Partial<Record<ExpectedField, Evaluator>> = {
     );
   },
   territory: (item) => assessTerritory(fullText(item)).verdict,
+  eligibility: (item) => assessEligibility(fullText(item)).status,
   deadline: (item) => findDeadline(fullText(item))?.slice(0, 10) ?? null,
   totalAmount: (item) => findTotalAmount(fullText(item)),
   status: (item) => {
