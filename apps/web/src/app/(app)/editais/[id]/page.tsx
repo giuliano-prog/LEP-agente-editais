@@ -20,6 +20,8 @@ import {
 } from "@/components/edital-badges";
 import { EligibilityForm } from "@/components/editais/eligibility-form";
 import { EvidencePanel } from "@/components/editais/evidence-panel";
+import { ChangesPanel, type EditalChange } from "@/components/editais/changes-panel";
+import { CheckChangesButton } from "@/components/editais/check-changes-button";
 import { EditalHistory, type AuditEntry } from "@/components/editais/edital-history";
 import { DocumentsSection, type EditalDocument } from "@/components/editais/documents-section";
 import { recalculateMatches, resolveDuplicate, setEditalTriage } from "../actions";
@@ -119,7 +121,7 @@ export default async function EditalPage({
 
   const edital = toEdital(editalQuery.data);
   // Deduplicação (etapa 8): onde foi encontrado e o possível original.
-  const [sightings, duplicateOf] = await Promise.all([
+  const [sightings, duplicateOf, changesQuery] = await Promise.all([
     supabase
       .from("edital_sightings")
       .select("id, url, title, match_reason, first_seen_at, last_seen_at, edital_sources ( name )")
@@ -134,8 +136,17 @@ export default async function EditalPage({
           .eq("org_id", membership.orgId)
           .maybeSingle()
       : Promise.resolve(null),
+    // Alterações/retificações detectadas (etapa 10).
+    supabase
+      .from("edital_changes")
+      .select("id, kind, summary, changes, status, detected_at, resolved_at")
+      .eq("edital_id", edital.id)
+      .eq("org_id", membership.orgId)
+      .order("detected_at", { ascending: false }),
   ]);
   const original = duplicateOf?.data ?? null;
+  const changes = (changesQuery.error ? [] : (changesQuery.data ?? [])) as EditalChange[];
+  const pendingChanges = changes.filter((change) => change.status === "pending").length;
   // Match v2 gravado (etapa 9): em dia se o hash dos dados atuais é o mesmo.
   const savedMatches =
     tab === "match"
@@ -191,6 +202,7 @@ export default async function EditalPage({
                   {edital.reviewStatus === "discarded" ? "Restaurar" : "Descartar"}
                 </button>
               </form>
+              {edital.officialUrl && <CheckChangesButton editalId={edital.id} />}
               <Link
                 href={`/editais/${edital.id}/editar`}
                 className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand"
@@ -208,6 +220,14 @@ export default async function EditalPage({
             {edital.discoveredAt &&
               ` em ${new Date(edital.discoveredAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`}
             . Prazo e valor foram sugeridos a partir da página e precisam ser conferidos na revisão.
+          </p>
+        )}
+        {pendingChanges > 0 && (
+          <p className="rounded-md border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+            {pendingChanges} alteração(ões)/retificação(ões) detectada(s) aguardando revisão.{" "}
+            <Link href={`/editais/${edital.id}?aba=historico`} className="font-medium underline">
+              Ver no Histórico
+            </Link>
           </p>
         )}
         {original && edital.reviewStatus !== "discarded" && (
@@ -493,6 +513,8 @@ export default async function EditalPage({
           canEdit={canEdit}
         />
       )}
+
+      {tab === "historico" && <ChangesPanel changes={changes} canEdit={canEdit} />}
 
       {tab === "historico" &&
         (canSeeAudit ? (

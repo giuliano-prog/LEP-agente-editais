@@ -4,11 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   DOCUMENT_KIND_LABELS,
+  changeColumns,
   editalFormToInput,
   editalInputSchema,
+  type FieldChange,
   isEligibilityStatus,
 } from "@lep/funding";
 import { requireMembership } from "@/lib/auth/session";
+import { checkEditalForChanges } from "@/lib/editais/changes";
 import { applyAutomaticSuggestions } from "@/lib/editais/extraction";
 import { persistMatches } from "@/lib/editais/matches";
 import {
@@ -364,4 +367,73 @@ export async function recalculateMatches(editalId: string): Promise<void> {
   const supabase = await createClient();
   await persistMatches(supabase, membership.orgId, [editalId]);
   revalidatePath(`/editais/${editalId}`);
+}
+
+export type ChangeCheckState = { error?: string; success?: string };
+
+/** "Verificar alterações agora" (Diretoria/Admin): mesma verificação da varredura. */
+export async function checkChangesNow(editalId: string): Promise<ChangeCheckState> {
+  if (!ID_PATTERN.test(editalId)) return { error: "Edital inválido." };
+  const { membership } = await requireMembership("editor");
+  const supabase = await createClient();
+  const { data: row } = await supabase
+    .from("editais")
+    .select("*")
+    .eq("id", editalId)
+    .eq("org_id", membership.orgId)
+    .maybeSingle();
+  if (!row) return { error: "Edital não encontrado." };
+  const check = await checkEditalForChanges(supabase, membership.orgId, row);
+  if (check.status === "changed") await persistMatches(supabase, membership.orgId, [editalId]);
+  revalidatePath(`/editais/${editalId}`);
+  revalidatePath("/editais");
+  return check.status === "error" || check.status === "skipped"
+    ? { error: check.message }
+    : { success: check.message };
+}
+
+/**
+ * Alteração detectada: "aplicar" grava os valores novos no edital (decisão da
+ * equipe) e recalcula o Match; "ignorar" só encerra o aviso. Nada é apagado.
+ */
+export async function resolveEditalChange(
+  changeId: string,
+  decision: "applied" | "dismissed",
+): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(changeId)) return;
+  const { membership } = await requireMembership("editor");
+  const supabase = await createClient();
+  const { data: change } = await supabase
+    .from("edital_changes")
+    .select("id, edital_id, changes, status")
+    .eq("id", changeId)
+    .eq("org_id", membership.orgId)
+    .maybeSingle();
+  if (!change || change.status !== "pending") return;
+  const editalId = String(change.edital_id);
+
+  if (decision === "applied") {
+    const columns = changeColumns(
+      (Array.isArray(change.changes) ? change.changes : []) as FieldChange[],
+    );
+    if (Object.keys(columns).length > 0) {
+      const { error } = await supabase
+        .from("editais")
+        .update(columns)
+        .eq("id", editalId)
+        .eq("org_id", membership.orgId);
+      if (error) {
+        console.error("Erro ao aplicar alteração:", error.code);
+        return;
+      }
+    }
+  }
+  await supabase
+    .from("edital_changes")
+    .update({ status: decision })
+    .eq("id", changeId)
+    .eq("org_id", membership.orgId);
+  if (decision === "applied") await persistMatches(supabase, membership.orgId, [editalId]);
+  revalidatePath(`/editais/${editalId}`);
+  revalidatePath("/editais");
 }

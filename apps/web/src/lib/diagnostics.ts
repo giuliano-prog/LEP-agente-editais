@@ -255,6 +255,28 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3b7. Alterações e retificações (etapa 10).
+  const [changesTable, changeColumns] = await Promise.all([
+    supabase.from("edital_changes").select("id").eq("org_id", orgId).limit(1),
+    supabase.from("editais").select("last_checked_at, content_hash").limit(1),
+  ]);
+  const changesError = changesTable.error ?? changeColumns.error;
+  checks.push(
+    changesError
+      ? {
+          label: "Detecção de alterações e retificações",
+          status: "fail",
+          detail: changesError.message,
+          fix: "Aplique a migração 20261007120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Detecção de alterações e retificações",
+          status: "ok",
+          detail:
+            "Editais abertos são verificados de novo; alterações ficam pendentes para a equipe.",
+        },
+  );
+
   // 3c. Resumo detalhado da varredura (colunas novas do histórico).
   const summaryColumns = await supabase
     .from("monitor_runs")

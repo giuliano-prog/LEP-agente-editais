@@ -80,8 +80,17 @@ export async function startFakeSupabase(db: FakeDb) {
     const rows = db[table]!;
     if (req.method === "POST") {
       const input = JSON.parse((await read(req)).toString());
-      rows.push(...(Array.isArray(input) ? input : [input]));
-      return send(201);
+      // Como o PostgREST: gera id e devolve as linhas quando pedido (return=representation).
+      const inserted = (Array.isArray(input) ? input : [input]).map(
+        (row: Record<string, unknown>) => ({
+          id: `${table}-${++seq}`,
+          ...row,
+        }),
+      );
+      rows.push(...inserted);
+      if (!(req.headers.prefer ?? "").includes("return=representation")) return send(201);
+      const single = (req.headers.accept ?? "").includes("vnd.pgrst.object");
+      return send(201, single ? inserted[0] : inserted);
     }
     let matched = applyFilters(rows, url.searchParams);
     if (req.method === "PATCH") {

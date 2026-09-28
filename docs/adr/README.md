@@ -25,5 +25,6 @@ Decisões não são apagadas; quando mudam, um novo ADR "substitui" o anterior.
 | 0018 | [Extração com evidência por campo e texto de PDF](0018-extracao-evidencias-pdf.md)             | Aceita |
 | 0019 | [Deduplicação multi-fonte e avistamentos](0019-deduplicacao-multifonte.md)                     | Aceita |
 | 0020 | [Aderência explicável e Match v2 persistido](0020-match-v2.md)                                 | Aceita |
+| 0021 | [Detecção de alterações e retificações](0021-alteracoes-retificacoes.md)                       | Aceita |
 
 Modelo para novos ADRs: copie um existente e mantenha as seções.

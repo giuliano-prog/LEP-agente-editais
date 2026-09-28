@@ -9,3 +9,4 @@ export * from "./page-classifier";
 export * from "./source-adapter";
 export * from "./extract";
 export * from "./dedup";
+export * from "./changes";

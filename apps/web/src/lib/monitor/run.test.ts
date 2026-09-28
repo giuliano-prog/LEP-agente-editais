@@ -83,9 +83,9 @@ function startFakeSite() {
     res.writeHead(200, { "content-type": page.type });
     res.end(page.body);
   });
-  return new Promise<{ url: string; server: Server }>((resolve) =>
+  return new Promise<{ url: string; server: Server; pages: typeof pages }>((resolve) =>
     server.listen(0, "127.0.0.1", () =>
-      resolve({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, server }),
+      resolve({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, server, pages }),
     ),
   );
 }
@@ -100,6 +100,7 @@ const db: FakeDb = {
   monitor_ignored_urls: [],
   edital_sightings: [],
   edital_matches: [],
+  edital_changes: [],
   // Projeto fictício da organização (Match v2 gravado na importação).
   projetos: [
     {
@@ -378,5 +379,58 @@ describe("runMonitor (varredura)", () => {
     // O restrito também não volta duplicado: o link continua conhecido.
     expect(db.editais).toHaveLength(2);
     expect(db.monitor_runs!.filter((run) => run.source_id === "fonte-1")).toHaveLength(2);
+  });
+
+  it("alterações (etapa 10): retificação prorroga o prazo → alteração pendente, edital NÃO é sobrescrito", async () => {
+    const longa = db.editais!.find((e) => String(e.official_url).includes("longa"))!;
+    const deadlineBefore = longa.deadline;
+    // O órgão publica uma retificação e atualiza a página.
+    site.pages["/editais/edital-producao-longa/"] = {
+      type: "text/html; charset=utf-8",
+      body: `<html><head><title>Edital de Produção | Site</title></head><body>
+        <h1>Edital de Produção de Longas-Metragens 2026</h1><p>Edital nº 5/2026.</p>
+        <p>O edital tem valor total de R$ 10.000.000,00 para até 5 projetos.</p>
+        <p>Inscrições prorrogadas: de 01/10/2026 a 15/12/2026.</p>
+        <p>Podem participar produtoras independentes de todo o território nacional.</p>
+        <a href="/arquivos/retificacao-1.pdf">Retificação nº 1</a></body></html>`,
+    };
+    site.pages["/arquivos/retificacao-1.pdf"] = {
+      type: "application/pdf",
+      body: makePdf([
+        ["RETIFICACAO No 1 - EDITAL 5/2026", "As inscrições encerram-se em 15/12/2026."],
+      ]),
+    };
+    const { runMonitor } = await import("./run");
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const results = await runMonitor(createAdminClient(), {
+      trigger: "cron",
+      now: new Date("2026-10-05T12:00:00-03:00"),
+    });
+    expect(results.find((result) => result.sourceId === "fonte-1")).toMatchObject({ updated: 1 });
+
+    const change = db.edital_changes!.find((item) => item.edital_id === longa.id)!;
+    expect(change).toMatchObject({ kind: "rectification", org_id: ORG });
+    expect(String(change.summary)).toContain("retificação");
+    expect(change.changes).toEqual([
+      expect.objectContaining({ field: "deadline", before: "2026-11-30", after: "2026-12-15" }),
+    ]);
+    // Nada sobrescrito: a equipe decide.
+    expect(longa.deadline).toBe(deadlineBefore);
+    const rectification = db.edital_documents!.find((doc) =>
+      String(doc.source_url).includes("retificacao-1.pdf"),
+    );
+    expect(rectification).toMatchObject({ edital_id: longa.id, kind: "rectification" });
+    expect((change.document_ids as string[]).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("alterações: sem mudança no texto → nada registrado na verificação seguinte", async () => {
+    const { runMonitor } = await import("./run");
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const before = db.edital_changes!.length;
+    await runMonitor(createAdminClient(), {
+      trigger: "cron",
+      now: new Date("2026-10-07T12:00:00-03:00"),
+    });
+    expect(db.edital_changes!.length).toBe(before);
   });
 });

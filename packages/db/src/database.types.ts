@@ -104,6 +104,63 @@ export type Database = {
         };
         Relationships: [];
       };
+      edital_changes: {
+        Row: {
+          changes: Json;
+          detected_at: string;
+          document_ids: string[];
+          edital_id: string;
+          id: string;
+          kind: "fields_changed" | "rectification";
+          org_id: string;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          status: "pending" | "applied" | "dismissed";
+          summary: string;
+        };
+        Insert: {
+          changes?: Json;
+          detected_at?: string;
+          document_ids?: string[];
+          edital_id: string;
+          id?: string;
+          kind: "fields_changed" | "rectification";
+          org_id: string;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          status?: "pending" | "applied" | "dismissed";
+          summary: string;
+        };
+        Update: {
+          changes?: Json;
+          detected_at?: string;
+          document_ids?: string[];
+          edital_id?: string;
+          id?: string;
+          kind?: "fields_changed" | "rectification";
+          org_id?: string;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          status?: "pending" | "applied" | "dismissed";
+          summary?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "edital_changes_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_changes_edital_id_fkey";
+            columns: ["edital_id"];
+            isOneToOne: false;
+            referencedRelation: "editais";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       edital_documents: {
         Row: {
           created_at: string;
@@ -419,6 +476,8 @@ export type Database = {
           canonical_key: string | null;
           possible_duplicate_of: string | null;
           possible_duplicate_reason: string | null;
+          last_checked_at: string | null;
+          content_hash: string | null;
         };
         Insert: {
           accepted_formats?: string[];
@@ -469,6 +528,8 @@ export type Database = {
           canonical_key?: string | null;
           possible_duplicate_of?: string | null;
           possible_duplicate_reason?: string | null;
+          last_checked_at?: string | null;
+          content_hash?: string | null;
         };
         Update: {
           accepted_formats?: string[];
@@ -519,6 +580,8 @@ export type Database = {
           canonical_key?: string | null;
           possible_duplicate_of?: string | null;
           possible_duplicate_reason?: string | null;
+          last_checked_at?: string | null;
+          content_hash?: string | null;
         };
         Relationships: [
           {

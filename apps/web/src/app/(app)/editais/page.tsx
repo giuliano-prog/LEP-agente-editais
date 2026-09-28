@@ -107,21 +107,32 @@ export default async function EditaisPage({
 
   // select("*") e ordenação no app: a lista funciona mesmo que a tabela remota tenha
   // colunas a mais ou ainda não tenha as colunas mais novas. O RLS limita à organização.
-  const [editaisQuery, projectsQuery, lastRunQuery, proponent] = await Promise.all([
-    supabase.from("editais").select("*").eq("org_id", membership.orgId),
-    supabase
-      .from("projetos")
-      .select("id, title, format, genre, stage, budget")
-      .eq("org_id", membership.orgId),
-    supabase
-      .from("monitor_runs")
-      .select("started_at")
-      .eq("org_id", membership.orgId)
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    loadProponent(supabase, membership.orgId),
-  ]);
+  const [editaisQuery, projectsQuery, lastRunQuery, proponent, pendingChangesQuery] =
+    await Promise.all([
+      supabase.from("editais").select("*").eq("org_id", membership.orgId),
+      supabase
+        .from("projetos")
+        .select("id, title, format, genre, stage, budget")
+        .eq("org_id", membership.orgId),
+      supabase
+        .from("monitor_runs")
+        .select("started_at")
+        .eq("org_id", membership.orgId)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      loadProponent(supabase, membership.orgId),
+      supabase
+        .from("edital_changes")
+        .select("edital_id")
+        .eq("org_id", membership.orgId)
+        .eq("status", "pending"),
+    ]);
+  const withPendingChanges = new Set(
+    (pendingChangesQuery.error ? [] : (pendingChangesQuery.data ?? [])).map((row) =>
+      String(row.edital_id),
+    ),
+  );
 
   if (editaisQuery.error)
     console.error("Erro ao listar editais:", editaisQuery.error.code, editaisQuery.error.message);
@@ -264,6 +275,9 @@ export default async function EditaisPage({
                       <EditalStatusBadge status={edital.status} />
                       <EligibilityBadge status={edital.eligibilityStatus} />
                       {edital.origin === "monitor" && <Badge tone="brand">Varredura</Badge>}
+                      {withPendingChanges.has(edital.id) && (
+                        <Badge tone="warn">Alteração a revisar</Badge>
+                      )}
                       {edital.possibleDuplicateOf && edital.reviewStatus !== "discarded" && (
                         <Badge tone="warn">Possível duplicado</Badge>
                       )}

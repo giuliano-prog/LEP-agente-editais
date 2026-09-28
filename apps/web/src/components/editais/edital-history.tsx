@@ -77,7 +77,7 @@ export function EditalHistory({
 }) {
   return (
     <Card>
-      <SectionTitle>Histórico de alterações</SectionTitle>
+      <SectionTitle>Auditoria (quem alterou o quê)</SectionTitle>
       {error ? (
         <p className="text-sm text-bad">Não foi possível carregar o histórico.</p>
       ) : entries.length === 0 ? (

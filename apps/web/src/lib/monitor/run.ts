@@ -40,6 +40,7 @@ import {
   removeStored,
   storeFetchedDocument,
 } from "@/lib/editais/ingest";
+import { checkEditalForChanges, textHash } from "@/lib/editais/changes";
 import { persistMatches } from "@/lib/editais/matches";
 import { loadPartnerTerritories, loadProponent } from "@/lib/proponent";
 import type { createAdminClient } from "@/lib/supabase/admin";
@@ -74,7 +75,7 @@ export type SourceResult = {
   candidates: number;
   /** Importados como novos (entram com revisão pendente). */
   imported: number;
-  /** Alterações detectadas em oportunidades conhecidas (etapa de retificações; hoje sempre 0). */
+  /** Editais já conhecidos com alteração/retificação detectada (etapa 10; pendentes de revisão). */
   updated: number;
   /** Já conhecidos (mesmo link ou mesmo arquivo). */
   duplicates: number;
@@ -205,6 +206,46 @@ async function recordSighting(
     { onConflict: "org_id,edital_id,url" },
   );
   if (error) console.error("Avistamento não registrado:", error.code);
+}
+
+/** Editais desta fonte verificados por execução (os verificados há mais tempo primeiro). */
+const RECHECK_PER_SOURCE = 2;
+const RECHECK_INTERVAL_MS = 20 * 60 * 60 * 1000;
+
+async function recheckEditais(
+  admin: Admin,
+  source: SourceRow,
+  now: Date,
+  deadlineAt: number,
+): Promise<number> {
+  const { data, error } = await admin
+    .from("editais")
+    .select("*")
+    .eq("org_id", source.org_id)
+    .eq("source_id", source.id);
+  if (error) return 0;
+  const today = todayInBrasilia(now);
+  const due = (data ?? [])
+    .filter((row) => row.review_status !== "discarded" && row.official_url)
+    .filter((row) => !row.deadline || String(row.deadline).slice(0, 10) >= today)
+    .filter(
+      (row) =>
+        !row.last_checked_at ||
+        now.getTime() - new Date(row.last_checked_at).getTime() >= RECHECK_INTERVAL_MS,
+    )
+    .sort((a, b) => String(a.last_checked_at ?? "").localeCompare(String(b.last_checked_at ?? "")))
+    .slice(0, RECHECK_PER_SOURCE);
+  let changed = 0;
+  for (const row of due) {
+    if (Date.now() > deadlineAt) break;
+    if (row.official_url && !(await allowed(row.official_url))) continue;
+    const check = await checkEditalForChanges(admin, source.org_id, row, now);
+    if (check.status === "changed") {
+      changed++;
+      await persistMatches(admin, source.org_id, [String(row.id)], now);
+    }
+  }
+  return changed;
 }
 
 type IgnoredPageType = "listing" | "result" | "rectification" | "news" | "institutional";
@@ -357,6 +398,9 @@ export async function scanSource(
         result.failed++;
       }
     }
+
+    // Etapa 10: verifica alterações/retificações nos editais já importados desta fonte.
+    result.updated += await recheckEditais(admin, source, options.now, options.deadlineAt);
   } catch (error) {
     const message =
       error instanceof UnsafeUrlError || error instanceof FetchError || error instanceof IngestError
@@ -508,6 +552,9 @@ async function importCandidate(
       page_type: page?.type === "opportunity" || page?.type === "uncertain" ? page.type : null,
       opportunity_kind: page?.kind ?? opportunityKind(candidate.title),
       page_type_reasons: page?.reasons ?? ["classificação de página desligada nesta fonte"],
+      // Linha de base para a detecção de alterações (etapa 10).
+      content_hash: textHash(fetched),
+      last_checked_at: now.toISOString(),
     })
     .eq("id", editalId)
     .eq("org_id", source.org_id);
