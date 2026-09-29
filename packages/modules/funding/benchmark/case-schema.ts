@@ -59,6 +59,8 @@ export const benchmarkCaseSchema = z.object({
       maxAmountPerProject: z.number().nonnegative().nullable().optional(),
       projectCount: z.number().int().positive().nullable().optional(),
       status: z.enum(["open", "closed", "upcoming"]).nullable().optional(),
+      /** Descoberta web (ADR-0024): o OBJETO do edital é audiovisual? (o tema não conta). */
+      audiovisual: z.enum(["yes", "no", "uncertain"]).optional(),
     })
     .refine((value) => Object.keys(value).length > 0, "expected: informe ao menos um campo"),
   notes: z.string().optional(),

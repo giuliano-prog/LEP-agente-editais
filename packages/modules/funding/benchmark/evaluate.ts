@@ -1,6 +1,7 @@
 import {
   assessEligibility,
   assessTerritory,
+  classifyAudiovisualRelevance,
   classifyPage,
   extractFields,
   IMPORTABLE_PAGE_TYPES,
@@ -57,6 +58,12 @@ export const EVALUATORS: Partial<Record<ExpectedField, Evaluator>> = {
   totalAmount: (item) => fieldsOf(item).totalAmount?.value ?? null,
   maxAmountPerProject: (item) => fieldsOf(item).maxAmountPerProject?.value ?? null,
   projectCount: (item) => fieldsOf(item).projectCount?.value ?? null,
+  // Descoberta web: relevância audiovisual pelo objeto (título + página + regulamento).
+  audiovisual: (item) =>
+    classifyAudiovisualRelevance({
+      title: item.input.title,
+      text: [item.input.text, item.input.pdfText ?? ""].join("\n"),
+    }).relevance,
   status: (item) => {
     const fields = fieldsOf(item);
     if (!fields.deadline) return null;
@@ -99,6 +106,8 @@ export function evaluateCase(
         !hit &&
         ((field === "territory" && actual === "ineligible") ||
           (field === "isOpportunity" && expected === true && actual === false) ||
+          // Oportunidade audiovisual suprimida pela descoberta web.
+          (field === "audiovisual" && expected === "yes" && actual === "no") ||
           (field === "eligibility" &&
             (actual === "not_eligible" || actual === "territorial_restriction")));
       return { caseId: item.id, field, expected, actual, result: hit ? "hit" : "miss", critical };

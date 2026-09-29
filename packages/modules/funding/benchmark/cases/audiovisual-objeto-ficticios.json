@@ -1,0 +1,98 @@
+[
+  {
+    "id": "av-documentario-esporte",
+    "fictitious": true,
+    "origin": "exemplo fictício — descoberta web (tema esporte, objeto documentário)",
+    "referenceDate": "2026-09-29",
+    "input": {
+      "title": "Programa Memória do Esporte 2026",
+      "url": "https://esporte.exemplo.gov.br/programas/memoria-2026",
+      "text": "O programa seleciona projetos de produção de documentários sobre atletas paralímpicos. Inscrições até 30/11/2026."
+    },
+    "expected": { "audiovisual": "yes" }
+  },
+  {
+    "id": "av-serie-saude",
+    "fictitious": true,
+    "origin": "exemplo fictício — tema saúde, objeto série",
+    "referenceDate": "2026-09-29",
+    "input": {
+      "title": "Chamada Saúde em Cena",
+      "url": "https://saude.exemplo.gov.br/chamadas/saude-em-cena",
+      "text": "Objeto: apoio ao desenvolvimento de séries audiovisuais sobre prevenção e saúde da família."
+    },
+    "expected": { "audiovisual": "yes" }
+  },
+  {
+    "id": "av-videos-educacionais",
+    "fictitious": true,
+    "origin": "exemplo fictício — educação com produto audiovisual formal",
+    "referenceDate": "2026-09-29",
+    "input": {
+      "title": "Edital Aprender com Imagens",
+      "url": "https://educacao.exemplo.gov.br/editais/aprender",
+      "text": "Serão contratadas a produção e a finalização de vídeos educativos para a rede estadual."
+    },
+    "expected": { "audiovisual": "yes" }
+  },
+  {
+    "id": "av-cultura-linha-cinema",
+    "fictitious": true,
+    "origin": "exemplo fictício — programa cultural amplo com linha de cinema",
+    "referenceDate": "2026-09-29",
+    "input": {
+      "title": "Programa Estadual de Cultura 2026",
+      "url": "https://cultura.exemplo.gov.br/programa-2026",
+      "text": "Linha A: circulação de espetáculos de teatro. Linha B: publicação de livros. Linha C: produção de longa-metragem documental."
+    },
+    "expected": { "audiovisual": "yes" }
+  },
+  {
+    "id": "nao-av-teatro-registro",
+    "fictitious": true,
+    "origin": "exemplo fictício — teatro com audiovisual complementar",
+    "referenceDate": "2026-09-29",
+    "input": {
+      "title": "Edital de Montagem Teatral",
+      "url": "https://cultura.exemplo.gov.br/editais/teatro",
+      "text": "O objeto é a montagem de peças teatrais inéditas. Recomenda-se o registro audiovisual da estreia, como contrapartida."
+    },
+    "expected": { "audiovisual": "no" }
+  },
+  {
+    "id": "nao-av-campeonato",
+    "fictitious": true,
+    "origin": "exemplo fictício — esporte sem audiovisual",
+    "referenceDate": "2026-09-29",
+    "input": {
+      "title": "Programa de Esporte Comunitário",
+      "url": "https://esporte.exemplo.gov.br/programa",
+      "text": "Apoio à realização de campeonatos de futebol e torneios de vôlei em bairros."
+    },
+    "expected": { "audiovisual": "no" }
+  },
+  {
+    "id": "nao-av-cultura-sem-linha",
+    "fictitious": true,
+    "origin": "exemplo fictício — cultura ampla sem linha audiovisual",
+    "referenceDate": "2026-09-29",
+    "input": {
+      "title": "Programa Municipal de Cultura",
+      "url": "https://cultura.exemplo.gov.br/municipal",
+      "text": "Linha 1: circulação de espetáculos de dança. Linha 2: exposições de artes visuais. Linha 3: publicação de livros."
+    },
+    "expected": { "audiovisual": "no" }
+  },
+  {
+    "id": "incerto-equipamento-av",
+    "fictitious": true,
+    "origin": "exemplo fictício — menção vaga a audiovisual",
+    "referenceDate": "2026-09-29",
+    "input": {
+      "title": "Edital de Ocupação do Centro Cultural",
+      "url": "https://cultura.exemplo.gov.br/ocupacao",
+      "text": "Os grupos selecionados poderão usar a sala com equipamento audiovisual."
+    },
+    "expected": { "audiovisual": "uncertain" }
+  }
+]
