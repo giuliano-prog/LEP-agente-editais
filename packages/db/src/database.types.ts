@@ -329,6 +329,8 @@ export type Database = {
           audiovisual_uncertain: number;
           audiovisual_yes: number;
           already_known: number;
+          api_requests: number;
+          limit_reached: string | null;
           analyzed: number;
           blocked: number;
           duplicates: number;
@@ -356,6 +358,8 @@ export type Database = {
           audiovisual_uncertain?: number;
           audiovisual_yes?: number;
           already_known?: number;
+          api_requests?: number;
+          limit_reached?: string | null;
           analyzed?: number;
           blocked?: number;
           duplicates?: number;
@@ -383,6 +387,8 @@ export type Database = {
           audiovisual_uncertain?: number;
           audiovisual_yes?: number;
           already_known?: number;
+          api_requests?: number;
+          limit_reached?: string | null;
           analyzed?: number;
           blocked?: number;
           duplicates?: number;
@@ -408,6 +414,20 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "discovery_runs_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      search_api_usage: {
+        Row: { month: string; org_id: string; requests: number; updated_at: string };
+        Insert: { month: string; org_id: string; requests?: number; updated_at?: string };
+        Update: { month?: string; org_id?: string; requests?: number; updated_at?: string };
+        Relationships: [
+          {
+            foreignKeyName: "search_api_usage_org_id_fkey";
             columns: ["org_id"];
             isOneToOne: false;
             referencedRelation: "organizations";
@@ -1121,6 +1141,10 @@ export type Database = {
           p_title: string;
         };
         Returns: string;
+      };
+      reserve_search_request: {
+        Args: { p_limit: number; p_org_id: string };
+        Returns: boolean;
       };
       has_role: {
         Args: { p_min_role: Database["core"]["Enums"]["app_role"]; p_org_id: string };
