@@ -16,6 +16,8 @@ import {
   selectCandidates,
   suggestionColumns,
   type KnownEdital,
+  type PageClassification,
+  type PageType,
   type Proponent,
   type TextSource,
 } from "@lep/funding";
@@ -94,7 +96,7 @@ export type SourceResult = {
   warning?: string;
 };
 
-function todayInBrasilia(now: Date) {
+export function todayInBrasilia(now: Date) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(now);
 }
 
@@ -118,21 +120,18 @@ async function robotsFor(url: URL): Promise<RobotsRules> {
   return rules;
 }
 
-async function allowed(rawUrl: string) {
+export async function allowed(rawUrl: string) {
   const url = new URL(rawUrl);
   return isAllowedByRobots(await robotsFor(url), url.pathname + url.search);
 }
 
+export type LoadedRegulation = { document?: FetchedDocument; notes: string[] };
+
 /**
- * Baixa o regulamento (PDF) linkado na página do edital, lê o texto e o guarda
- * como anexo. Falhas viram aviso: nunca impedem a importação do edital.
+ * Baixa o regulamento (PDF) linkado na página do edital e lê o texto, sem guardar.
+ * Falhas viram aviso: nunca impedem a importação do edital.
  */
-async function fetchRegulation(
-  admin: Admin,
-  orgId: string,
-  page: FetchedDocument,
-  editalId: string,
-): Promise<{ text?: string; pdf?: FetchedDocument["pdf"]; notes: string[] } | null> {
+export async function loadRegulation(page: FetchedDocument): Promise<LoadedRegulation | null> {
   if (page.mimeType !== "text/html") return null;
   const url = pickRegulationLink(page.metadata.pdf_links ?? []);
   if (!url) return null;
@@ -142,28 +141,42 @@ async function fetchRegulation(
     }
     const pdf = await fetchUrlDocument(url);
     if (pdf.mimeType !== "application/pdf") return null;
-    const stored = await storeFetchedDocument(admin, orgId, pdf);
-    const { error } = await admin.from("edital_documents").insert({
-      ...documentColumns(stored),
-      metadata: {
-        ...(documentColumns(stored).metadata as object),
-        role: "regulation",
-        discovered_by: "monitor",
-      },
-      org_id: orgId,
-      edital_id: editalId,
-      kind: "annex",
-    });
-    if (error) await removeStored(admin, stored.storagePath);
-    return { text: pdf.text, pdf: pdf.pdf, notes: [] };
+    return { document: pdf, notes: [] };
   } catch (error) {
     const message = error instanceof IngestError ? error.message : "falha ao baixar";
     return { notes: [`Regulamento em PDF não lido (${message}).`] };
   }
 }
 
+/** Guarda o regulamento como anexo do edital (cópia original + SHA-256). */
+async function storeRegulation(
+  admin: Admin,
+  orgId: string,
+  editalId: string,
+  pdf: FetchedDocument,
+  discoveredBy: ImportContext["origin"],
+): Promise<void> {
+  try {
+    const stored = await storeFetchedDocument(admin, orgId, pdf);
+    const { error } = await admin.from("edital_documents").insert({
+      ...documentColumns(stored),
+      metadata: {
+        ...(documentColumns(stored).metadata as object),
+        role: "regulation",
+        discovered_by: discoveredBy,
+      },
+      org_id: orgId,
+      edital_id: editalId,
+      kind: "annex",
+    });
+    if (error) await removeStored(admin, stored.storagePath);
+  } catch {
+    // O texto já foi usado; falhar ao guardar a cópia não impede o edital.
+  }
+}
+
 /** Editais da organização com a impressão digital (vazio se algo falhar: nunca bloqueia). */
-async function loadKnownEditais(admin: Admin, orgId: string): Promise<KnownEdital[]> {
+export async function loadKnownEditais(admin: Admin, orgId: string): Promise<KnownEdital[]> {
   const withKey = await admin
     .from("editais")
     .select("id, title, deadline, canonical_key")
@@ -181,12 +194,13 @@ async function loadKnownEditais(admin: Admin, orgId: string): Promise<KnownEdita
 }
 
 /** Avistamento: onde o edital apareceu (sem duplicar o mesmo endereço). */
-async function recordSighting(
+export async function recordSighting(
   admin: Admin,
   sighting: {
     orgId: string;
     editalId: string;
-    sourceId: string;
+    /** null = encontrado fora de uma fonte cadastrada (descoberta web). */
+    sourceId: string | null;
     url: string;
     title: string;
     reason: string;
@@ -251,7 +265,7 @@ async function recheckEditais(
 type IgnoredPageType = "listing" | "result" | "rectification" | "news" | "institutional";
 
 /** Páginas já classificadas como "não é oportunidade" (vazio se a migração não existir). */
-async function ignoredUrls(admin: Admin, orgId: string): Promise<Set<string>> {
+export async function ignoredUrls(admin: Admin, orgId: string): Promise<Set<string>> {
   const { data, error } = await admin
     .from("monitor_ignored_urls")
     .select("url")
@@ -261,7 +275,7 @@ async function ignoredUrls(admin: Admin, orgId: string): Promise<Set<string>> {
 }
 
 /** Quantos links da página parecem editais (índices de editais têm vários). */
-function countEditalLinks(links: { text: string; url: string }[], pageUrl: string): number {
+export function countEditalLinks(links: { text: string; url: string }[], pageUrl: string): number {
   return selectCandidates(
     links,
     { listUrl: pageUrl, audiovisualOnly: true, linkContains: null },
@@ -271,7 +285,7 @@ function countEditalLinks(links: { text: string; url: string }[], pageUrl: strin
 }
 
 /** Links já conhecidos na organização (editais e documentos), para não importar de novo. */
-async function knownUrls(admin: Admin, orgId: string): Promise<Set<string>> {
+export async function knownUrls(admin: Admin, orgId: string): Promise<Set<string>> {
   const [editais, documents, sightings] = await Promise.all([
     admin.from("editais").select("official_url").eq("org_id", orgId),
     admin.from("edital_documents").select("source_url, final_url").eq("org_id", orgId),
@@ -429,33 +443,129 @@ async function importCandidate(
     knownEditais: KnownEdital[];
   },
 ): Promise<"imported" | "restricted" | "duplicate" | "ignored"> {
-  const fetched = await fetchUrlDocument(candidate.url);
-  if (await findDuplicate(admin, source.org_id, fetched)) return "duplicate";
+  const result = await importOpportunity(
+    admin,
+    {
+      orgId: source.org_id,
+      origin: "monitor",
+      sourceId: source.id,
+      agency: source.agency ?? source.name,
+      now,
+      proponent,
+      partnerTerritories,
+      knownEditais,
+    },
+    candidate,
+    { classifyPages },
+  );
+  return result.outcome;
+}
+
+/** Quem importa e com que contexto (varredura de fonte cadastrada ou descoberta web). */
+export type ImportContext = {
+  orgId: string;
+  origin: "monitor" | "web_discovery";
+  /** Fonte cadastrada (null na descoberta web fora de fontes conhecidas). */
+  sourceId: string | null;
+  agency: string | null;
+  now: Date;
+  proponent: Proponent;
+  partnerTerritories: string[];
+  knownEditais: KnownEdital[];
+};
+
+export type ImportResult = {
+  outcome: "imported" | "restricted" | "duplicate" | "ignored";
+  editalId: string | null;
+  pageType: PageType | null;
+};
+
+/**
+ * Pipeline único de importação (varredura e descoberta web): duplicidade por
+ * endereço/arquivo → classificação da página → impressão digital (avistamento) →
+ * cópia original → edital "revisão pendente" → regulamento em PDF → extração com
+ * evidência → elegibilidade → deduplicação → avistamento de origem → Match v2.
+ */
+export async function importOpportunity(
+  admin: Admin,
+  context: ImportContext,
+  candidate: { title: string; url: string },
+  options: {
+    classifyPages: boolean;
+    /** Documento já baixado (a descoberta web baixa antes para decidir). */
+    fetched?: FetchedDocument;
+    /** Classificação já feita pela descoberta web. */
+    page?: PageClassification | null;
+    /** Regulamento já lido (a descoberta web lê antes, para a decisão audiovisual). */
+    regulation?: LoadedRegulation | null;
+    /** Observações extras da extração (ex.: fonte oficial não localizada). */
+    extraNotes?: string[];
+    /** Outro endereço onde o edital foi encontrado (ex.: agregador/notícia). */
+    alsoSeenAt?: { url: string; title: string; reason: string } | null;
+    firstSightingReason?: string;
+  },
+): Promise<ImportResult> {
+  const { orgId, now, knownEditais } = context;
+  const fetched = options.fetched ?? (await fetchUrlDocument(candidate.url));
+  const seenElsewhere = async (editalId: string) => {
+    if (!options.alsoSeenAt) return;
+    await recordSighting(admin, {
+      orgId,
+      editalId,
+      sourceId: context.sourceId,
+      ...options.alsoSeenAt,
+      now,
+    });
+  };
+
+  const sameFile = await findDuplicate(admin, orgId, fetched);
+  if (sameFile) {
+    // Descoberta web: registra onde mais o edital apareceu (a varredura mantém o comportamento).
+    if (context.origin === "web_discovery") {
+      await recordSighting(admin, {
+        orgId,
+        editalId: sameFile.editalId,
+        sourceId: context.sourceId,
+        url: candidate.url,
+        title: candidate.title,
+        reason: "Mesmo endereço ou mesmo arquivo já cadastrado",
+        now,
+      });
+      await seenElsewhere(sameFile.editalId);
+    }
+    return { outcome: "duplicate", editalId: sameFile.editalId, pageType: null };
+  }
 
   // Etapa 6: só oportunidades (ou páginas incertas) viram edital. As demais ficam
   // registradas com o motivo, visíveis em Fontes, e não são baixadas de novo.
-  const page = classifyPages
-    ? classifyPage({
-        title: candidate.title,
-        url: fetched.finalUrl ?? candidate.url,
-        text: fetched.text ?? "",
-        editalLinkCount: countEditalLinks(fetched.links, fetched.finalUrl ?? candidate.url),
-      })
-    : null;
+  const page =
+    options.page !== undefined
+      ? options.page
+      : options.classifyPages
+        ? classifyPage({
+            title: candidate.title,
+            url: fetched.finalUrl ?? candidate.url,
+            text: fetched.text ?? "",
+            editalLinkCount: countEditalLinks(fetched.links, fetched.finalUrl ?? candidate.url),
+          })
+        : null;
   if (page && !IMPORTABLE_PAGE_TYPES.has(page.type)) {
-    await admin.from("monitor_ignored_urls").upsert(
-      {
-        org_id: source.org_id,
-        source_id: source.id,
-        url: candidate.url,
-        title: candidate.title.slice(0, 300),
-        page_type: page.type as IgnoredPageType,
-        reasons: page.reasons,
-        last_seen_at: now.toISOString(),
-      },
-      { onConflict: "org_id,url" },
-    );
-    return "ignored";
+    // A descoberta web registra o motivo na própria tabela técnica (não em "Páginas ignoradas").
+    if (context.origin === "monitor") {
+      await admin.from("monitor_ignored_urls").upsert(
+        {
+          org_id: orgId,
+          source_id: context.sourceId,
+          url: candidate.url,
+          title: candidate.title.slice(0, 300),
+          page_type: page.type as IgnoredPageType,
+          reasons: page.reasons,
+          last_seen_at: now.toISOString(),
+        },
+        { onConflict: "org_id,url" },
+      );
+    }
+    return { outcome: "ignored", editalId: null, pageType: page.type };
   }
 
   // Etapa 8: mesmo edital já cadastrado (ex.: visto no site do órgão e agora num
@@ -468,22 +578,23 @@ async function importCandidate(
   const match = findDuplicateEdital(print, knownEditais);
   if (match?.verdict === "same") {
     await recordSighting(admin, {
-      orgId: source.org_id,
+      orgId,
       editalId: match.id,
-      sourceId: source.id,
+      sourceId: context.sourceId,
       url: candidate.url,
       title: candidate.title,
       reason: `Mesmo edital: ${match.reason}`,
       now,
     });
-    return "duplicate";
+    await seenElsewhere(match.id);
+    return { outcome: "duplicate", editalId: match.id, pageType: page?.type ?? null };
   }
 
-  const document = await storeFetchedDocument(admin, source.org_id, fetched);
+  const document = await storeFetchedDocument(admin, orgId, fetched);
 
   const columns = documentColumns(document);
   const { data: editalId, error } = await admin.rpc("create_edital_with_document", {
-    p_org_id: source.org_id,
+    p_org_id: orgId,
     p_title: candidate.title,
     p_official_url: candidate.url,
     p_kind: "main",
@@ -496,7 +607,7 @@ async function importCandidate(
     p_size_bytes: columns.size_bytes,
     p_sha256: columns.sha256,
     p_http_status: columns.http_status,
-    p_metadata: { ...(columns.metadata as object), discovered_by: "monitor" },
+    p_metadata: { ...(columns.metadata as object), discovered_by: context.origin },
   });
   if (error || !editalId) {
     await removeStored(admin, document.storagePath);
@@ -505,15 +616,20 @@ async function importCandidate(
 
   // Etapa 7: o regulamento em PDF linkado na página também é lido (texto, sem OCR)
   // e guardado como anexo — é a fonte oficial das regras e da evidência.
-  const regulation = await fetchRegulation(admin, source.org_id, fetched, String(editalId));
+  const regulation =
+    options.regulation !== undefined ? options.regulation : await loadRegulation(fetched);
+  if (regulation?.document) {
+    await storeRegulation(admin, orgId, String(editalId), regulation.document, context.origin);
+  }
+  const regulationText = regulation?.document?.text;
   const sources: TextSource[] = [
     {
       kind: fetched.mimeType === "application/pdf" ? "pdf" : "page",
       text: document.text ?? "",
       label: fetched.mimeType === "application/pdf" ? "Documento (PDF)" : "Página do edital",
     },
-    ...(regulation?.text
-      ? [{ kind: "pdf" as const, text: regulation.text, label: "Regulamento (PDF)" }]
+    ...(regulationText
+      ? [{ kind: "pdf" as const, text: regulationText, label: "Regulamento (PDF)" }]
       : []),
   ];
 
@@ -521,26 +637,27 @@ async function importCandidate(
   const fields = extractFields(sources);
   const suggestions = suggestionColumns(fields, {
     today: todayInBrasilia(now),
-    pdf: regulation?.pdf ?? fetched.pdf,
+    pdf: regulation?.document?.pdf ?? fetched.pdf,
   });
   // Diretrizes LEP 1 e 2 + taxonomia (etapa 5): a elegibilidade é um eixo próprio.
   // Restrição territorial fica visível com motivo e trecho; a triagem continua pendente.
   const eligibility = assessEligibility(
     [candidate.title, ...sources.map((item) => item.text)].join("\n"),
-    { proponent, partnerTerritories },
+    { proponent: context.proponent, partnerTerritories: context.partnerTerritories },
   );
   await admin
     .from("editais")
     .update({
-      origin: "monitor",
-      source_id: source.id,
+      origin: context.origin,
+      source_id: context.sourceId,
       discovered_at: now.toISOString(),
-      agency: source.agency ?? source.name,
+      agency: context.agency,
       summary: document.metadata.description ?? null,
       ...suggestions,
       extraction_notes: [
         ...(suggestions.extraction_notes as string[]),
         ...(regulation?.notes ?? []),
+        ...(options.extraNotes ?? []),
       ],
       extracted_at: now.toISOString(),
       eligible_territories: eligibility.territories,
@@ -557,7 +674,7 @@ async function importCandidate(
       last_checked_at: now.toISOString(),
     })
     .eq("id", editalId)
-    .eq("org_id", source.org_id);
+    .eq("org_id", orgId);
 
   // Deduplicação (etapa 8): chave canônica, possível duplicado e o avistamento de origem.
   await admin
@@ -568,20 +685,25 @@ async function importCandidate(
       possible_duplicate_reason: match?.verdict === "possible" ? match.reason : null,
     })
     .eq("id", editalId)
-    .eq("org_id", source.org_id);
+    .eq("org_id", orgId);
   await recordSighting(admin, {
-    orgId: source.org_id,
+    orgId,
     editalId: String(editalId),
-    sourceId: source.id,
+    sourceId: context.sourceId,
     url: candidate.url,
     title: candidate.title,
-    reason: "Primeira fonte onde o edital foi encontrado",
+    reason: options.firstSightingReason ?? "Primeira fonte onde o edital foi encontrado",
     now,
   });
+  await seenElsewhere(String(editalId));
   knownEditais.push({ id: String(editalId), title: candidate.title, print });
   // Etapa 9: grava o Match v2 do edital novo com os projetos da organização.
-  await persistMatches(admin, source.org_id, [String(editalId)], now);
-  return RESTRICTED_ELIGIBILITY.has(eligibility.status) ? "restricted" : "imported";
+  await persistMatches(admin, orgId, [String(editalId)], now);
+  return {
+    outcome: RESTRICTED_ELIGIBILITY.has(eligibility.status) ? "restricted" : "imported",
+    editalId: String(editalId),
+    pageType: page?.type ?? null,
+  };
 }
 
 /**
@@ -598,18 +720,25 @@ export async function runMonitor(
 
   let query = admin
     .from("edital_sources")
-    .select("id, org_id, name, agency, list_url, audiovisual_only, link_contains, adapter_config")
+    // select("*"): funciona antes e depois da migração das favoritas (20261008120000).
+    .select("*")
     .eq("active", true)
     .order("last_run_at", { ascending: true, nullsFirst: true });
   if (options.orgId) query = query.eq("org_id", options.orgId);
-  const { data: sources, error } = await query;
+  const { data: rows, error } = await query;
   if (error) throw new Error(`Não foi possível ler as fontes: ${error.message}`);
+  // Favoritas ⭐ primeiro (prioridade dentro do tempo da execução); depois, as verificadas há mais tempo.
+  const sources = [...(rows ?? [])].sort(
+    (a, b) =>
+      Number(Boolean((b as { is_favorite?: boolean }).is_favorite)) -
+      Number(Boolean((a as { is_favorite?: boolean }).is_favorite)),
+  );
 
   const results: SourceResult[] = [];
   const contexts = new Map<string, { proponent: Proponent; partnerTerritories: string[] }>();
   // Agrupa as linhas do histórico desta execução (uma por fonte).
   const executionId = randomUUID();
-  for (const source of sources ?? []) {
+  for (const source of sources) {
     if (Date.now() > deadlineAt) break;
     const startedAt = new Date().toISOString();
     if (!contexts.has(source.org_id)) {

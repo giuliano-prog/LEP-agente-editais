@@ -21,6 +21,19 @@ beforeAll(async () => {
       res.writeHead(302, { location: "/loop" });
       return res.end();
     }
+    if (req.url === "/eco") {
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(
+        JSON.stringify({
+          token: req.headers["x-api-token"] ?? null,
+          ua: req.headers["user-agent"],
+        }),
+      );
+    }
+    if (req.url === "/limite") {
+      res.writeHead(429);
+      return res.end();
+    }
     if (req.url === "/grande") {
       res.writeHead(200, { "content-type": "application/pdf" });
       return res.end(Buffer.alloc(2048, 1));
@@ -63,6 +76,18 @@ describe("safeFetch", () => {
   it("informa erro HTTP do site", async () => {
     await expect(safeFetch(`${base}/nao-existe`, test)).rejects.toBeInstanceOf(FetchError);
     await expect(safeFetch(`${base}/nao-existe`, test)).rejects.toThrow("HTTP 404");
+    await expect(safeFetch(`${base}/limite`, test)).rejects.toMatchObject({ status: 429 });
+  });
+
+  it("envia cabeçalhos extras sem trocar o user-agent da plataforma", async () => {
+    const result = await safeFetch(`${base}/eco`, {
+      ...test,
+      accept: "application/json",
+      headers: { "x-api-token": "segredo-de-teste", "user-agent": "outro" },
+    });
+    const echo = JSON.parse(result.body.toString()) as { token: string; ua: string };
+    expect(echo.token).toBe("segredo-de-teste");
+    expect(echo.ua).toContain("LEP-Plataforma");
   });
 });
 

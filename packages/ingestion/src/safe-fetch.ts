@@ -8,6 +8,14 @@ export type SafeFetchOptions = {
   maxRedirects?: number;
   /** Somente para testes automatizados: permite endereços locais. */
   allowPrivateNetworkForTests?: boolean;
+  /**
+   * Cabeçalhos extras (ex.: chave de API de um provedor de busca, só no servidor).
+   * Não substituem o user-agent da plataforma. Não são repassados em redirecionamentos
+   * para outro domínio.
+   */
+  headers?: Record<string, string>;
+  /** Tipos aceitos (padrão: página ou PDF). */
+  accept?: string;
 };
 
 export type FetchedResource = {
@@ -19,9 +27,12 @@ export type FetchedResource = {
 };
 
 export class FetchError extends Error {
-  constructor(message: string) {
+  /** Código HTTP quando o site respondeu com erro (ex.: 429). */
+  readonly status: number | null;
+  constructor(message: string, status: number | null = null) {
     super(message);
     this.name = "FetchError";
+    this.status = status;
   }
 }
 
@@ -78,6 +89,10 @@ export async function safeFetch(
   const signal = AbortSignal.timeout(options.timeoutMs ?? 20_000);
 
   let url = allowPrivate ? new URL(rawUrl) : assertSafeUrl(rawUrl);
+  const origin = url.origin;
+  const extraHeaders = Object.fromEntries(
+    Object.entries(options.headers ?? {}).filter(([name]) => name.toLowerCase() !== "user-agent"),
+  );
   try {
     for (let hop = 0; hop <= maxRedirects; hop++) {
       const response = await fetch(url, {
@@ -85,8 +100,11 @@ export async function safeFetch(
         redirect: "manual",
         signal,
         headers: {
+          // Cabeçalhos extras (ex.: chave de API) só para o domínio pedido.
+          ...(url.origin === origin ? extraHeaders : {}),
           "user-agent": USER_AGENT,
-          accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5",
+          accept:
+            options.accept ?? "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5",
         },
       });
 
@@ -101,7 +119,10 @@ export async function safeFetch(
 
       if (!response.ok) {
         await response.body?.cancel();
-        throw new FetchError(`O site respondeu com erro (HTTP ${response.status}).`);
+        throw new FetchError(
+          `O site respondeu com erro (HTTP ${response.status}).`,
+          response.status,
+        );
       }
 
       const declared = Number(response.headers.get("content-length") ?? "0");
