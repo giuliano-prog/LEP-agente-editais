@@ -1,5 +1,7 @@
 import "server-only";
 
+import { searchProviderFromEnv } from "@/lib/discovery/search-provider";
+
 import { DOCUMENTS_BUCKET } from "@/lib/editais/constants";
 import { checkMonitorAccess } from "@/lib/monitor/access";
 import { SERVICE_KEY_LABELS } from "@/lib/monitor/service-key";
@@ -295,6 +297,23 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
           label: "Descoberta web e fontes favoritas",
           status: "ok",
           detail: "Tabelas da descoberta web e marcação de fontes favoritas disponíveis.",
+        },
+  );
+
+  // 3b9. Provedor de busca da descoberta web (só o nome; a chave nunca é exibida).
+  const search = searchProviderFromEnv();
+  checks.push(
+    search.provider
+      ? {
+          label: "Descoberta web — provedor de busca",
+          status: "ok",
+          detail: `Provedor “${search.provider.name}” configurado (chave presente no servidor). Teste com “Buscar novas oportunidades” em Fontes.`,
+        }
+      : {
+          label: "Descoberta web — provedor de busca",
+          status: "warn",
+          detail: search.problem ?? "Provedor de busca não configurado.",
+          fix: "Na Vercel (ambiente deste deploy), defina WEB_SEARCH_PROVIDER=brave e WEB_SEARCH_API_KEY e faça um novo deploy.",
         },
   );
 

@@ -93,7 +93,24 @@ export class BraveSearchProvider implements SearchProvider {
       if (error instanceof UnsafeUrlError) {
         throw new SearchProviderError("config", "Endereço do provedor de busca inválido.");
       }
-      throw new SearchProviderError("network", "Falha ao consultar o provedor de busca.");
+      // 400/422: parâmetro recusado pela API (não adianta repetir) — o código ajuda no diagnóstico.
+      if (
+        error instanceof FetchError &&
+        error.status &&
+        error.status >= 400 &&
+        error.status < 500
+      ) {
+        throw new SearchProviderError(
+          "config",
+          `O provedor de busca recusou a consulta (HTTP ${error.status}).`,
+        );
+      }
+      throw new SearchProviderError(
+        "network",
+        error instanceof FetchError && error.status
+          ? `Falha ao consultar o provedor de busca (HTTP ${error.status}).`
+          : "Falha ao consultar o provedor de busca.",
+      );
     }
 
     let data: { web?: { results?: unknown[] }; query?: { more_results_available?: boolean } };

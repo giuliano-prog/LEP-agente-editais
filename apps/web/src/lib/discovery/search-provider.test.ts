@@ -20,6 +20,10 @@ beforeAll(async () => {
       res.writeHead(401);
       return res.end();
     }
+    if (req.headers["x-subscription-token"] === "parametro-invalido") {
+      res.writeHead(422);
+      return res.end();
+    }
     if (req.headers["x-subscription-token"] === "sem-cota-123") {
       res.writeHead(429);
       return res.end();
@@ -84,6 +88,9 @@ describe("BraveSearchProvider (resposta simulada, sem rede externa)", () => {
     });
     await expect(quota).rejects.toBeInstanceOf(SearchProviderError);
     await expect(quota).rejects.toMatchObject({ kind: "quota", retryable: false });
+    await expect(
+      new BraveSearchProvider("parametro-invalido", base).search({ query: "x", count: 5, page: 0 }),
+    ).rejects.toMatchObject({ kind: "config", message: expect.stringContaining("HTTP 422") });
   });
 });
 

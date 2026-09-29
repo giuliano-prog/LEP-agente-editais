@@ -129,6 +129,9 @@ const emptyResult = (orgId: string, provider: string | null): DiscoveryResult =>
   queries: [],
 });
 
+/** Tempo reservado para analisar uma página antes do fim do orçamento da execução. */
+const CANDIDATE_RESERVE_MS = 15_000;
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const safeNormalize = (url: string) => {
@@ -625,7 +628,14 @@ async function discoverForOrg(
   const newHosts = new Set<string>();
 
   for (const hit of fresh.slice(0, limits.maxCandidates)) {
-    if (Date.now() > deadlineAt) break;
+    // Uma página (com fonte oficial e regulamento) pode levar vários segundos: não começa
+    // outra perto do fim, para a execução terminar e gravar o histórico dentro do limite.
+    if (Date.now() > deadlineAt - CANDIDATE_RESERVE_MS) {
+      result.error = `Tempo da execução esgotado: ${
+        Math.min(fresh.length, limits.maxCandidates) - result.analyzed
+      } página(s) ficam para a próxima busca.`;
+      break;
+    }
     result.analyzed++;
     let record: CandidateRecord;
     try {

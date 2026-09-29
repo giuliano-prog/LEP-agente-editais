@@ -29,6 +29,10 @@ import {
 
 export const metadata: Metadata = { title: "Fontes monitoradas" };
 
+// "Verificar agora" e "Buscar novas oportunidades" rodam nesta página (Server Actions):
+// mesmo tempo máximo das rotas de cron na Vercel (segundos).
+export const maxDuration = 60;
+
 const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   ok: { label: "OK", tone: "ok" },
   error: { label: "Erro", tone: "bad" },

@@ -73,7 +73,7 @@ const limits = {
   resultsPerQuery: 10,
   maxCandidates: 10,
   minQueryIntervalMs: 0,
-  timeBudgetMs: 20_000,
+  timeBudgetMs: 60_000,
 };
 
 let results: Result[] = [];
