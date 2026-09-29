@@ -521,20 +521,20 @@ futuro (hoje só lê).
 
 ## 12. Estado do Git
 
-| Item                       | Valor                                                                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Repositório                | `giuliano-prog/LEP-agente-editais`                                                                                                      |
-| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                                                           |
-| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                                                                     |
-| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·                                                    |
-|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                                                               |
-|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·                                                 |
-|                            | `013dcef` EditalAnalyzer                                                                                                                |
-|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização                                                  |
-|                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) |
-| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                        |
-| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                   |
-| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                        |
+| Item                       | Valor                                                                                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Repositório                | `giuliano-prog/LEP-agente-editais`                                                                                                                                             |
+| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                                                                                                  |
+| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                                                                                                            |
+| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·                                                                                           |
+|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                                                                                                      |
+|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·                                                                                        |
+|                            | `013dcef` EditalAnalyzer                                                                                                                                                       |
+|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização                                                                                         |
+|                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) · `b9cbce6` disparo (conexão recusada) |
+| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                                                               |
+| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                                                          |
+| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                               |
 
 ---
 
@@ -667,6 +667,23 @@ administrador de teste, testes no Preview).
   comentário.
 - Observação: a trava falhou com erro do Python (traceback) em vez da mensagem em pt-BR; o comportamento é seguro
   (recusa), mas a mensagem pode ser melhorada.
+
+### 13.9 Terceira execução (2026-09-29) — ⚠ conexão recusada pelo Supabase, NADA aplicado
+
+- Commit `b9cbce6` (só comentário no workflow), execução nº 4 (id `36517264719`), depois de a LEP tirar os
+  colchetes do segredo.
+- **Job 1 (banco descartável): ✅ sucesso.** **Job 2:** ✅ trava aprovou (URL legível e diferente da produção);
+  ✅ Supabase CLI instalado; ❌ **simulação (`db push --dry-run`) falhou ao conectar**; aplicação e histórico
+  **pulados**. **Nenhuma migração foi aplicada no Supabase de staging.**
+- Causa (log do Actions): `FATAL: (ENOTFOUND) tenant/user postgres.<ref-do-teste> not found` — o usuário do segredo
+  ficou literalmente `postgres.<ref-do-teste>`: o texto de exemplo não foi trocado pelo identificador real do projeto
+  de teste, e o pooler do Supabase não encontrou esse projeto.
+- Correção (LEP): no segredo `STAGING_SUPABASE_DB_URL`, trocar `<ref-do-teste>` pelo identificador do projeto de
+  TESTE (o trecho `xxxx` de `https://xxxx.supabase.co` do projeto de teste). O jeito mais seguro é copiar a connection
+  string pronta em Supabase (projeto de TESTE) → Connect → Session pooler e só substituir `[YOUR-PASSWORD]` pela
+  senha (sem colchetes). Depois, novo push só de comentário.
+- Observação: a trava aceitou um identificador fora do formato do Supabase (com `<` `>`); pode ser endurecida para
+  exigir o formato (letras minúsculas/dígitos). A recusa final veio do Supabase, sem efeito em banco algum.
 
 ### 13.4 Preservação da produção
 
