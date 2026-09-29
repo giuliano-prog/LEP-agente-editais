@@ -521,20 +521,20 @@ futuro (hoje só lê).
 
 ## 12. Estado do Git
 
-| Item                       | Valor                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| Repositório                | `giuliano-prog/LEP-agente-editais`                                                      |
-| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**           |
-| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                     |
-| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·    |
-|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·               |
-|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes · |
-|                            | `013dcef` EditalAnalyzer                                                                |
-|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização  |
-|                            | `7168853` plano de staging · commit seguinte: workflow de staging (não executado)       |
-| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`        |
-| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                   |
-| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado        |
+| Item                       | Valor                                                                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| Repositório                | `giuliano-prog/LEP-agente-editais`                                                            |
+| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                 |
+| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                           |
+| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·          |
+|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                     |
+|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·       |
+|                            | `013dcef` EditalAnalyzer                                                                      |
+|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização        |
+|                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) |
+| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`              |
+| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                         |
+| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado              |
 
 ---
 
@@ -634,6 +634,19 @@ Nenhum deles fica em arquivo do repositório.
 
 **Passos que permanecem:** §13.3 passos 1–4 (LEP), 6 (Claude dispara por push), 7–9 (Vercel Preview, primeiro
 administrador de teste, testes no Preview).
+
+### 13.7 Primeira tentativa de execução (2026-09-29) — ⚠ jobs pulados, NADA aplicado
+
+- Commit `5ba040f` (só comentário no workflow) enviado ao `claude/melhorias-editais`: o workflow **foi disparado**
+  (execução nº 2, id `36515341251`), mas terminou como **"skipped"**: os dois jobs ("Testar migrações (banco
+  descartável)" e "Aplicar no Supabase de TESTE") foram **pulados**. Nenhum banco foi acessado e **nenhuma das 13
+  migrações foi aplicada no Supabase de staging**.
+- Causa (pela configuração do workflow): a condição `vars.STAGING_MIGRATIONS_ENABLED == 'true'` não foi satisfeita.
+  Essa variável precisa ser **de repositório** (Settings → Secrets and variables → Actions → aba **Variables** →
+  "New repository variable"), com valor exatamente `true`. Variável criada **dentro do ambiente `staging`** não vale
+  para essa condição, porque o GitHub avalia a condição do job antes de abrir o ambiente. Não foi possível verificar
+  daqui onde a variável foi criada.
+- Próximo passo: a LEP cria/ajusta a variável de repositório; o Claude faz outro push só de comentário no workflow.
 
 ### 13.4 Preservação da produção
 
