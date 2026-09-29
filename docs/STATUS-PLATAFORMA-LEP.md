@@ -887,6 +887,10 @@ organização, mês válido, só servidor executa, administrador lê, equipe nã
 **Concorrência verificada** em PostgreSQL 16 local com duas sessões simultâneas (a 1ª segurando a transação): com teto
 1 e com teto 2 a segunda reserva foi recusada e o contador terminou exatamente no teto.
 
+**Staging:** o push do commit `eabe277` disparou o workflow de staging (execução nº 7): banco descartável ✅, trava ✅,
+simulação ✅, aplicação ✅ — histórico do Supabase de TESTE com as **15 migrações** Local = Remote (inclui
+`20261009120000`). CI ✅. Workflow de produção: **skipped** (não acionado).
+
 **Candidatos que não couberam na execução:** os que passam na triagem mas ficam além de
 `WEB_DISCOVERY_MAX_CANDIDATES` ou do limite de 50 s **não são gravados** — ficam perdidos até aparecerem de novo numa
 busca futura (o rodízio de consultas torna isso incerto). Menor mudança proposta (não implementada): gravá-los em
