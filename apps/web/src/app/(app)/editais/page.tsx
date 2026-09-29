@@ -17,6 +17,7 @@ import { Badge, EmptyState, PageHeader } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
 import { loadProponent } from "@/lib/proponent";
 import { formatBRL } from "@/lib/format";
+import { isAutomaticOrigin } from "@/lib/editais/constants";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Editais" };
@@ -24,9 +25,11 @@ export const metadata: Metadata = { title: "Editais" };
 const FILTERS = {
   ativos: { label: "Em acompanhamento", test: (e: Edital) => e.reviewStatus !== "discarded" },
   varredura: {
-    label: "Novos da varredura",
+    label: "Novos (varredura e busca web)",
     test: (e: Edital) =>
-      e.origin === "monitor" && e.reviewStatus !== "validated" && e.reviewStatus !== "discarded",
+      isAutomaticOrigin(e.origin) &&
+      e.reviewStatus !== "validated" &&
+      e.reviewStatus !== "discarded",
   },
   pendentes: {
     label: "Revisão pendente",
@@ -275,6 +278,7 @@ export default async function EditaisPage({
                       <EditalStatusBadge status={edital.status} />
                       <EligibilityBadge status={edital.eligibilityStatus} />
                       {edital.origin === "monitor" && <Badge tone="brand">Varredura</Badge>}
+                      {edital.origin === "web_discovery" && <Badge tone="brand">Busca web</Badge>}
                       {withPendingChanges.has(edital.id) && (
                         <Badge tone="warn">Alteração a revisar</Badge>
                       )}

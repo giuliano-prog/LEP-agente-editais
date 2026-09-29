@@ -10,3 +10,14 @@ export function uploadPath(orgId: string, fileId: string) {
 export function isValidUploadPath(orgId: string, path: string) {
   return new RegExp(`^${orgId}/uploads/[0-9a-f-]{36}\\.pdf$`).test(path);
 }
+
+/** Origem do edital (core.editais.origin). */
+export const ORIGIN_LABELS: Record<string, string> = {
+  manual: "Cadastro manual",
+  monitor: "Encontrado por monitoramento",
+  web_discovery: "Encontrado por busca web",
+};
+
+/** Importado automaticamente (varredura de fonte ou descoberta web). */
+export const isAutomaticOrigin = (origin: string) =>
+  origin === "monitor" || origin === "web_discovery";

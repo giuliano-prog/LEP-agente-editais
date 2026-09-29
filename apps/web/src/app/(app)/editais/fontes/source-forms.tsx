@@ -8,11 +8,14 @@ import type { CatalogEntry } from "@/lib/monitor/catalog";
 import type { SourcePreview } from "@/lib/monitor/run";
 import {
   addCatalogSource,
+  addDiscoveredSource,
   createSource,
+  runDiscoveryNow,
   runMonitorNow,
   testCatalogSource,
   testExistingSource,
   updateSourceConfig,
+  type DiscoveryActionState,
   type PreviewState,
   type SourceActionState,
 } from "./actions";
@@ -366,6 +369,87 @@ export function TestSourceButton({ sourceId }: { sourceId: string }) {
       </button>
       <FormError message={state.error} />
       {state.preview && <PreviewResult preview={state.preview} />}
+    </form>
+  );
+}
+
+const DISCOVERY_METRICS = [
+  ["queriesRun", "Consultas"],
+  ["resultsReceived", "Resultados"],
+  ["analyzed", "Páginas analisadas"],
+  ["audiovisualYes", "Audiovisuais"],
+  ["audiovisualNo", "Não audiovisuais"],
+  ["audiovisualUncertain", "Incertos"],
+  ["officialFound", "Fontes oficiais localizadas"],
+  ["imported", "Novas oportunidades"],
+  ["duplicates", "Já cadastradas (avistamento)"],
+  ["alreadyKnown", "Já vistas antes"],
+  ["newSources", "Novas fontes"],
+  ["failed", "Falhas"],
+] as const;
+
+/** "Buscar novas oportunidades" (descoberta web) com o resumo da execução. */
+export function DiscoveryButton() {
+  const [state, action, pending] = useActionState<DiscoveryActionState>(runDiscoveryNow, {});
+  const result = state.result;
+  return (
+    <form action={action} className="space-y-3">
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md border border-brand/60 px-4 py-2 text-sm font-semibold text-brand transition hover:bg-brand/10 disabled:opacity-60"
+      >
+        {pending ? "Buscando na web… (até 1 min)" : "Buscar novas oportunidades"}
+      </button>
+      <FormError message={state.error} />
+      {result && result.status !== "not_configured" && (
+        <section
+          aria-label="Resumo da busca web"
+          className="space-y-2 rounded-xl border border-brand/40 bg-brand/5 p-4 text-sm"
+        >
+          <p className="font-medium">
+            Busca web concluída{result.status === "partial" && " (parcial)"}
+            {result.providerLimited && (
+              <span className="text-warn"> · limite do provedor de busca atingido</span>
+            )}
+          </p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+            {DISCOVERY_METRICS.map(([key, label]) => (
+              <div key={key} className="flex justify-between gap-2">
+                <dt className="text-muted">{label}</dt>
+                <dd className="tabular-nums">{result[key]}</dd>
+              </div>
+            ))}
+          </dl>
+          {result.error && <p className="text-xs text-warn">{result.error}</p>}
+          <p className="text-xs text-muted">
+            Novas oportunidades entram como “revisão pendente”. Não audiovisuais e encerradas não
+            viram edital.
+          </p>
+        </section>
+      )}
+    </form>
+  );
+}
+
+/** Nova fonte encontrada pela descoberta web → cadastro PAUSADO para testar e ativar. */
+export function DiscoveredSourceForm({ name, listUrl }: { name: string; listUrl: string }) {
+  const [state, action] = useActionState<SourceActionState, FormData>(addDiscoveredSource, {});
+  return (
+    <form key={state.savedAt ?? "discovered"} action={action} className="mt-2 space-y-3">
+      <Field label="Nome" name="name" required maxLength={120} defaultValue={`${name} — Editais`} />
+      <Field label="Instituição" name="agency" maxLength={200} defaultValue={name} />
+      <Field
+        label="Página de listagem de editais"
+        name="list_url"
+        type="url"
+        required
+        defaultValue={listUrl}
+        hint="Confira no site oficial a página que lista as oportunidades (sugestão: página inicial do domínio)."
+      />
+      <FormError message={state.error} />
+      <FormSuccess message={state.success} />
+      <SubmitButton>Adicionar pausada</SubmitButton>
     </form>
   );
 }

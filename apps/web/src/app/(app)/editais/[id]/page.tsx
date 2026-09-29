@@ -31,12 +31,21 @@ import { Badge, Card, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
 import { loadProponent } from "@/lib/proponent";
 import { formatBRL } from "@/lib/format";
+import { isAutomaticOrigin } from "@/lib/editais/constants";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Edital" };
 
 // Aceita UUID ou id numérico (a tabela remota pode usar qualquer um dos dois).
 const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+
+const hostLabel = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+};
 
 const TABS = {
   dados: "Dados e evidências",
@@ -121,10 +130,12 @@ export default async function EditalPage({
 
   const edital = toEdital(editalQuery.data);
   // Deduplicação (etapa 8): onde foi encontrado e o possível original.
-  const [sightings, duplicateOf, changesQuery] = await Promise.all([
+  const [sightings, duplicateOf, changesQuery, discovery] = await Promise.all([
     supabase
       .from("edital_sightings")
-      .select("id, url, title, match_reason, first_seen_at, last_seen_at, edital_sources ( name )")
+      .select(
+        "id, url, title, source_id, match_reason, first_seen_at, last_seen_at, edital_sources ( name )",
+      )
       .eq("edital_id", edital.id)
       .eq("org_id", membership.orgId)
       .order("first_seen_at", { ascending: true }),
@@ -143,6 +154,17 @@ export default async function EditalPage({
       .eq("edital_id", edital.id)
       .eq("org_id", membership.orgId)
       .order("detected_at", { ascending: false }),
+    // Descoberta web: consulta, trecho e decisão audiovisual (só administradores — RLS).
+    edital.origin === "web_discovery"
+      ? supabase
+          .from("discovery_candidates")
+          .select(
+            "id, url, query, snippet, official_url, official_reason, institution, audiovisual, audiovisual_reasons, audiovisual_evidence, first_seen_at",
+          )
+          .eq("edital_id", edital.id)
+          .eq("org_id", membership.orgId)
+          .limit(5)
+      : null,
   ]);
   const original = duplicateOf?.data ?? null;
   const changes = (changesQuery.error ? [] : (changesQuery.data ?? [])) as EditalChange[];
@@ -214,9 +236,11 @@ export default async function EditalPage({
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{edital.title}</h1>
         {edital.agency && <p className="text-muted">{edital.agency}</p>}
-        {edital.origin === "monitor" && (
+        {isAutomaticOrigin(edital.origin) && (
           <p className="text-xs text-muted">
-            Encontrado pela varredura automática
+            {edital.origin === "web_discovery"
+              ? "Encontrado pela busca web (descoberta automática)"
+              : "Encontrado pela varredura automática"}
             {edital.discoveredAt &&
               ` em ${new Date(edital.discoveredAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`}
             . Prazo e valor foram sugeridos a partir da página e precisam ser conferidos na revisão.
@@ -388,7 +412,7 @@ export default async function EditalPage({
             <SectionTitle>Onde foi encontrado</SectionTitle>
             {sightings.error || (sightings.data ?? []).length === 0 ? (
               <p className="text-sm text-muted">
-                {edital.origin === "monitor"
+                {isAutomaticOrigin(edital.origin)
                   ? "Sem avistamentos registrados."
                   : "Cadastro manual (sem fonte monitorada)."}
               </p>
@@ -402,7 +426,11 @@ export default async function EditalPage({
                       rel="noopener noreferrer"
                       className="break-all font-medium hover:text-brand"
                     >
-                      {item.edital_sources?.name ?? "Fonte removida"} ↗
+                      {item.edital_sources?.name ??
+                        (item.source_id
+                          ? "Fonte removida"
+                          : `Busca web — ${hostLabel(item.url)}`)}{" "}
+                      ↗
                     </a>
                     <p className="text-xs text-muted">
                       {item.match_reason} · primeira vez em{" "}
@@ -413,6 +441,47 @@ export default async function EditalPage({
                   </li>
                 ))}
               </ul>
+            )}
+            {!discovery?.error && (discovery?.data ?? []).length > 0 && (
+              <div className="mt-4 space-y-3 border-t border-line pt-4 text-sm">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted">
+                  Descoberta web (referências)
+                </p>
+                {(discovery?.data ?? []).map((item) => (
+                  <dl key={item.id} className="space-y-1 text-xs text-muted">
+                    <div>
+                      <dt className="inline font-medium text-fg">Consulta: </dt>
+                      <dd className="inline">“{item.query ?? "—"}”</dd>
+                    </div>
+                    <div className="break-all">
+                      <dt className="inline font-medium text-fg">Resultado: </dt>
+                      <dd className="inline">{item.url}</dd>
+                    </div>
+                    {item.snippet && (
+                      <div>
+                        <dt className="inline font-medium text-fg">Trecho da busca: </dt>
+                        <dd className="inline">{item.snippet}</dd>
+                      </div>
+                    )}
+                    <div className="break-all">
+                      <dt className="inline font-medium text-fg">Fonte oficial: </dt>
+                      <dd className="inline">
+                        {item.official_url
+                          ? `${item.official_url} (${item.official_reason ?? "confirmada"})`
+                          : "não localizada automaticamente — confirme no site da instituição"}
+                      </dd>
+                    </div>
+                    {item.audiovisual_evidence && (
+                      <div>
+                        <dt className="inline font-medium text-fg">Por que é audiovisual: </dt>
+                        <dd className="inline">
+                          “{item.audiovisual_evidence}” ({item.audiovisual_reasons.join("; ")})
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                ))}
+              </div>
             )}
           </Card>
         </>

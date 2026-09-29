@@ -2,10 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import type { Database } from "@lep/db";
 import { linesToList, sourceAdapterSchema } from "@lep/funding";
 import { assertSafeUrl, UnsafeUrlError } from "@lep/ingestion";
 import { requireMembership } from "@/lib/auth/session";
 import { checkMonitorAccess } from "@/lib/monitor/access";
+import {
+  importUncertainCandidate,
+  runWebDiscovery,
+  type DiscoveryResult,
+} from "@/lib/discovery/run";
 import { catalogEntry } from "@/lib/monitor/catalog";
 import { previewSource, runMonitor, type SourcePreview } from "@/lib/monitor/run";
 import { summarize, type MonitorSummary } from "@/lib/monitor/summary";
@@ -35,6 +41,29 @@ const sourceSchema = z.object({
     .transform((value) => value || null),
   audiovisual_only: z.boolean(),
 });
+
+type SourceInsert = Database["core"]["Tables"]["edital_sources"]["Insert"];
+
+/**
+ * Cadastra fontes registrando a origem (manual, sugerida, catálogo, descoberta web).
+ * Antes da migração 20261008120000 a coluna não existe: cadastra sem a origem.
+ */
+async function insertSources(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rows: SourceInsert[],
+) {
+  const first = await supabase.from("edital_sources").insert(rows);
+  if (first.error?.code === "PGRST204" || first.error?.code === "42703") {
+    return supabase.from("edital_sources").insert(
+      rows.map((row) => {
+        const copy = { ...row };
+        delete copy.origin;
+        return copy;
+      }),
+    );
+  }
+  return first;
+}
 
 export async function createSource(
   _prev: SourceActionState,
@@ -82,8 +111,9 @@ export async function addSuggestedSources(): Promise<void> {
   const rows = SUGGESTED_SOURCES.filter((source) => !known.has(source.list_url)).map((source) => ({
     ...source,
     org_id: membership.orgId,
+    origin: "suggested",
   }));
-  if (rows.length > 0) await supabase.from("edital_sources").insert(rows);
+  if (rows.length > 0) await insertSources(supabase, rows);
   revalidatePath("/editais/fontes");
 }
 
@@ -253,16 +283,19 @@ export async function addCatalogSource(
   const form = parseCatalogForm(key, formData);
   if ("error" in form) return { error: form.error };
   const supabase = await createClient();
-  const { error } = await supabase.from("edital_sources").insert({
-    org_id: membership.orgId,
-    name: form.data.name,
-    agency: form.data.agency || null,
-    list_url: form.data.list_url,
-    audiovisual_only: form.entry.audiovisualOnly,
-    link_contains: null,
-    adapter_config: form.entry.adapter,
-    active: false,
-  });
+  const { error } = await insertSources(supabase, [
+    {
+      org_id: membership.orgId,
+      name: form.data.name,
+      agency: form.data.agency || null,
+      list_url: form.data.list_url,
+      audiovisual_only: form.entry.audiovisualOnly,
+      link_contains: null,
+      adapter_config: form.entry.adapter,
+      active: false,
+      origin: "catalog",
+    },
+  ]);
   if (error) {
     return {
       error:
@@ -288,4 +321,118 @@ export async function testExistingSource(sourceId: string): Promise<PreviewState
     .maybeSingle();
   if (!source) return { error: "Fonte não encontrada." };
   return { preview: await previewSource(source) };
+}
+
+/** Fonte favorita ⭐: destaque e prioridade (não limita a descoberta geral). */
+export async function toggleFavorite(sourceId: string, favorite: boolean): Promise<void> {
+  const { membership } = await requireMembership("admin");
+  if (!ID.safeParse(sourceId).success) return;
+  const supabase = await createClient();
+  await supabase
+    .from("edital_sources")
+    .update({ is_favorite: favorite })
+    .eq("id", sourceId)
+    .eq("org_id", membership.orgId);
+  revalidatePath("/editais/fontes");
+}
+
+export type DiscoveryActionState = { error?: string; result?: DiscoveryResult; savedAt?: number };
+
+/** "Buscar novas oportunidades": descoberta web só da organização do administrador. */
+export async function runDiscoveryNow(): Promise<DiscoveryActionState> {
+  const { membership } = await requireMembership("admin");
+  try {
+    const [result] = await runWebDiscovery(createAdminClient(), {
+      trigger: "manual",
+      orgId: membership.orgId,
+    });
+    revalidatePath("/editais");
+    revalidatePath("/editais/fontes");
+    if (!result) return { error: "Nada foi executado." };
+    if (result.status === "not_configured") return { error: result.error, result };
+    return { result, savedAt: Date.now() };
+  } catch (error) {
+    console.error("Descoberta web manual falhou:", error instanceof Error ? error.message : error);
+    return { error: "A descoberta web falhou. Veja o Diagnóstico." };
+  }
+}
+
+/** Candidato incerto confirmado como audiovisual: entra pelo mesmo pipeline (revisão pendente). */
+export async function importDiscoveryCandidate(candidateId: string): Promise<void> {
+  const { membership } = await requireMembership("admin");
+  if (!ID.safeParse(candidateId).success) return;
+  const outcome = await importUncertainCandidate(
+    createAdminClient(),
+    membership.orgId,
+    candidateId,
+  );
+  if (!outcome.ok) console.error("Descoberta: candidato não importado:", outcome.message);
+  revalidatePath("/editais");
+  revalidatePath("/editais/fontes");
+}
+
+/** Candidato incerto descartado por um administrador (continua só no registro técnico). */
+export async function dismissDiscoveryCandidate(candidateId: string): Promise<void> {
+  const { membership } = await requireMembership("admin");
+  if (!ID.safeParse(candidateId).success) return;
+  const supabase = await createClient();
+  await supabase
+    .from("discovery_candidates")
+    .update({ status: "dismissed", status_reason: "descartado por um administrador" })
+    .eq("id", candidateId)
+    .eq("org_id", membership.orgId)
+    .eq("status", "uncertain");
+  revalidatePath("/editais/fontes");
+}
+
+const discoveredSourceSchema = z.object({
+  name: z.string().trim().min(2, "Informe o nome da fonte.").max(120),
+  agency: z.string().trim().max(200),
+  list_url: z.string().trim().min(8, "Informe a página de listagem de editais.").max(2000),
+});
+
+/**
+ * Nova fonte identificada pela descoberta web → cadastrada PAUSADA (origem
+ * web_discovery). O administrador confere a página de listagem, testa e ativa.
+ */
+export async function addDiscoveredSource(
+  _prev: SourceActionState,
+  formData: FormData,
+): Promise<SourceActionState> {
+  const { membership } = await requireMembership("admin");
+  const parsed = discoveredSourceSchema.safeParse({
+    name: formData.get("name") ?? "",
+    agency: formData.get("agency") ?? "",
+    list_url: formData.get("list_url") ?? "",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  try {
+    assertSafeUrl(parsed.data.list_url);
+  } catch (error) {
+    return { error: error instanceof UnsafeUrlError ? error.message : "Endereço inválido." };
+  }
+  const supabase = await createClient();
+  const { error } = await insertSources(supabase, [
+    {
+      org_id: membership.orgId,
+      name: parsed.data.name,
+      agency: parsed.data.agency || null,
+      list_url: parsed.data.list_url,
+      // Instituição geral: a varredura exige termos de audiovisual nos links.
+      audiovisual_only: false,
+      active: false,
+      origin: "web_discovery",
+    },
+  ]);
+  if (error) {
+    return {
+      error:
+        error.code === "23505" ? "Esta fonte já está cadastrada." : "Não foi possível cadastrar.",
+    };
+  }
+  revalidatePath("/editais/fontes");
+  return {
+    success: "Fonte cadastrada PAUSADA. Use “Testar fonte” e, se estiver certa, “Reativar”.",
+    savedAt: Date.now(),
+  };
 }

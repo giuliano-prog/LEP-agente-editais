@@ -8,9 +8,19 @@ import { requireMembership } from "@/lib/auth/session";
 import { CATALOG_KIND_LABELS, SOURCE_CATALOG } from "@/lib/monitor/catalog";
 import { SUGGESTED_SOURCES } from "@/lib/monitor/suggested";
 import { createClient } from "@/lib/supabase/server";
-import { addSuggestedSources, deleteSource, forgetIgnoredUrl, toggleSource } from "./actions";
+import {
+  addSuggestedSources,
+  deleteSource,
+  dismissDiscoveryCandidate,
+  forgetIgnoredUrl,
+  importDiscoveryCandidate,
+  toggleFavorite,
+  toggleSource,
+} from "./actions";
 import {
   CatalogSourceForm,
+  DiscoveredSourceForm,
+  DiscoveryButton,
   RunNowButton,
   SourceConfigForm,
   SourceForm,
@@ -25,6 +35,13 @@ const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   blocked: { label: "Bloqueada pelo site", tone: "warn" },
 };
 
+const DISCOVERY_STATUS: Record<string, string> = {
+  ok: "OK",
+  partial: "Parcial",
+  error: "Erro",
+  not_configured: "Provedor não configurado",
+};
+
 const dateTime = (value: string | null) =>
   value
     ? new Date(value).toLocaleString("pt-BR", {
@@ -34,12 +51,50 @@ const dateTime = (value: string | null) =>
       })
     : "—";
 
-export default async function SourcesPage() {
+/** Filtros da lista de fontes (favoritas ⭐ continuam destacadas em todos). */
+const SOURCE_FILTERS = {
+  todas: { label: "Todas", test: () => true },
+  favoritas: { label: "⭐ Favoritas", test: (s: SourceView) => s.isFavorite },
+  ativas: { label: "Ativas", test: (s: SourceView) => s.active },
+  pausadas: { label: "Pausadas", test: (s: SourceView) => !s.active },
+  descobertas: {
+    label: "Descobertas automaticamente",
+    test: (s: SourceView) => s.origin === "web_discovery",
+  },
+} as const;
+
+type SourceFilter = keyof typeof SOURCE_FILTERS;
+type SourceView = { isFavorite: boolean; active: boolean; origin: string };
+
+const originOf = (url: string, host: string) => {
+  try {
+    return `${new URL(url).origin}/`;
+  } catch {
+    return `https://${host}/`;
+  }
+};
+
+const hostOfUrl = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+};
+
+export default async function SourcesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filtro?: string }>;
+}) {
   const { membership } = await requireMembership();
   const isAdmin = can(membership.role, "org.manage");
   const supabase = await createClient();
+  const { filtro } = await searchParams;
+  const filter: SourceFilter =
+    filtro && filtro in SOURCE_FILTERS ? (filtro as SourceFilter) : "todas";
 
-  const [sources, runs, ignoredPages] = await Promise.all([
+  const [sources, runs, ignoredPages, discoveryRuns, uncertain, discovered] = await Promise.all([
     supabase
       .from("edital_sources")
       // select("*"): a tela funciona antes e depois da migração do adaptador (etapa 6).
@@ -58,7 +113,65 @@ export default async function SourcesPage() {
       .eq("org_id", membership.orgId)
       .order("last_seen_at", { ascending: false })
       .limit(30),
+    // Descoberta web (ADR-0024): só administradores leem (RLS). Sem vitrine de descartados.
+    isAdmin
+      ? supabase
+          .from("discovery_runs")
+          .select("*")
+          .eq("org_id", membership.orgId)
+          .order("started_at", { ascending: false })
+          .limit(5)
+      : null,
+    isAdmin
+      ? supabase
+          .from("discovery_candidates")
+          .select(
+            "id, url, title, institution, audiovisual_reasons, audiovisual_evidence, status_reason, last_seen_at",
+          )
+          .eq("org_id", membership.orgId)
+          .eq("status", "uncertain")
+          .order("last_seen_at", { ascending: false })
+          .limit(10)
+      : null,
+    isAdmin
+      ? supabase
+          .from("discovery_candidates")
+          .select("official_host, official_url, institution")
+          .eq("org_id", membership.orgId)
+          .eq("audiovisual", "yes")
+          .in("status", ["imported", "duplicate"])
+          .limit(200)
+      : null,
   ]);
+  const allSources = [...(sources.data ?? [])].sort(
+    (a, b) =>
+      Number(Boolean(b.is_favorite)) - Number(Boolean(a.is_favorite)) ||
+      a.name.localeCompare(b.name, "pt-BR"),
+  );
+  const visibleSources = allSources.filter((source) =>
+    SOURCE_FILTERS[filter].test({
+      isFavorite: Boolean(source.is_favorite),
+      active: source.active,
+      origin: source.origin ?? "manual",
+    }),
+  );
+  // Novas fontes: instituições com oportunidades audiovisuais confirmadas, ainda não cadastradas.
+  const registeredHosts = new Set(allSources.map((source) => hostOfUrl(source.list_url)));
+  const newSources = [
+    ...(discovered?.data ?? [])
+      .filter((row) => row.official_host && !registeredHosts.has(row.official_host))
+      .reduce((map, row) => {
+        const entry = map.get(row.official_host!) ?? {
+          host: row.official_host!,
+          institution: row.institution ?? row.official_host!,
+          sampleUrl: row.official_url ?? `https://${row.official_host}/`,
+          count: 0,
+        };
+        entry.count++;
+        return map.set(row.official_host!, entry);
+      }, new Map<string, { host: string; institution: string; sampleUrl: string; count: number }>())
+      .values(),
+  ].sort((a, b) => b.count - a.count);
   const sourceNames = new Map((sources.data ?? []).map((source) => [source.id, source.name]));
   const missingSuggestions = SUGGESTED_SOURCES.filter(
     (suggestion) => !(sources.data ?? []).some((source) => source.list_url === suggestion.list_url),
@@ -78,23 +191,199 @@ export default async function SourcesPage() {
 
       {isAdmin && <RunNowButton />}
 
+      {isAdmin && (
+        <Card>
+          <SectionTitle>Descoberta web</SectionTitle>
+          <p className="mb-3 text-sm text-muted">
+            Procura oportunidades audiovisuais na web, inclusive em instituições ainda não
+            cadastradas. Decide pelo objeto financiado (filme, série, documentário…), não pelo tema.
+            O que não é audiovisual, está encerrado ou não é oportunidade não vira edital. Favoritas
+            ⭐ têm prioridade, mas não limitam a busca.
+          </p>
+          <DiscoveryButton />
+          {!discoveryRuns?.error && (discoveryRuns?.data ?? []).length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-xs">
+                <thead className="border-b border-line uppercase tracking-wider text-muted">
+                  <tr>
+                    <th className="py-2 pr-3 font-medium">Quando</th>
+                    <th className="py-2 pr-3 font-medium">Origem</th>
+                    <th className="py-2 pr-3 font-medium">Resultado</th>
+                    <th className="py-2 pr-3 text-right font-medium">Consultas</th>
+                    <th className="py-2 pr-3 text-right font-medium">Analisadas</th>
+                    <th className="py-2 pr-3 text-right font-medium">Audiovisuais</th>
+                    <th className="py-2 pr-3 text-right font-medium">Novas</th>
+                    <th className="py-2 text-right font-medium">Novas fontes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(discoveryRuns?.data ?? []).map((run) => (
+                    <tr key={run.id} className="border-b border-line last:border-0">
+                      <td className="whitespace-nowrap py-2 pr-3">{dateTime(run.started_at)}</td>
+                      <td className="py-2 pr-3 text-muted">
+                        {run.trigger === "cron" ? "Automática" : "Manual"}
+                      </td>
+                      <td className="py-2 pr-3">
+                        <Badge
+                          tone={
+                            run.status === "ok" ? "ok" : run.status === "partial" ? "warn" : "bad"
+                          }
+                        >
+                          {DISCOVERY_STATUS[run.status] ?? run.status}
+                        </Badge>
+                        {run.error && <span className="ml-2 text-muted">{run.error}</span>}
+                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{run.queries_run}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{run.analyzed}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{run.audiovisual_yes}</td>
+                      <td className="py-2 pr-3 text-right font-medium tabular-nums text-brand">
+                        {run.imported}
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{run.new_sources}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!uncertain?.error && (uncertain?.data ?? []).length > 0 && (
+            <div className="mt-5 space-y-3">
+              <h3 className="text-sm font-medium">
+                Para confirmar ({(uncertain?.data ?? []).length})
+              </h3>
+              <p className="text-xs text-muted">
+                A busca encontrou estas páginas, mas não conseguiu confirmar se o objeto é
+                audiovisual. Confirme para importar (entra como revisão pendente) ou descarte.
+              </p>
+              <ul className="space-y-3 text-sm">
+                {(uncertain?.data ?? []).map((item) => (
+                  <li key={item.id} className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="break-all font-medium hover:text-brand"
+                      >
+                        {item.title ?? item.url} ↗
+                      </a>
+                      <p className="text-xs text-muted">
+                        {item.institution && `${item.institution} · `}
+                        {item.audiovisual_reasons[0] ?? item.status_reason}
+                        {item.audiovisual_evidence && ` · “${item.audiovisual_evidence}”`}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                      <form action={importDiscoveryCandidate.bind(null, item.id)}>
+                        <button className="rounded-md border border-brand/60 px-3 py-1 text-brand hover:bg-brand/10">
+                          É audiovisual: importar
+                        </button>
+                      </form>
+                      <form action={dismissDiscoveryCandidate.bind(null, item.id)}>
+                        <button className="rounded-md border border-line px-3 py-1 text-muted hover:border-bad hover:text-bad">
+                          Descartar
+                        </button>
+                      </form>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {newSources.length > 0 && (
+            <div className="mt-5 space-y-2">
+              <h3 className="text-sm font-medium">Novas fontes potencialmente relevantes</h3>
+              <p className="text-xs text-muted">
+                Instituições com oportunidades audiovisuais confirmadas e ainda não monitoradas.
+                Entram pausadas: confira a página de listagem, teste e ative.
+              </p>
+              {newSources.slice(0, 8).map((entry) => (
+                <details key={entry.host} className="rounded-md border border-line p-3 text-sm">
+                  <summary className="cursor-pointer">
+                    <span className="font-medium">{entry.institution}</span>{" "}
+                    <span className="text-xs text-muted">
+                      · {entry.host} · {entry.count} oportunidade(s) audiovisual(is)
+                    </span>
+                  </summary>
+                  <DiscoveredSourceForm
+                    name={entry.institution}
+                    listUrl={originOf(entry.sampleUrl, entry.host)}
+                  />
+                </details>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-3 lg:col-span-2">
-          {!sources.error && (sources.data ?? []).length === 0 && (
+          {!sources.error && allSources.length === 0 && (
             <EmptyState title="Nenhuma fonte cadastrada">
               {isAdmin
                 ? "Cadastre uma fonte ou adicione as sugeridas."
                 : "Peça a um administrador para cadastrar fontes."}
             </EmptyState>
           )}
-          {(sources.data ?? []).map((source) => {
+          <nav aria-label="Filtrar fontes" className="flex flex-wrap gap-2 text-xs">
+            {(Object.keys(SOURCE_FILTERS) as SourceFilter[]).map((key) => (
+              <Link
+                key={key}
+                href={key === "todas" ? "/editais/fontes" : `/editais/fontes?filtro=${key}`}
+                aria-current={filter === key ? "page" : undefined}
+                className={`rounded-full border px-3 py-1 ${
+                  filter === key
+                    ? "border-brand bg-brand/10 text-brand"
+                    : "border-line text-muted hover:border-brand hover:text-brand"
+                }`}
+              >
+                {SOURCE_FILTERS[key].label}
+              </Link>
+            ))}
+          </nav>
+          {!sources.error && allSources.length > 0 && visibleSources.length === 0 && (
+            <p className="text-sm text-muted">Nenhuma fonte neste filtro.</p>
+          )}
+          {visibleSources.map((source) => {
             const status = source.last_status ? STATUS[source.last_status] : null;
             const { adapter, warning } = parseSourceAdapter(source.adapter_config);
             return (
-              <article key={source.id} className="rounded-xl border border-line bg-card p-5">
+              <article
+                key={source.id}
+                className={`rounded-xl border bg-card p-5 ${
+                  source.is_favorite ? "border-brand/60" : "border-line"
+                }`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
-                    <h2 className="font-semibold">{source.name}</h2>
+                    <h2 className="flex items-center gap-2 font-semibold">
+                      {isAdmin ? (
+                        <form action={toggleFavorite.bind(null, source.id, !source.is_favorite)}>
+                          <button
+                            aria-label={
+                              source.is_favorite ? "Desmarcar favorita" : "Marcar como favorita"
+                            }
+                            title={
+                              source.is_favorite
+                                ? "Favorita (clique para desmarcar)"
+                                : "Marcar como favorita"
+                            }
+                            className={
+                              source.is_favorite ? "text-brand" : "text-muted hover:text-brand"
+                            }
+                          >
+                            {source.is_favorite ? "★" : "☆"}
+                          </button>
+                        </form>
+                      ) : (
+                        source.is_favorite && (
+                          <span aria-label="Favorita" className="text-brand">
+                            ★
+                          </span>
+                        )
+                      )}
+                      {source.name}
+                    </h2>
                     <a
                       href={source.list_url}
                       target="_blank"
@@ -106,6 +395,9 @@ export default async function SourcesPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {!source.active && <Badge>Pausada</Badge>}
+                    {source.origin === "web_discovery" && (
+                      <Badge tone="brand">Descoberta automaticamente</Badge>
+                    )}
                     {status ? (
                       <Badge tone={status.tone}>{status.label}</Badge>
                     ) : (
