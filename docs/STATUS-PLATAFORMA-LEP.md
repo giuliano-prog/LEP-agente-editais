@@ -755,8 +755,10 @@ deduplicação/avistamentos, Match v2) com `origin = 'web_discovery'`.
 `core.discovery_runs` (métricas por execução); `core.discovery_candidates` (URL descoberta, fonte oficial,
 instituição, consulta, trecho, decisão audiovisual com evidência, status, edital). RLS: só administradores leem;
 escrita só pelo servidor; administrador só altera `status`/`status_reason`. Teste SQL 014. Aplicada **localmente**
-(2x e cenário parcial); no Supabase de TESTE ela entra pelo workflow de staging ao enviar este branch (§13); **não
-aplicada em produção**.
+(2x e cenário parcial) e **aplicada no Supabase de TESTE** pelo workflow de staging (execução nº 6, commit
+`0f8d5a4`: "Applying migration 20261008120000_descoberta_web.sql… Finished"; histórico com as 14 migrações Local =
+Remote). CI do commit `0f8d5a4`: ✅ sucesso. Workflow de produção: ignorado no branch (skipped). **Não aplicada em
+produção**.
 
 **O que o usuário final vê:** editais audiovisuais novos em "revisão pendente" (selo "Busca web"). Não audiovisuais,
 encerrados e páginas que não são oportunidade ficam só no registro técnico; não há lista pública de descartados.
