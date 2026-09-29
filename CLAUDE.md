@@ -36,3 +36,10 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 - Erros do banco na UI: use `DbErrorNotice` (causa + correção), nunca mensagem genérica.
 - Tema: use tokens de `globals.css` (`bg-surface`, `bg-card`, `text-fg`, `text-muted`, `text-brand`), nunca cores soltas.
 - Dados da LEP são sigilosos: nada de dados reais em seeds, fixtures ou logs.
+
+## Registro de estado (obrigatório)
+
+- Ao final de **toda tarefa que altere o projeto**, atualize `docs/STATUS-PLATAFORMA-LEP.md`: o que foi implementado,
+  testes executados e resultados reais, commits relevantes, pendências e riscos, e estado do Git (branch, commit de
+  referência, alterações não commitadas). Faça commit junto com a tarefa.
+- Nunca invente informação: registre só o que foi verificado; o que não pôde ser verificado fica marcado como tal.

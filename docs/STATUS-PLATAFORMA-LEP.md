@@ -1,7 +1,8 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-28 · **Branch:** `claude/melhorias-editais` (etapas 1–12 do plano de melhorias) ·
-> **Commit de referência:** `013dcef` · **Produção:** ainda na versão anterior às etapas (branch não integrado)
+> **Atualizado em:** 2026-09-29 (auditoria final pré-merge) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> do plano de melhorias) · **Commit de referência (código auditado):** `83f8444` · **Produção:** ainda na versão
+> anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
 > Documento de referência para qualquer assistente ou pessoa entender o projeto sem ler o histórico da conversa.
 > Legenda: **✅ IMPLEMENTADO** (no código, testado) · **🟡 EM ANDAMENTO** (decidido/parcial, aguardando algo) ·
@@ -259,6 +260,58 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 
 ## 4. Última alteração implementada
 
+**Auditoria final pré-merge (2026-09-29)** — nenhuma funcionalidade nova. Resultado em §4.1. Única correção de
+código: `83f8444` (regressão de acesso antes da migração de status dos vínculos, ver §4.1 item 1).
+
+### 4.1 Auditoria pré-merge (2026-09-29)
+
+**Recomendação técnica:** ✅ **pronto para revisão humana de merge**, com duas condições: (1) as 8 migrações
+novas devem ser aplicadas pelo workflow `supabase-migrations.yml` **junto com ou antes** do deploy do código;
+(2) confirmar antes do merge qual é o valor de `SUPABASE_MIGRATIONS_BRANCH` (não verificável daqui). Não há
+merge, deploy nem migração em produção feitos por esta auditoria.
+
+**Por etapa:** 1, 2, 3, 5, 6, 7, 8, 9, 10 e 12 implementadas e testadas (3 depende de SMTP/modelo de convite em
+produção); 4 parcial (estrutura pronta, casos reais dependem da planilha da LEP); 11 parcial (catálogo e "Testar
+fonte" prontos, endereços oficiais e teste no site real dependem da LEP). Nenhuma inconsistência entre código,
+migrações e testes SQL encontrada além do item 1 abaixo.
+
+**Problemas encontrados**
+
+1. **Corrigido (`83f8444`) — regressão da etapa 3:** `getSession` passou a ler `memberships.status`; se o código
+   fosse publicado antes da migração `20261001120000`, a consulta falharia (coluna inexistente, erro 42703) e
+   **todos, inclusive o administrador, perderiam o acesso**. Agora, nesse erro, volta ao comportamento anterior
+   (vínculo existente = ativo). Testes novos em `apps/web/src/lib/auth/session.test.ts` (pré-migração, ativo,
+   suspenso, convidado).
+2. **Registrado (não corrigido) — varredura antes das migrações:** `lib/monitor/run.ts` seleciona
+   `edital_sources.adapter_config` (migração `20261003120000`); sem a migração a varredura/cron falha com erro de
+   banco. Gravações nas colunas novas (evidências, deduplicação, alterações) também falham antes das respectivas
+   migrações. Mitigação: aplicar as migrações antes ou junto do deploy (o Diagnóstico aponta migrações faltantes).
+3. **Registrado — `SUPABASE_MIGRATIONS_BRANCH` desconhecido:** se for `claude/epic-cerf-abwkc1`, o merge (push que
+   altera `supabase/migrations/`) dispara a aplicação automática das 8 migrações em produção. O workflow também
+   aceita execução manual (`workflow_dispatch`) de qualquer branch.
+4. **Registrado — datas das migrações no futuro** (`20260930…` a `20261007…`, hoje é 2026-09-29): uma migração nova
+   criada nos próximos dias com data "de hoje" ficaria **antes** delas na ordem. O workflow usa `--include-all`, então
+   ela seria aplicada, mas fora da ordem lógica. Novas migrações devem usar data posterior a `20261007120000`.
+5. **Registrado — PDF na Vercel não verificado:** `pdfjs-dist` funciona no build e nos testes locais, mas não foi
+   executado na Vercel; o binário opcional `@napi-rs/canvas` (~34 MB) pode entrar no pacote da função.
+6. **Registrado — tempo de execução:** o cron tem `maxDuration = 60` s e limite interno de 50 s; um candidato com
+   regulamento em PDF + re-verificações pode ser lento. "Verificar agora" (`runMonitorNow`) não define `maxDuration`
+   (usa o padrão da Vercel).
+7. **Não validado:** sites e PDFs reais (a rede deste ambiente bloqueia sites externos); benchmark sem casos reais
+   (6 casos fictícios, 100%); SMTP; fornecedor de IA.
+
+**Segurança (revisada):** chave de serviço só em cron, `runMonitorNow` (admin), membros (após
+`requireMembership("admin")`) e `lib/monitor/access.ts`, sempre com `org_id`; todo download externo via `safeFetch`
+(anti-SSRF), exceto `/api/health`, que só consulta o próprio Supabase (`NEXT_PUBLIC_SUPABASE_URL`); nenhum
+`dangerouslySetInnerHTML`; nenhum segredo no código; todas as Server Actions checam papel; RLS com `core.has_role` em
+todas as tabelas novas (testado); upload/download de PDF inalterados (bucket privado, pasta `<org_id>`, SHA-256);
+regras territoriais sem descarte automático; Match nunca afirma aprovação; deduplicação e alterações só propõem
+(decisão da equipe); `EditalAnalyzer` não está ligado a nenhum fluxo (padrão sem fornecedor).
+
+**Simulação de atualização (local):** banco com as 5 migrações antigas + dados fictícios, depois as 8 novas 2x:
+vínculos existentes continuam ativos (admin incluído); descartes automáticos antigos viram "pendente / restrição
+territorial" com trecho; descartes humanos mantidos; histórico preservado.
+
 **Plano de melhorias de Editais (etapas 1–12), branch `claude/melhorias-editais`** — um commit por etapa (§12).
 Última etapa: **`EditalAnalyzer`** em `packages/ai` (ADR-0023) — contrato único de análise por IA, padrão sem
 fornecedor (`NoopEditalAnalyzer`), adaptador genérico para qualquer `AiProvider` e regras de segurança
@@ -359,15 +412,18 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 
 ---
 
-## 8. Testes (executados em 2026-09-28 neste repositório)
+## 8. Testes (reexecutados em 2026-09-29 na auditoria, commit `83f8444`)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Testes unitários/integração (Vitest)                     | ✅ **288** passando — core 8, ai 10 (inclui `EditalAnalyzer`), projects 3, ingestion 53 (inclui texto de PDF), funding 146 (inclui benchmark, elegibilidade, classificador, extração, deduplicação, Match v2 e alterações), web 68 (inclui catálogo e “Testar fonte”) (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **196** verificações em 13 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2; alterações), com migrações aplicadas 2x                                                                                                                                                                                   |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Testes unitários/integração (Vitest)                     | ✅ **291** passando — core 8, ai 10 (inclui `EditalAnalyzer`), projects 3, ingestion 53 (inclui texto de PDF), funding 146 (inclui benchmark, elegibilidade, classificador, extração, deduplicação, Match v2 e alterações), web 71 (inclui `getSession` antes/depois da migração de status; catálogo e “Testar fonte”) (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **196** verificações em 13 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2; alterações), com migrações aplicadas 2x                                                                                                                                                                                                                                    |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Instalação `pnpm install --frozen-lockfile`              | ✅ sem alterar o lockfile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Benchmark (`pnpm benchmark:editais`)                     | ✅ 6 casos fictícios, 100%; **0 casos reais**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| CI no GitHub (`ci.yml`)                                  | ✅ sucesso em todos os commits do branch até `37a684f` (consultado via API); workflow de migrações ignorado no branch (esperado)                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 **Problemas conhecidos**
 
@@ -378,7 +434,7 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 3. 🟡 Alterações/retificações: detectadas por regras (etapa 10); a varredura verifica até 2 editais abertos por fonte
    por execução (a cada 20 h no mínimo). Não validado em sites reais.
 4. Limites: até 5 novas por fonte (configurável de 1 a 10), 2 re-verificações por fonte, 50 s por execução; cron diário.
-5. Não verificado a partir daqui: execução do CI no GitHub, configuração de e-mail/SMTP e modelos no Supabase de
+5. Não verificado a partir daqui: configuração de e-mail/SMTP e modelos no Supabase de
    produção, sites e PDFs reais (rede do ambiente bloqueia sites externos; validação com Supabase e sites simulados).
 
 ---
@@ -421,6 +477,9 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 
 ## 10. Pendências
 
+0. **Antes do merge:** confirmar `SUPABASE_MIGRATIONS_BRANCH`; planejar o deploy para que as 8 migrações sejam
+   aplicadas pelo workflow antes ou junto do código (§4.1 itens 2–3); depois do deploy, rodar o Diagnóstico e uma
+   varredura manual e conferir PDF/tempo na Vercel (§4.1 itens 5–6).
 1. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
 2. Benchmark: enviar a planilha das 38 oportunidades e transformá-la em casos (em `benchmark/private/`, fora do Git).
 3. Novas fontes: colar os endereços oficiais no catálogo, testar e ativar (produção).
@@ -469,4 +528,7 @@ futuro (hoje só lê).
 |                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·               |
 |                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes · |
 |                            | `013dcef` EditalAnalyzer                                                                |
+|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização  |
+| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`        |
+| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                   |
 | Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado        |
