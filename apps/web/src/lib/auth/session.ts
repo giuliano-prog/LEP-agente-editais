@@ -49,6 +49,18 @@ export const getSession = cache(async (): Promise<Session | null> => {
   ]);
 
   let membership = first.data;
+  // Antes da migração 20261001120000 a coluna `status` não existe (42703): mantém o
+  // comportamento anterior (todo vínculo dá acesso) em vez de bloquear todo mundo.
+  if (first.error?.code === "42703") {
+    const legacy = await supabase
+      .from("memberships")
+      .select("role, organizations ( id, name, slug )")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    membership = legacy.data ? { ...legacy.data, status: "active" as const } : null;
+  }
   // Convite pendente + usuário autenticado (link do convite ou login) = convite aceito.
   // O banco só permite que a própria pessoa aceite e nunca reativa um vínculo suspenso.
   if (membership?.status === "invited") {
