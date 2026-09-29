@@ -33,6 +33,9 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 - Documentos de editais: bucket privado `edital-documents` (`<org_id>/...`), `core.edital_documents` com SHA-256 imutável (ADR-0011). Buscar URLs externas só via `safeFetch` de `@lep/ingestion` (anti-SSRF).
 - Varredura (ADR-0012): `lib/monitor/run.ts` com cliente admin (`lib/supabase/admin.ts`) — uso restrito a varredura/cron/diagnóstico e convites de membros (ADR-0015, só após `requireMembership("admin")`), sempre filtrando `org_id`. Importados entram com revisão pendente.
 - Membros (ADR-0015): só `memberships.status = 'active'` dá acesso; perfis Administrador/Diretoria/Equipe = admin/editor/viewer. Nunca pedir nem guardar senhas.
+- Descoberta web (ADR-0024): `lib/discovery/` reaproveita `importOpportunity` (nunca um pipeline paralelo); decide
+  audiovisual pelo OBJETO, não pelo tema (`classifyAudiovisualRelevance`); não audiovisual/encerrado fica só em
+  `core.discovery_candidates` (sem vitrine de descartados). Provedor de busca só via `SearchProvider` + env do servidor.
 - Erros do banco na UI: use `DbErrorNotice` (causa + correção), nunca mensagem genérica.
 - Tema: use tokens de `globals.css` (`bg-surface`, `bg-card`, `text-fg`, `text-muted`, `text-brand`), nunca cores soltas.
 - Dados da LEP são sigilosos: nada de dados reais em seeds, fixtures ou logs.

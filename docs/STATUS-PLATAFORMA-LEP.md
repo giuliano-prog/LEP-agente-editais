@@ -1,7 +1,7 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-29 (auditoria final pré-merge + workflow de staging criado e não executado, §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
-> do plano de melhorias) · **Commit de referência (código auditado):** `83f8444` · **Produção:** ainda na versão
+> **Atualizado em:** 2026-09-29 (descoberta web de oportunidades audiovisuais + fontes favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> do plano de melhorias) · **Commit de referência:** descoberta web `81af51e` (+ commit de documentação; auditoria em `83f8444`) · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
 > Documento de referência para qualquer assistente ou pessoa entender o projeto sem ler o histórico da conversa.
@@ -260,6 +260,10 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 
 ## 4. Última alteração implementada
 
+**Descoberta web de oportunidades audiovisuais + fontes favoritas ⭐ (2026-09-29, ADR-0024)** — nova camada que busca
+oportunidades na web (inclusive em instituições não cadastradas) e entrega ao pipeline existente. Detalhes, testes,
+variáveis e pendências em **§14**. Nenhum provedor de busca foi configurado nem testado com a API real.
+
 **Auditoria final pré-merge (2026-09-29)** — nenhuma funcionalidade nova. Resultado em §4.1. Única correção de
 código: `83f8444` (regressão de acesso antes da migração de status dos vínculos, ver §4.1 item 1).
 
@@ -367,7 +371,7 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
   `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo` · `20261001120000_membros_status` ·
   `20261002120000_elegibilidade` · `20261003120000_classificador_paginas` ·
-  `20261004120000_evidencias` · `20261005120000_deduplicacao` · `20261006120000_match_v2` · `20261007120000_alteracoes`
+  `20261004120000_evidencias` · `20261005120000_deduplicacao` · `20261006120000_match_v2` · `20261007120000_alteracoes` · `20261008120000_descoberta_web`
   (branch `claude/melhorias-editais`, ainda não aplicadas em produção: entra pelo workflow quando o branch for
   integrado ao de produção).
 - **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
@@ -412,18 +416,18 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 
 ---
 
-## 8. Testes (reexecutados em 2026-09-29 na auditoria, commit `83f8444`)
+## 8. Testes (reexecutados em 2026-09-29 após a descoberta web, commit `81af51e`)
 
-| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Testes unitários/integração (Vitest)                     | ✅ **291** passando — core 8, ai 10 (inclui `EditalAnalyzer`), projects 3, ingestion 53 (inclui texto de PDF), funding 146 (inclui benchmark, elegibilidade, classificador, extração, deduplicação, Match v2 e alterações), web 71 (inclui `getSession` antes/depois da migração de status; catálogo e “Testar fonte”) (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
-| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **196** verificações em 13 arquivos (inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2; alterações), com migrações aplicadas 2x                                                                                                                                                                                                                                    |
-| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Instalação `pnpm install --frozen-lockfile`              | ✅ sem alterar o lockfile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Benchmark (`pnpm benchmark:editais`)                     | ✅ 6 casos fictícios, 100%; **0 casos reais**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| CI no GitHub (`ci.yml`)                                  | ✅ sucesso em todos os commits do branch até `37a684f` (consultado via API); workflow de migrações ignorado no branch (esperado)                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Verificação                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Formatação (Prettier), lint (ESLint), tipos (TypeScript) | ✅ sem erros                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Testes unitários/integração (Vitest)                     | ✅ **328** passando — core 8, ai 10 (inclui `EditalAnalyzer`), projects 3, ingestion 54 (inclui texto de PDF e cabeçalhos extras no `safeFetch`), funding 172 (inclui benchmark, elegibilidade, classificador, extração, deduplicação, Match v2, alterações e **descoberta web: audiovisual por objeto, consultas, triagem, fonte oficial**), web 81 (inclui **descoberta web ponta a ponta com provedor e sites fictícios** e o adaptador Brave com resposta simulada) (inclui `getSession` antes/depois da migração de status; catálogo e “Testar fonte”) (inclui integração da varredura com site e Supabase simulados e `checkMonitorAccess` com chave correta, divergente, publishable, anon, ausente e com erro; convites/reenvio de membros com Supabase Auth simulado) |
+| Testes SQL de RLS (PostgreSQL 16 + simulação Supabase)   | ✅ **221** verificações em 14 arquivos (inclui descoberta web e favoritas — teste 014; inclui status do vínculo: convite, aceite, suspensão, reativação, último admin ativo; elegibilidade e conversão dos descartes automáticos; classificador e configuração por fonte; evidências; deduplicação; Match v2; alterações), com migrações aplicadas 2x                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Cenário "remoto parcialmente migrado à mão"              | ✅ alinhado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Instalação `pnpm install --frozen-lockfile`              | ✅ sem alterar o lockfile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Benchmark (`pnpm benchmark:editais`)                     | ✅ 14 casos fictícios (6 + 8 de tema × objeto audiovisual), 100% (audiovisual 8/8); **0 casos reais**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| CI no GitHub (`ci.yml`)                                  | ✅ sucesso em todos os commits do branch até `37a684f` (consultado via API); workflow de migrações ignorado no branch (esperado)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Build de produção (Next.js 16)                           | ✅ 16 rotas                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 **Problemas conhecidos**
 
@@ -486,9 +490,11 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 3. Benchmark: enviar a planilha das 38 oportunidades e transformá-la em casos (em `benchmark/private/`, fora do Git).
 4. Novas fontes: colar os endereços oficiais no catálogo, testar e ativar (produção).
 5. Integrar o branch `claude/melhorias-editais` ao branch de produção (decisão da LEP; aplica as migrações
-   `20260930120000` a `20261007120000` pelo workflow).
-6. IA: `EditalAnalyzer` pronto (etapa 12); falta a LEP escolher o fornecedor para implementar um `AiProvider`.
-7. Alertas por e-mail.
+   `20260930120000` a `20261008120000` — **9 migrações** — pelo workflow).
+6. Descoberta web (§14): LEP escolher/contratar o provedor de busca, configurar as variáveis no Preview, testar pelo
+   botão e só depois agendar o cron.
+7. IA: `EditalAnalyzer` pronto (etapa 12); falta a LEP escolher o fornecedor para implementar um `AiProvider`.
+8. Alertas por e-mail.
 
 **Decididas (2026-09-28):** classificação visível de restrição territorial (etapa 5); Diretoria = `editor`, Equipe =
 `viewer`; ordem das etapas 1–12 do plano de melhorias.
@@ -533,6 +539,7 @@ futuro (hoje só lê).
 |                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização                                                                                                                                        |
 |                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) · `b9cbce6` disparo (conexão recusada) · `f1f4cd2` disparo (✅ 13 migrações no teste) |
 | Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                                                                                                              |
+|                            | Descoberta web: `ad9d6a3` lógica pura · `45b64ac` migração · `52322e3` pipeline reutilizável · `0c7ef95` orquestração · `81af51e` interface · commit de documentação                                                          |
 | Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                                                                                                         |
 | Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                                                                              |
 
@@ -717,3 +724,62 @@ administrador de teste, testes no Preview).
   "Branching" do Supabase (é pago).
 - Vercel: Preview já faz parte do plano atual (não verificado qual); nada novo é contratado.
 - GitHub Actions: uso pequeno de minutos (mesmo tipo de job do CI atual).
+
+---
+
+## 14. Descoberta web de oportunidades audiovisuais (✅ código e testes; 🟡 depende do provedor de busca)
+
+ADR-0024. Implementada em 2026-09-29 no branch `claude/melhorias-editais`. **Não substitui** o monitoramento de
+fontes: é uma segunda entrada que usa o mesmo pipeline.
+
+**Fluxo:** busca (`SearchProvider`) → triagem barata do resultado (redes sociais, arquivos, sem termos de edital) →
+endereço já conhecido/analisado não é baixado de novo → fonte oficial (agregador/notícia → site da instituição) →
+tipo da página (classificador da etapa 6) → **relevância audiovisual pelo OBJETO** (página + regulamento em PDF) →
+edital encerrado não entra → `importOpportunity` (o mesmo da varredura: evidências, elegibilidade territorial,
+deduplicação/avistamentos, Match v2) com `origin = 'web_discovery'`.
+
+| Parte                                                                                                  | Onde                                                    | Estado                                                             |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| Audiovisual por objeto (tema ≠ objeto), `yes/no/uncertain` com motivo e trecho                         | `packages/modules/funding/src/discovery/audiovisual.ts` | ✅ 16 testes (os 10 casos pedidos + extras) e 8 casos no benchmark |
+| Famílias de consultas (termos audiovisuais, favoritas, formato × ação, instituições), limite e rodízio | `discovery/queries.ts`                                  | ✅                                                                 |
+| Triagem de resultados e tipo do site (oficial, agregador, notícia)                                     | `discovery/triage.ts`                                   | ✅                                                                 |
+| Resolvedor da fonte oficial e nome da instituição                                                      | `discovery/official-source.ts`                          | ✅                                                                 |
+| Provedor de busca abstraído + adaptador Brave Search API (opcional)                                    | `apps/web/src/lib/discovery/search-provider.ts`         | ✅ código; **não testado com a API real**                          |
+| Orquestração, limites, métricas, fila de incertos                                                      | `apps/web/src/lib/discovery/run.ts`                     | ✅ testada com provedor e sites fictícios                          |
+| Pipeline reutilizável (`importOpportunity`)                                                            | `apps/web/src/lib/monitor/run.ts`                       | ✅ testes da varredura inalterados e passando                      |
+| Botão "Buscar novas oportunidades", "Para confirmar", "Novas fontes", favoritas ⭐ e filtros           | `editais/fontes`                                        | ✅ conferido com Supabase simulado (desktop e celular)             |
+| Origem no painel ("Busca web") e referências no detalhe                                                | `editais`, `editais/[id]`                               | ✅                                                                 |
+| Cron `/api/cron/discovery`                                                                             | `apps/web/src/app/api/cron/discovery/route.ts`          | ✅ criado; ⬜ **não agendado** em `vercel.json`                    |
+
+**Banco (migração `20261008120000_descoberta_web`, idempotente):** `edital_sources.is_favorite` e `origin`;
+`core.discovery_runs` (métricas por execução); `core.discovery_candidates` (URL descoberta, fonte oficial,
+instituição, consulta, trecho, decisão audiovisual com evidência, status, edital). RLS: só administradores leem;
+escrita só pelo servidor; administrador só altera `status`/`status_reason`. Teste SQL 014. Aplicada **localmente**
+(2x e cenário parcial); no Supabase de TESTE ela entra pelo workflow de staging ao enviar este branch (§13); **não
+aplicada em produção**.
+
+**O que o usuário final vê:** editais audiovisuais novos em "revisão pendente" (selo "Busca web"). Não audiovisuais,
+encerrados e páginas que não são oportunidade ficam só no registro técnico; não há lista pública de descartados.
+Administradores veem as execuções, a fila curta "Para confirmar" (importar ou descartar) e "Novas fontes
+potencialmente relevantes" (cadastro PAUSADO para testar e ativar).
+
+**Variáveis de ambiente (servidor; nenhuma configurada):** `WEB_SEARCH_PROVIDER` (`brave`), `WEB_SEARCH_API_KEY`
+(secreta); opcionais `WEB_DISCOVERY_MAX_QUERIES` (6), `WEB_DISCOVERY_RESULTS_PER_QUERY` (10),
+`WEB_DISCOVERY_MAX_CANDIDATES` (8). Sem elas, o botão informa "Provedor de busca não configurado" e nada é buscado.
+
+**Limites e segurança:** até 6 consultas × 10 resultados e 8 páginas analisadas por execução (padrão), ≥1,1 s entre
+consultas, 1 nova tentativa só em falha transitória, parada em cota/chave recusada, 50 s por execução; downloads só
+por `safeFetch` (anti-SSRF, redirecionamentos revalidados, tamanho e tempo) e respeitando `robots.txt`; chave só no
+servidor, em cabeçalho, nunca repassada a outro domínio.
+
+**Pendências / riscos:**
+
+1. **Provedor de busca:** a LEP precisa escolher e contratar (pode ter custo; plano/limites a confirmar). O adaptador
+   Brave segue a documentação pública e **não foi validado com a API real** (rede deste ambiente não acessa).
+2. Classificação audiovisual por regras: validada com textos fictícios; **não validada com editais reais**. Casos
+   reais devem entrar no benchmark (`expected.audiovisual`).
+3. Fonte oficial: heurística por links (domínio governamental, texto e endereço do link). Sem link oficial, o edital
+   entra com a observação "fonte oficial não localizada"; notícia sem link oficial não entra.
+4. Tempo: cada página analisada pode baixar o regulamento em PDF; o limite de 50 s pode cortar a execução (os
+   restantes ficam para a próxima).
+5. Cron da descoberta **não agendado**; o botão manual funciona assim que o provedor estiver configurado.
