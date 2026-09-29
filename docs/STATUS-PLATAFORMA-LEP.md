@@ -521,24 +521,24 @@ futuro (hoje só lê).
 
 ## 12. Estado do Git
 
-| Item                       | Valor                                                                                                                                                                          |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Repositório                | `giuliano-prog/LEP-agente-editais`                                                                                                                                             |
-| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                                                                                                  |
-| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                                                                                                            |
-| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·                                                                                           |
-|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                                                                                                      |
-|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·                                                                                        |
-|                            | `013dcef` EditalAnalyzer                                                                                                                                                       |
-|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização                                                                                         |
-|                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) · `b9cbce6` disparo (conexão recusada) |
-| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                                                               |
-| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                                                          |
-| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                               |
+| Item                       | Valor                                                                                                                                                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repositório                | `giuliano-prog/LEP-agente-editais`                                                                                                                                                                                            |
+| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                                                                                                                                                 |
+| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                                                                                                                                                           |
+| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·                                                                                                                                          |
+|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                                                                                                                                                     |
+|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·                                                                                                                                       |
+|                            | `013dcef` EditalAnalyzer                                                                                                                                                                                                      |
+|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização                                                                                                                                        |
+|                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) · `b9cbce6` disparo (conexão recusada) · `f1f4cd2` disparo (✅ 13 migrações no teste) |
+| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                                                                                                              |
+| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                                                                                                         |
+| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                                                                              |
 
 ---
 
-## 13. Ambiente de teste (staging) — 🟡 workflow criado, NUNCA executado; nada aplicado em banco algum
+## 13. Ambiente de teste (staging) — ✅ 13 migrações aplicadas no Supabase de TESTE (2026-09-29); Preview pendente
 
 Objetivo: testar as 12 etapas completas no Preview da Vercel do branch `claude/melhorias-editais` com um **segundo
 projeto Supabase, gratuito e separado**, sem tocar no Supabase de produção. Análise feita em 2026-09-29 a partir do
@@ -684,6 +684,22 @@ administrador de teste, testes no Preview).
   senha (sem colchetes). Depois, novo push só de comentário.
 - Observação: a trava aceitou um identificador fora do formato do Supabase (com `<` `>`); pode ser endurecida para
   exigir o formato (letras minúsculas/dígitos). A recusa final veio do Supabase, sem efeito em banco algum.
+
+### 13.10 Quarta execução (2026-09-29) — ✅ 13 migrações aplicadas no Supabase de TESTE
+
+- Commit `f1f4cd2` (só comentário no workflow), execução nº 5 (id `36518119909`), depois de a LEP colocar a URL real
+  do projeto de teste no segredo. Conclusão do workflow: **success**.
+- **Job 1 (banco descartável): ✅** migrações do zero 2x + testes de permissão + cenário de banco parcial.
+- **Job 2 (Supabase de TESTE): ✅** trava aprovada (URL diferente da produção) → simulação listou as 13 migrações
+  pendentes → `supabase db push --include-all` aplicou as 13, em ordem, de `20260925120000_core_foundation` a
+  `20261007120000_alteracoes` ("Finished supabase db push") → `supabase migration list` mostra as 13 com
+  Local = Remote. Sem seed.
+- Evidência: log do job "Aplicar no Supabase de TESTE" no GitHub Actions. O banco de teste não foi consultado
+  diretamente pelo Claude (sem acesso de rede ao PostgreSQL).
+- Aviso do Actions (não bloqueia): `supabase/setup-cli@v1` usa Node.js 20, executado em Node.js 24.
+- **Próximos passos (§13.3):** 7 — variáveis do Preview na Vercel apontando para o projeto de TESTE (LEP);
+  8 — primeiro administrador de teste; 9 — testes das 12 etapas no Preview. Pendente também, conforme o plano,
+  a configuração de Auth do projeto de teste (passo 3), se ainda não feita.
 
 ### 13.4 Preservação da produção
 
