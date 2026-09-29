@@ -521,20 +521,20 @@ futuro (hoje só lê).
 
 ## 12. Estado do Git
 
-| Item                       | Valor                                                                                         |
-| -------------------------- | --------------------------------------------------------------------------------------------- |
-| Repositório                | `giuliano-prog/LEP-agente-editais`                                                            |
-| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                 |
-| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                           |
-| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·          |
-|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                     |
-|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·       |
-|                            | `013dcef` EditalAnalyzer                                                                      |
-|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização        |
-|                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) |
-| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`              |
-| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                         |
-| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado              |
+| Item                       | Valor                                                                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Repositório                | `giuliano-prog/LEP-agente-editais`                                                                                                      |
+| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                                                           |
+| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                                                                     |
+| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·                                                    |
+|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                                                               |
+|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·                                                 |
+|                            | `013dcef` EditalAnalyzer                                                                                                                |
+|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização                                                  |
+|                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) |
+| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                        |
+| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                   |
+| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                        |
 
 ---
 
@@ -647,6 +647,26 @@ administrador de teste, testes no Preview).
   para essa condição, porque o GitHub avalia a condição do job antes de abrir o ambiente. Não foi possível verificar
   daqui onde a variável foi criada.
 - Próximo passo: a LEP cria/ajusta a variável de repositório; o Claude faz outro push só de comentário no workflow.
+
+### 13.8 Segunda execução (2026-09-29) — ⚠ trava recusou, NADA aplicado
+
+- Commit `b7ba880` (só comentário no workflow), execução nº 3 (id `36515860605`), depois de a LEP criar
+  `STAGING_MIGRATIONS_ENABLED=true` como variável de repositório.
+- **Job 1 "Testar migrações (banco descartável)": ✅ sucesso** — as 13 migrações do zero 2x, testes de permissão e
+  cenário de banco parcial passaram no PostgreSQL 17 do Actions.
+- **Job 2 "Aplicar no Supabase de TESTE": ❌ falhou no passo da trava**, antes de qualquer conexão. Os passos
+  seguintes (instalação do Supabase CLI, simulação, aplicação, histórico) foram **pulados**. **Nenhuma migração foi
+  aplicada no Supabase de staging** e nenhum banco remoto foi acessado.
+- Causa (log do Actions; o segredo aparece mascarado como `***`): o Python recusou ler a connection string —
+  `ValueError: 'aws-0-us-east-2.pooler.supabase.com' does not appear to be an IPv4 or IPv6 address`. Esse erro
+  acontece quando a URL tem **colchetes `[` `]`** antes do host (reproduzido localmente), típico de
+  `[YOUR-PASSWORD]` do modelo do Supabase deixado no texto ou da senha colada entre colchetes.
+- Correção (LEP): editar o segredo `STAGING_SUPABASE_DB_URL` no ambiente `staging` sem colchetes —
+  `postgresql://postgres.<ref-de-teste>:<senha>@aws-0-us-east-2.pooler.supabase.com:5432/postgres`, com caracteres
+  especiais da senha percent-encoded (`@`→`%40`, `#`→`%23`, `[`→`%5B`, `]`→`%5D`…). Depois, novo push só de
+  comentário.
+- Observação: a trava falhou com erro do Python (traceback) em vez da mensagem em pt-BR; o comportamento é seguro
+  (recusa), mas a mensagem pode ser melhorada.
 
 ### 13.4 Preservação da produção
 
