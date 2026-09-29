@@ -20,6 +20,8 @@ name: Migrações Supabase (TESTE / staging)
 #
 # Trava: scripts/check-staging-db-url.py falha se o segredo faltar, se PRODUCTION_SUPABASE_REF
 # faltar, se o projeto não puder ser identificado ou se for o de produção. Sem seed.
+#
+# Para disparar de novo sem alterar migrações: edite só estes comentários e faça push.
 
 on:
   push:
