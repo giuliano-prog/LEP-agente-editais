@@ -1,6 +1,6 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-29 (auditoria final pré-merge) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> **Atualizado em:** 2026-09-29 (auditoria final pré-merge + plano de ambiente de teste, §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência (código auditado):** `83f8444` · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
@@ -477,16 +477,18 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 
 ## 10. Pendências
 
-0. **Antes do merge:** confirmar `SUPABASE_MIGRATIONS_BRANCH`; planejar o deploy para que as 8 migrações sejam
+0. **Ambiente de teste (staging) para testar as 12 etapas sem tocar na produção — plano em §13, ainda não
+   executado.**
+1. **Antes do merge:** confirmar `SUPABASE_MIGRATIONS_BRANCH`; planejar o deploy para que as 8 migrações sejam
    aplicadas pelo workflow antes ou junto do código (§4.1 itens 2–3); depois do deploy, rodar o Diagnóstico e uma
    varredura manual e conferir PDF/tempo na Vercel (§4.1 itens 5–6).
-1. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
-2. Benchmark: enviar a planilha das 38 oportunidades e transformá-la em casos (em `benchmark/private/`, fora do Git).
-3. Novas fontes: colar os endereços oficiais no catálogo, testar e ativar (produção).
-4. Integrar o branch `claude/melhorias-editais` ao branch de produção (decisão da LEP; aplica as migrações
+2. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
+3. Benchmark: enviar a planilha das 38 oportunidades e transformá-la em casos (em `benchmark/private/`, fora do Git).
+4. Novas fontes: colar os endereços oficiais no catálogo, testar e ativar (produção).
+5. Integrar o branch `claude/melhorias-editais` ao branch de produção (decisão da LEP; aplica as migrações
    `20260930120000` a `20261007120000` pelo workflow).
-5. IA: `EditalAnalyzer` pronto (etapa 12); falta a LEP escolher o fornecedor para implementar um `AiProvider`.
-6. Alertas por e-mail.
+6. IA: `EditalAnalyzer` pronto (etapa 12); falta a LEP escolher o fornecedor para implementar um `AiProvider`.
+7. Alertas por e-mail.
 
 **Decididas (2026-09-28):** classificação visível de restrição territorial (etapa 5); Diretoria = `editor`, Equipe =
 `viewer`; ordem das etapas 1–12 do plano de melhorias.
@@ -532,3 +534,74 @@ futuro (hoje só lê).
 | Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`        |
 | Alterações não commitadas  | nenhuma após o commit desta auditoria                                                   |
 | Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado        |
+
+---
+
+## 13. Ambiente de teste (staging) — plano (🟡 analisado, NADA executado)
+
+Objetivo: testar as 12 etapas completas no Preview da Vercel do branch `claude/melhorias-editais` com um **segundo
+projeto Supabase, gratuito e separado**, sem tocar no Supabase de produção. Análise feita em 2026-09-29 a partir do
+repositório; a configuração atual da Vercel e dos projetos Supabase **não é visível daqui** (itens marcados
+"não verificado").
+
+### 13.1 O que o repositório mostra
+
+- **Migrações:** um banco novo e vazio precisa de **todas as 13** (`20260925120000` … `20261007120000`), não só das 8
+  novas: as 5 antigas criam a base (organizações, editais, documentos, fontes, território). Todas são idempotentes e
+  já passam no CI do zero, 2x e sobre banco parcial. O bucket `edital-documents` é criado pela migração
+  `20260927120000`.
+- **Workflow `supabase-migrations.yml` NÃO serve para o teste:** usa sempre o segredo `SUPABASE_DB_URL` do ambiente
+  `production`. ⚠ **Rodá-lo manualmente (Run workflow) a partir de qualquer branch, inclusive
+  `claude/melhorias-editais`, aplicaria as 8 migrações na PRODUÇÃO.** Em push, só roda no branch definido por
+  `SUPABASE_MIGRATIONS_BRANCH` (padrão `main`; valor real não verificado).
+- **Execução manual do GitHub (`workflow_dispatch`)** só fica disponível para workflows que existem no branch padrão
+  (`claude/epic-cerf-abwkc1`, que não pode ser alterado). Por isso um workflow de teste precisa rodar por **push**
+  no branch `claude/melhorias-editais`.
+- **O app só lê 5 variáveis:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+  `SUPABASE_SECRET_KEY`, `SITE_URL` (opcional), `CRON_SECRET`. Trocar essas 5 no Preview basta para apontar o app para
+  outro Supabase; nenhuma mudança de código é necessária para isso.
+- **Cron:** a Vercel só executa cron em deploy de produção; no Preview a varredura é testada pelo botão
+  "Verificar agora" (admin).
+- **E-mails de convite/recuperação** usam `{{ .SiteURL }}/auth/confirm?token_hash=…` (`supabase/templates/`): a Site
+  URL do Supabase de teste precisa ser o endereço do Preview.
+- **Seed (`supabase/seed.sql`)**: só dados fictícios; pode ser usado no teste (nunca em produção), opcional.
+- **Rede deste ambiente do Claude:** só HTTPS por proxy; não alcança o PostgreSQL (porta 5432) nem o painel. O Claude
+  não aplica migrações direto nem deve receber senha de banco.
+
+### 13.2 ⚠ Risco a verificar ANTES de tudo
+
+Se as variáveis do Supabase na Vercel foram cadastradas para "All Environments" (Production + Preview), **o Preview
+do branch `claude/melhorias-editais` já aponta para o Supabase de PRODUÇÃO** (sem as 8 migrações). Nesse caso o
+Preview pode gravar dados reais (ex.: "Verificar agora", Membros) e várias telas falham. Não verificado daqui. Até o
+staging existir, não usar o Preview desse branch com login de produção.
+
+### 13.3 Plano (ordem segura)
+
+| #   | Passo                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Quem       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| 1   | Vercel → Settings → Environment Variables: conferir se as 5 variáveis estão marcadas também em **Preview** (§13.2).                                                                                                                                                                                                                                                                                                                                                            | LEP        |
+| 2   | Supabase → **New project** numa organização no plano **Free** (nome ex.: `lep-plataforma-teste`), senha do banco forte guardada só com a LEP.                                                                                                                                                                                                                                                                                                                                  | LEP        |
+| 3   | No projeto de teste: Data API → Exposed schemas + `core`; Authentication → desligar "Allow new users to sign up"; Site URL = endereço fixo do Preview do branch; Redirect URLs = esse endereço com `/**`; Emails → colar `invite.html` e `recovery.html`. SMTP próprio não é necessário (o envio padrão entrega a membros da equipe do Supabase).                                                                                                                              | LEP        |
+| 4   | GitHub → Settings → Environments → **novo ambiente `staging`** (nunca `production`) com o segredo `STAGING_SUPABASE_DB_URL` (Session pooler, porta 5432, do projeto de TESTE) e a variável `PRODUCTION_SUPABASE_REF` (identificador do projeto de produção, que não é segredo) para a trava abaixo.                                                                                                                                                                            | LEP        |
+| 5   | Criar `.github/workflows/supabase-migrations-staging.yml`: roda só em push no `claude/melhorias-editais` (migrações ou o próprio arquivo), usa só o ambiente `staging` e o segredo `STAGING_SUPABASE_DB_URL`, **recusa rodar se a URL apontar para o projeto de produção** ou se o segredo faltar, testa em banco descartável (como o de produção) e faz `supabase db push --dry-run` e depois `supabase db push --include-all` (sem seed). Não altera o workflow de produção. | Claude     |
+| 6   | Push do passo 5 → o workflow aplica as 13 migrações **só no banco de teste**; conferir o histórico no log do Actions.                                                                                                                                                                                                                                                                                                                                                          | Claude/LEP |
+| 7   | Vercel → Environment Variables → para **Preview** (de preferência só no branch `claude/melhorias-editais`): as 3 chaves do projeto de TESTE (URL, publishable, secret), `SITE_URL` = endereço do Preview, `CRON_SECRET` próprio. Production fica intacto. Redeploy do Preview.                                                                                                                                                                                                 | LEP        |
+| 8   | Primeiro administrador do teste: `pnpm members:invite --email <e-mail> --role admin --yes` com `.env.local` apontando para o projeto de TESTE (cria a organização e envia o convite), ou convite pelo painel + vínculo criado pelo Claude via workflow (a combinar).                                                                                                                                                                                                           | LEP        |
+| 9   | No Preview: Diagnóstico (deve mostrar as 13 migrações), sede do proponente, fontes, "Verificar agora", editais, Match, alterações, Membros. Registrar resultados neste documento.                                                                                                                                                                                                                                                                                              | LEP/Claude |
+
+### 13.4 Preservação da produção
+
+- Projeto Supabase de produção: nenhum acesso, nenhuma chave nova, nenhuma migração; segredo `SUPABASE_DB_URL` e
+  ambiente `production` do GitHub inalterados; **não usar "Run workflow" em "Migrações Supabase (produção)"**.
+- Vercel: variáveis de **Production** inalteradas; cron só roda em produção (continua no banco de produção).
+- Git: sem merge, sem alteração em `claude/epic-cerf-abwkc1`; o workflow de teste existe só no branch de teste.
+- Dados: no teste só dados fictícios ou editais públicos; nada da produção é copiado.
+
+### 13.5 Custos
+
+- Supabase Free: US$ 0 — até 2 projetos ativos gratuitos por organização; projeto parado 1 semana fica pausado
+  (reativa pelo painel); limites de 500 MB de banco e 1 GB de Storage. ⚠ Se o novo projeto for criado numa
+  organização em plano **pago**, ele gera cobrança de computação: criar numa organização Free. Não usar
+  "Branching" do Supabase (é pago).
+- Vercel: Preview já faz parte do plano atual (não verificado qual); nada novo é contratado.
+- GitHub Actions: uso pequeno de minutos (mesmo tipo de job do CI atual).
