@@ -1,6 +1,6 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-29 (auditoria final pré-merge + plano de ambiente de teste, §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> **Atualizado em:** 2026-09-29 (auditoria final pré-merge + workflow de staging criado e não executado, §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência (código auditado):** `83f8444` · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
@@ -531,13 +531,14 @@ futuro (hoje só lê).
 |                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes · |
 |                            | `013dcef` EditalAnalyzer                                                                |
 |                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização  |
+|                            | `7168853` plano de staging · commit seguinte: workflow de staging (não executado)       |
 | Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`        |
 | Alterações não commitadas  | nenhuma após o commit desta auditoria                                                   |
 | Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado        |
 
 ---
 
-## 13. Ambiente de teste (staging) — plano (🟡 analisado, NADA executado)
+## 13. Ambiente de teste (staging) — 🟡 workflow criado, NUNCA executado; nada aplicado em banco algum
 
 Objetivo: testar as 12 etapas completas no Preview da Vercel do branch `claude/melhorias-editais` com um **segundo
 projeto Supabase, gratuito e separado**, sem tocar no Supabase de produção. Análise feita em 2026-09-29 a partir do
@@ -577,17 +578,62 @@ staging existir, não usar o Preview desse branch com login de produção.
 
 ### 13.3 Plano (ordem segura)
 
-| #   | Passo                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Quem       |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| 1   | Vercel → Settings → Environment Variables: conferir se as 5 variáveis estão marcadas também em **Preview** (§13.2).                                                                                                                                                                                                                                                                                                                                                            | LEP        |
-| 2   | Supabase → **New project** numa organização no plano **Free** (nome ex.: `lep-plataforma-teste`), senha do banco forte guardada só com a LEP.                                                                                                                                                                                                                                                                                                                                  | LEP        |
-| 3   | No projeto de teste: Data API → Exposed schemas + `core`; Authentication → desligar "Allow new users to sign up"; Site URL = endereço fixo do Preview do branch; Redirect URLs = esse endereço com `/**`; Emails → colar `invite.html` e `recovery.html`. SMTP próprio não é necessário (o envio padrão entrega a membros da equipe do Supabase).                                                                                                                              | LEP        |
-| 4   | GitHub → Settings → Environments → **novo ambiente `staging`** (nunca `production`) com o segredo `STAGING_SUPABASE_DB_URL` (Session pooler, porta 5432, do projeto de TESTE) e a variável `PRODUCTION_SUPABASE_REF` (identificador do projeto de produção, que não é segredo) para a trava abaixo.                                                                                                                                                                            | LEP        |
-| 5   | Criar `.github/workflows/supabase-migrations-staging.yml`: roda só em push no `claude/melhorias-editais` (migrações ou o próprio arquivo), usa só o ambiente `staging` e o segredo `STAGING_SUPABASE_DB_URL`, **recusa rodar se a URL apontar para o projeto de produção** ou se o segredo faltar, testa em banco descartável (como o de produção) e faz `supabase db push --dry-run` e depois `supabase db push --include-all` (sem seed). Não altera o workflow de produção. | Claude     |
-| 6   | Push do passo 5 → o workflow aplica as 13 migrações **só no banco de teste**; conferir o histórico no log do Actions.                                                                                                                                                                                                                                                                                                                                                          | Claude/LEP |
-| 7   | Vercel → Environment Variables → para **Preview** (de preferência só no branch `claude/melhorias-editais`): as 3 chaves do projeto de TESTE (URL, publishable, secret), `SITE_URL` = endereço do Preview, `CRON_SECRET` próprio. Production fica intacto. Redeploy do Preview.                                                                                                                                                                                                 | LEP        |
-| 8   | Primeiro administrador do teste: `pnpm members:invite --email <e-mail> --role admin --yes` com `.env.local` apontando para o projeto de TESTE (cria a organização e envia o convite), ou convite pelo painel + vínculo criado pelo Claude via workflow (a combinar).                                                                                                                                                                                                           | LEP        |
-| 9   | No Preview: Diagnóstico (deve mostrar as 13 migrações), sede do proponente, fontes, "Verificar agora", editais, Match, alterações, Membros. Registrar resultados neste documento.                                                                                                                                                                                                                                                                                              | LEP/Claude |
+| #   | Passo                                                                                                                                                                                                                                                                                                                                             | Quem       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | Vercel → Settings → Environment Variables: conferir se as 5 variáveis estão marcadas também em **Preview** (§13.2).                                                                                                                                                                                                                               | LEP        |
+| 2   | Supabase → **New project** numa organização no plano **Free** (nome ex.: `lep-plataforma-teste`), senha do banco forte guardada só com a LEP.                                                                                                                                                                                                     | LEP        |
+| 3   | No projeto de teste: Data API → Exposed schemas + `core`; Authentication → desligar "Allow new users to sign up"; Site URL = endereço fixo do Preview do branch; Redirect URLs = esse endereço com `/**`; Emails → colar `invite.html` e `recovery.html`. SMTP próprio não é necessário (o envio padrão entrega a membros da equipe do Supabase). | LEP        |
+| 4   | GitHub → Settings → Environments → **novo ambiente `staging`** (nunca `production`): segredo `STAGING_SUPABASE_DB_URL` e variável `PRODUCTION_SUPABASE_REF`. Depois, e só depois, a variável de repositório `STAGING_MIGRATIONS_ENABLED = true` (§13.6).                                                                                          | LEP        |
+| 5   | ✅ **Feito (2026-09-29):** `.github/workflows/supabase-migrations-staging.yml` + trava `scripts/check-staging-db-url.py` (§13.6). **Nunca executado.**                                                                                                                                                                                            | Claude     |
+| 6   | Com o passo 4 pronto, o Claude faz um push que altera o workflow (ex.: comentário) → o workflow testa em banco descartável e aplica as 13 migrações **só no banco de teste**; conferir o log do Actions.                                                                                                                                          | Claude/LEP |
+| 7   | Vercel → Environment Variables → para **Preview** (de preferência só no branch `claude/melhorias-editais`): as 3 chaves do projeto de TESTE (URL, publishable, secret), `SITE_URL` = endereço do Preview, `CRON_SECRET` próprio. Production fica intacto. Redeploy do Preview.                                                                    | LEP        |
+| 8   | Primeiro administrador do teste: `pnpm members:invite --email <e-mail> --role admin --yes` com `.env.local` apontando para o projeto de TESTE (cria a organização e envia o convite), ou convite pelo painel + vínculo criado pelo Claude via workflow (a combinar).                                                                              | LEP        |
+| 9   | No Preview: Diagnóstico (deve mostrar as 13 migrações), sede do proponente, fontes, "Verificar agora", editais, Match, alterações, Membros. Registrar resultados neste documento.                                                                                                                                                                 | LEP/Claude |
+
+### 13.6 Workflow de staging (criado em 2026-09-29, ainda NÃO executado)
+
+**Arquivos:** `.github/workflows/supabase-migrations-staging.yml` e `scripts/check-staging-db-url.py` (trava). O
+workflow de produção `supabase-migrations.yml` não foi alterado.
+
+**Como funciona**
+
+- **Disparo:** só `push` no branch `claude/melhorias-editais` que altere `supabase/migrations/**` ou o próprio
+  arquivo do workflow. Sem execução manual (`workflow_dispatch`) e sem outros branches.
+- **Interruptor:** os dois jobs só rodam se a variável de repositório `STAGING_MIGRATIONS_ENABLED` for `true`.
+  Enquanto ela não existir, os jobs ficam "skipped" (nada é executado, nenhum banco é acessado).
+- **Job 1 — banco descartável:** PostgreSQL 17 do próprio Actions; migrações do zero 2x + testes de permissão e
+  cenário de banco parcial (mesmo padrão do workflow de produção).
+- **Job 2 — banco de TESTE:** só depois do job 1; usa **somente** o ambiente GitHub `staging` e **somente** o
+  segredo `STAGING_SUPABASE_DB_URL` (nunca lê `SUPABASE_DB_URL`). Passos: trava → `supabase db push --dry-run
+--include-all` → `supabase db push --include-all --yes` (sem seed) → `supabase migration list`.
+- **Trava (`check-staging-db-url.py`), antes de qualquer conexão:** mascara a senha nos logs e **falha** se: o
+  segredo não existir; a URL não for `postgresql://`, não tiver senha ou usar a porta 6543; a variável
+  `PRODUCTION_SUPABASE_REF` faltar; não for possível identificar o projeto Supabase na URL (usuário `postgres.<ref>`
+  do Session pooler ou host `db.<ref>.supabase.co`); a URL citar dois projetos; ou **o projeto for o de produção**.
+
+**Validações locais feitas (só estas):** `actionlint` 1.7.7 sem erros nos dois workflows; YAML lido corretamente;
+trava executada com 11 URLs fictícias — recusou as 9 inválidas (sem segredo, sem ref de produção, produção via
+pooler, produção via host direto, produção em maiúsculas, host desconhecido, porta 6543, sem senha, dois projetos)
+e aceitou as 2 de teste (pooler e host direto). `pnpm check` sem erros (291 testes). **Não validado:** execução real no GitHub Actions e conexão com um
+Supabase de teste (o projeto ainda não existe).
+
+**O que a LEP precisa fazer no painel (na ordem)**
+
+1. Supabase: criar o projeto de TESTE numa organização **Free** e configurar Auth/Data API (§13.3, passos 2–3).
+2. GitHub → Settings → Environments → **New environment** → nome `staging`:
+   - **Environment secret** `STAGING_SUPABASE_DB_URL` = connection string do **Session pooler** (porta 5432) do
+     projeto de **TESTE** (Supabase → Connect → Session pooler), com a senha percent-encoded;
+   - **Environment variable** `PRODUCTION_SUPABASE_REF` = identificador do projeto de **PRODUÇÃO** (o trecho
+     `<ref>` do endereço `https://<ref>.supabase.co`; não é segredo).
+3. Por último: GitHub → Settings → Secrets and variables → Actions → **Variables** (repositório) →
+   `STAGING_MIGRATIONS_ENABLED` = `true`.
+
+**Segredos/variáveis necessários:** `STAGING_SUPABASE_DB_URL` (segredo, ambiente `staging`),
+`PRODUCTION_SUPABASE_REF` (variável, ambiente `staging`), `STAGING_MIGRATIONS_ENABLED` (variável de repositório).
+Nenhum deles fica em arquivo do repositório.
+
+**Passos que permanecem:** §13.3 passos 1–4 (LEP), 6 (Claude dispara por push), 7–9 (Vercel Preview, primeiro
+administrador de teste, testes no Preview).
 
 ### 13.4 Preservação da produção
 

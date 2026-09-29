@@ -1,0 +1,82 @@
+name: Migrações Supabase (TESTE / staging)
+
+# Aplica as migrações de supabase/migrations/ SOMENTE no banco Supabase de TESTE usado pelo
+# Preview do branch claude/melhorias-editais (plano em docs/STATUS-PLATAFORMA-LEP.md §13).
+# NÃO substitui nem usa o workflow de produção (supabase-migrations.yml) e nunca lê o segredo
+# SUPABASE_DB_URL de produção.
+#
+# Quando roda: apenas em push no branch claude/melhorias-editais que altere supabase/migrations/
+# ou este arquivo, E somente se a variável de repositório STAGING_MIGRATIONS_ENABLED = "true"
+# (enquanto não existir, os jobs ficam como "skipped" e nada é executado). Sem execução manual.
+#
+# Configuração (GitHub → Settings):
+#   • Environments → "staging":
+#       secret   STAGING_SUPABASE_DB_URL  connection string do Session pooler (porta 5432) do projeto
+#                                         de TESTE, com a senha percent-encoded.
+#       variable PRODUCTION_SUPABASE_REF  identificador (ref) do projeto de PRODUÇÃO — usado só para
+#                                         RECUSAR a execução se a URL de teste apontar para ele.
+#   • Secrets and variables → Actions → Variables (repositório):
+#       STAGING_MIGRATIONS_ENABLED = true  liga o workflow (criar só depois do ambiente "staging").
+#
+# Trava: scripts/check-staging-db-url.py falha se o segredo faltar, se PRODUCTION_SUPABASE_REF
+# faltar, se o projeto não puder ser identificado ou se for o de produção. Sem seed.
+
+on:
+  push:
+    branches: [claude/melhorias-editais]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/supabase-migrations-staging.yml"
+
+permissions:
+  contents: read
+
+# Nunca rodar duas aplicações ao mesmo tempo, e nunca cancelar uma em andamento.
+concurrency:
+  group: supabase-staging-migrations
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Testar migrações (banco descartável)
+    if: github.ref_name == 'claude/melhorias-editais' && vars.STAGING_MIGRATIONS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Migrações do zero (2x) + testes de permissão
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/postgres -qc "create database fresh" -c "create database partial"
+          DB_TEST_SHIM=1 DB_URL=postgresql://postgres:postgres@localhost:5432/fresh bash scripts/db-test.sh
+      - name: Migrações sobre banco parcialmente migrado à mão
+        run: DB_TEST_SHIM=1 DB_TEST_SCENARIO=remoto-parcial DB_URL=postgresql://postgres:postgres@localhost:5432/partial bash scripts/db-test.sh
+
+  deploy:
+    name: Aplicar no Supabase de TESTE
+    needs: verify
+    if: github.ref_name == 'claude/melhorias-editais' && vars.STAGING_MIGRATIONS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      STAGING_SUPABASE_DB_URL: ${{ secrets.STAGING_SUPABASE_DB_URL }}
+      PRODUCTION_SUPABASE_REF: ${{ vars.PRODUCTION_SUPABASE_REF }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Trava — segredo presente e banco diferente da produção
+        run: python3 scripts/check-staging-db-url.py
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
+      - name: Migrações pendentes (simulação)
+        run: supabase db push --db-url "$STAGING_SUPABASE_DB_URL" --dry-run --include-all
+      - name: Aplicar migrações no banco de TESTE (sem seed)
+        run: supabase db push --db-url "$STAGING_SUPABASE_DB_URL" --include-all --yes
+      - name: Histórico de migrações no banco de TESTE
+        run: supabase migration list --db-url "$STAGING_SUPABASE_DB_URL"
