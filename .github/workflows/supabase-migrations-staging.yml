@@ -22,7 +22,7 @@ name: Migrações Supabase (TESTE / staging)
 # faltar, se o projeto não puder ser identificado ou se for o de produção. Sem seed.
 #
 # Para disparar de novo sem alterar migrações: edite só estes comentários e faça push
-# (último disparo: 2026-09-29, após corrigir o segredo STAGING_SUPABASE_DB_URL).
+# (último disparo: 2026-09-29, após colocar a URL real do projeto de teste no segredo).
 
 on:
   push:
