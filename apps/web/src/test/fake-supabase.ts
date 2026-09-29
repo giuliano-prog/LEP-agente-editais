@@ -80,14 +80,20 @@ export async function startFakeSupabase(db: FakeDb) {
     const rows = db[table]!;
     if (req.method === "POST") {
       const input = JSON.parse((await read(req)).toString());
+      // Upsert (on_conflict): atualiza a linha existente com as mesmas colunas-chave.
+      const conflict = url.searchParams.get("on_conflict")?.split(",") ?? null;
       // Como o PostgREST: gera id e devolve as linhas quando pedido (return=representation).
       const inserted = (Array.isArray(input) ? input : [input]).map(
-        (row: Record<string, unknown>) => ({
-          id: `${table}-${++seq}`,
-          ...row,
-        }),
+        (row: Record<string, unknown>) => {
+          const existing = conflict
+            ? rows.find((item) => conflict.every((column) => item[column] === row[column]))
+            : undefined;
+          if (existing) return Object.assign(existing, row);
+          const created = { id: `${table}-${++seq}`, ...row };
+          rows.push(created);
+          return created;
+        },
       );
-      rows.push(...inserted);
       if (!(req.headers.prefer ?? "").includes("return=representation")) return send(201);
       const single = (req.headers.accept ?? "").includes("vnd.pgrst.object");
       return send(201, single ? inserted[0] : inserted);
