@@ -236,6 +236,185 @@ export type Database = {
           },
         ];
       };
+      discovery_candidates: {
+        Row: {
+          audiovisual: string | null;
+          audiovisual_evidence: string | null;
+          audiovisual_reasons: string[];
+          edital_id: string | null;
+          first_seen_at: string;
+          host: string;
+          id: string;
+          institution: string | null;
+          last_seen_at: string;
+          official_host: string | null;
+          official_reason: string | null;
+          official_url: string | null;
+          org_id: string;
+          query: string | null;
+          site_kind: string;
+          snippet: string | null;
+          status: string;
+          status_reason: string | null;
+          times_seen: number;
+          title: string | null;
+          url: string;
+        };
+        Insert: {
+          audiovisual?: string | null;
+          audiovisual_evidence?: string | null;
+          audiovisual_reasons?: string[];
+          edital_id?: string | null;
+          first_seen_at?: string;
+          host: string;
+          id?: string;
+          institution?: string | null;
+          last_seen_at?: string;
+          official_host?: string | null;
+          official_reason?: string | null;
+          official_url?: string | null;
+          org_id: string;
+          query?: string | null;
+          site_kind: string;
+          snippet?: string | null;
+          status: string;
+          status_reason?: string | null;
+          times_seen?: number;
+          title?: string | null;
+          url: string;
+        };
+        Update: {
+          audiovisual?: string | null;
+          audiovisual_evidence?: string | null;
+          audiovisual_reasons?: string[];
+          edital_id?: string | null;
+          first_seen_at?: string;
+          host?: string;
+          id?: string;
+          institution?: string | null;
+          last_seen_at?: string;
+          official_host?: string | null;
+          official_reason?: string | null;
+          official_url?: string | null;
+          org_id?: string;
+          query?: string | null;
+          site_kind?: string;
+          snippet?: string | null;
+          status?: string;
+          status_reason?: string | null;
+          times_seen?: number;
+          title?: string | null;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discovery_candidates_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "discovery_candidates_edital_id_fkey";
+            columns: ["edital_id"];
+            isOneToOne: false;
+            referencedRelation: "editais";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      discovery_runs: {
+        Row: {
+          audiovisual_no: number;
+          audiovisual_uncertain: number;
+          audiovisual_yes: number;
+          already_known: number;
+          analyzed: number;
+          blocked: number;
+          duplicates: number;
+          error: string | null;
+          failed: number;
+          finished_at: string | null;
+          id: number;
+          imported: number;
+          new_sources: number;
+          official_found: number;
+          org_id: string;
+          provider: string | null;
+          provider_limited: boolean;
+          queries: string[];
+          queries_planned: number;
+          queries_run: number;
+          results_received: number;
+          started_at: string;
+          status: string;
+          trigger: string;
+          unique_urls: number;
+        };
+        Insert: {
+          audiovisual_no?: number;
+          audiovisual_uncertain?: number;
+          audiovisual_yes?: number;
+          already_known?: number;
+          analyzed?: number;
+          blocked?: number;
+          duplicates?: number;
+          error?: string | null;
+          failed?: number;
+          finished_at?: string | null;
+          id?: number;
+          imported?: number;
+          new_sources?: number;
+          official_found?: number;
+          org_id: string;
+          provider?: string | null;
+          provider_limited?: boolean;
+          queries?: string[];
+          queries_planned?: number;
+          queries_run?: number;
+          results_received?: number;
+          started_at?: string;
+          status: string;
+          trigger: string;
+          unique_urls?: number;
+        };
+        Update: {
+          audiovisual_no?: number;
+          audiovisual_uncertain?: number;
+          audiovisual_yes?: number;
+          already_known?: number;
+          analyzed?: number;
+          blocked?: number;
+          duplicates?: number;
+          error?: string | null;
+          failed?: number;
+          finished_at?: string | null;
+          id?: number;
+          imported?: number;
+          new_sources?: number;
+          official_found?: number;
+          org_id?: string;
+          provider?: string | null;
+          provider_limited?: boolean;
+          queries?: string[];
+          queries_planned?: number;
+          queries_run?: number;
+          results_received?: number;
+          started_at?: string;
+          status?: string;
+          trigger?: string;
+          unique_urls?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discovery_runs_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       edital_matches: {
         Row: {
           blockers: string[];
@@ -377,6 +556,8 @@ export type Database = {
           last_status: string | null;
           link_contains: string | null;
           adapter_config: Json;
+          is_favorite: boolean;
+          origin: string;
           list_url: string;
           name: string;
           org_id: string;
@@ -394,6 +575,8 @@ export type Database = {
           last_status?: string | null;
           link_contains?: string | null;
           adapter_config?: Json;
+          is_favorite?: boolean;
+          origin?: string;
           list_url: string;
           name: string;
           org_id: string;
@@ -411,6 +594,8 @@ export type Database = {
           last_status?: string | null;
           link_contains?: string | null;
           adapter_config?: Json;
+          is_favorite?: boolean;
+          origin?: string;
           list_url?: string;
           name?: string;
           org_id?: string;

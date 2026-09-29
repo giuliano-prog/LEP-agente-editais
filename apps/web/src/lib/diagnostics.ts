@@ -277,6 +277,27 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3b8. Descoberta web + fontes favoritas (ADR-0024).
+  const [discoveryRuns, favoriteColumn] = await Promise.all([
+    supabase.from("discovery_runs").select("id").eq("org_id", orgId).limit(1),
+    supabase.from("edital_sources").select("is_favorite, origin").limit(1),
+  ]);
+  const discoveryError = discoveryRuns.error ?? favoriteColumn.error;
+  checks.push(
+    discoveryError
+      ? {
+          label: "Descoberta web e fontes favoritas",
+          status: "fail",
+          detail: discoveryError.message,
+          fix: "Aplique a migração 20261008120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Descoberta web e fontes favoritas",
+          status: "ok",
+          detail: "Tabelas da descoberta web e marcação de fontes favoritas disponíveis.",
+        },
+  );
+
   // 3c. Resumo detalhado da varredura (colunas novas do histórico).
   const summaryColumns = await supabase
     .from("monitor_runs")
