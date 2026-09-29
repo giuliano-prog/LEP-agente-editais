@@ -1,6 +1,6 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-29 (descoberta web de oportunidades audiovisuais + fontes favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> **Atualizado em:** 2026-09-29 (preparação do 1º teste real da descoberta web no staging, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência:** descoberta web `81af51e` (+ commit de documentação; auditoria em `83f8444`) · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
@@ -785,3 +785,51 @@ servidor, em cabeçalho, nunca repassada a outro domínio.
 4. Tempo: cada página analisada pode baixar o regulamento em PDF; o limite de 50 s pode cortar a execução (os
    restantes ficam para a próxima).
 5. Cron da descoberta **não agendado**; o botão manual funciona assim que o provedor estiver configurado.
+
+### 14.1 Primeiro teste real no staging — preparado, ⬜ AINDA NÃO EXECUTADO (2026-09-29)
+
+**Auditoria do código (commit `02e2a27`):**
+
+- Provedor implementado: só **Brave Search API** (`BraveSearchProvider`). `WEB_SEARCH_PROVIDER` é lido do ambiente do
+  servidor, sem diferença de maiúsculas (`brave`); `WEB_SEARCH_API_KEY` precisa ter 8+ caracteres. Outro valor ou
+  chave ausente → "Provedor de busca não configurado" e nenhuma busca.
+- Chamada: `GET https://api.search.brave.com/res/v1/web/search` com cabeçalho `X-Subscription-Token: <chave>`,
+  `Accept: application/json`, parâmetros `q`, `count` (≤20), `offset` (0), `country=BR`, `safesearch=moderate`,
+  `text_decorations=false`; lê `web.results[].title/url/description/age` e `query.more_results_available`. A chave vai
+  só no cabeçalho (nunca na URL nem em log), por `safeFetch` (sem redirecionamentos para a API).
+- **Não verificado:** compatibilidade com a documentação ATUAL da Brave e chamada real — a rede deste ambiente
+  bloqueia `api.search.brave.com` e o site de documentação da Brave. O formato acima segue a API pública conhecida.
+- Ajustes mínimos feitos para o 1º teste: erros 4xx da API (ex.: 422) aparecem com o código HTTP e sem nova tentativa;
+  a descoberta não começa outra página nos últimos 15 s do orçamento (grava o histórico e informa o que ficou para a
+  próxima); `maxDuration = 60` na página Fontes (Server Actions); item "Descoberta web — provedor de busca" no
+  Diagnóstico (só nome e presença da chave). Testes: `pnpm check` ✅ 328; build ✅.
+
+**Variáveis (Vercel → Settings → Environment Variables → ambiente Preview, branch `claude/melhorias-editais`;
+NUNCA em Production nem no repositório):**
+
+| Variável                          | Valor                           | Observação                         |
+| --------------------------------- | ------------------------------- | ---------------------------------- |
+| `WEB_SEARCH_PROVIDER`             | `brave`                         | obrigatória                        |
+| `WEB_SEARCH_API_KEY`              | chave da conta Brave Search API | obrigatória, marcar como sensível  |
+| `WEB_DISCOVERY_MAX_QUERIES`       | `3`                             | recomendado no 1º teste (padrão 6) |
+| `WEB_DISCOVERY_MAX_CANDIDATES`    | `4`                             | recomendado no 1º teste (padrão 8) |
+| `WEB_DISCOVERY_RESULTS_PER_QUERY` | `10`                            | padrão                             |
+
+Também precisam estar no Preview (já usadas pelo staging): `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e **`SUPABASE_SECRET_KEY` do projeto de TESTE** (a descoberta grava com a chave
+de serviço).
+
+**Fora do código (LEP):** criar a conta/assinatura da Brave Search API e gerar a chave (plano, custo e limites a
+confirmar no painel da Brave — não verificados daqui); cadastrar as variáveis acima; fazer **Redeploy** do Preview
+(variáveis só valem em deploy novo).
+
+**Procedimento do 1º teste:** Preview → Configurações → Diagnóstico (conferir "Descoberta web — provedor de busca" OK
+e migração 20261008120000 OK) → Editais → Fontes (administrador) → **Buscar novas oportunidades** (até ~1 min).
+
+**Resultado esperado:** resumo com Consultas (3), Resultados, Páginas analisadas (≤4), Audiovisuais / Não
+audiovisuais / Incertos, Fontes oficiais localizadas, Novas oportunidades. Oportunidades audiovisuais abertas entram
+em Editais com o selo "Busca web" e "revisão pendente" (filtro "Novos (varredura e busca web)"), com elegibilidade,
+evidências e Match; não audiovisuais e encerradas não aparecem no painel; incertas vão para "Para confirmar".
+Erros possíveis e significado: "Chave do provedor de busca recusada" (chave errada), "recusou a consulta (HTTP 4xx)"
+(parâmetro incompatível — trazer o código para ajuste), "Limite do provedor" (cota), "Tempo da execução esgotado"
+(parcial; clicar de novo continua com outras consultas). Resultado real: **a registrar aqui após o teste**.
