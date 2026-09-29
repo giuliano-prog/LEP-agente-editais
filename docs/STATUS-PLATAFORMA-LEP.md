@@ -879,7 +879,9 @@ conhecida (0 = 1ª página, 1 = 2ª), com comentário. Manter 1 página até a L
   `discovery_runs.api_requests`; a tela mostra o aviso no resumo, no histórico e o uso do mês ("Chamadas à API de
   busca neste mês: N de 300").
 
-**Commits:** `f47dad9` migração/contador · `e9281ff` busca, triagem e limites · documentação no commit seguinte.
+**Commits:** `f47dad9` migração/contador · `e9281ff` busca, triagem e limites · documentação no commit seguinte ·
+correção de persistência (título/trecho da Brave só em memória) no commit
+`fix(discovery): título e trecho da Brave só em memória` (testes: 337 ✅; build ✅).
 
 **Testes (2026-09-29, local):** `pnpm check` ✅ **337** (core 8, ai 10, projects 3, ingestion 54, funding 175, web 87);
 build ✅; SQL ✅ **240** verificações em 15 arquivos (teste 015: reserva até o teto, recusa, teto zero, por
@@ -904,14 +906,21 @@ analisá-los antes de gastar chamadas novas à API.
   `name`, digitados pelo administrador). Nenhum dado de `core.projetos`, valores, orçamentos, membros ou editais entra
   na consulta; os demais parâmetros enviados são fixos (`count`, `offset`, `country`, `safesearch`,
   `text_decorations`).
-- (b) Origem de cada campo gravado. `core.discovery_candidates`: `url` e `host` ← URL do resultado da Brave;
-  `site_kind` ← derivado da URL; **`title` ← título da Brave; `snippet` ← descrição da Brave**; `query` ← nossa
-  consulta; `official_url`, `official_host`, `official_reason`, `institution`, `audiovisual*` ← página baixada depois
-  por `safeFetch` (e regulamento); `status*`, datas, `times_seen`, `edital_id` ← nossos. `age` da Brave **não** é
-  gravado. `core.discovery_runs`: só contadores, consultas (nossas) e mensagens nossas — nada da resposta da Brave.
-  Fora dessas tabelas: `edital_sightings.url` ← URL da Brave e **`edital_sightings.title` ← título da Brave** (quando
-  o resultado é agregador/notícia); `editais.title` usa o título da página baixada e só cai no título da Brave se a
-  página não tiver título. Termos de armazenamento da Brave **não verificados** daqui. Menor mudança proposta (não
-  implementada): não gravar `snippet` (usar só em memória na triagem); gravar em `title` o título da página baixada
-  (ou nulo quando nada foi baixado); nos avistamentos usar o título da página baixada; no fallback do título do
-  edital usar a instituição/domínio em vez do título da Brave. Assim, da resposta da Brave só a URL seria persistida.
+- (b) **Corrigido em 2026-09-29, antes do 1º teste real: da resposta da Brave só a URL é persistida.**
+  - **Usados SÓ EM MEMÓRIA** durante a execução: título (`title`) e descrição (`description` → `snippet`) do
+    resultado, para a triagem barata, a decisão audiovisual preliminar e a identificação do candidato. `age` e
+    `more_results_available` também não são gravados.
+  - **Persistidos a partir da Brave:** `discovery_candidates.url`, `host` e `site_kind` (derivados da URL) e
+    `edital_sightings.url` (endereço onde o edital foi encontrado).
+  - **Persistidos a partir da página baixada depois por `safeFetch`:** `discovery_candidates.title` (título da página
+    de referência; **nulo** se a página não foi baixada ou não tem `<title>`), `official_url`, `official_host`,
+    `official_reason`, `institution` e `audiovisual*` (página + regulamento); `edital_sightings.title` (título da
+    página baixada correspondente); `editais.title` (título da página baixada; sem `<title>`, o nome derivado do
+    endereço/arquivo baixado; por fim, instituição/domínio — **sem fallback para o título da Brave**).
+  - **Nunca persistido:** `discovery_candidates.snippet` passa a ser sempre nulo.
+  - **Nossos:** `query`, `status*`, datas, `times_seen`, `edital_id`; `discovery_runs` só tem contadores, consultas
+    (nossas) e mensagens nossas.
+  - Testado: os títulos e trechos do provedor fictício levam marcadores que não aparecem em nenhum dado gravado
+    (editais, avistamentos, candidatos, execuções, documentos), enquanto a triagem continua usando-os em memória.
+    Nenhum registro real existia antes da correção (o 1º teste real ainda não foi feito). Termos de armazenamento
+    da Brave continuam **não verificados** daqui.

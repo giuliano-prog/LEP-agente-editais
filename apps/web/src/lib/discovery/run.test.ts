@@ -89,7 +89,7 @@ beforeAll(async () => {
   process.env.LEP_TEST_ALLOW_PRIVATE_NETWORK = "1"; // só vale com NODE_ENV=test
   official = await startSite(
     {
-      "/editais/curtas-2026": `<html><head><title>Edital de Curtas-Metragens 2026 | Instituição Fictícia</title></head><body>
+      "/editais/curtas-2026": `<html><head></head><body>
         <h1>Edital de Curtas-Metragens 2026</h1>
         <p>Objeto: produção de curtas-metragens de ficção e documentário.</p>
         <p>Inscrições de 01/10/2026 a 30/11/2026. Podem participar produtoras de todo o território nacional.</p>
@@ -139,29 +139,29 @@ beforeAll(async () => {
   });
   results = [
     {
-      title: "Edital de Curtas-Metragens 2026",
+      title: "[BRAVE-TITULO] Edital de Curtas-Metragens 2026",
       url: `${official.base}/editais/curtas-2026`,
-      snippet: "Produção de curtas. Inscrições até 30/11/2026.",
+      snippet: "[BRAVE-TRECHO] Produção de curtas. Inscrições até 30/11/2026.",
     },
     {
-      title: "Programa Memória do Esporte — inscrições abertas",
+      title: "[BRAVE-TITULO] Programa Memória do Esporte — inscrições abertas",
       url: `${portal.base}/oportunidades/memoria-esporte`,
-      snippet: "Programa de apoio a documentários sobre esporte.",
+      snippet: "[BRAVE-TRECHO] Programa de apoio a documentários sobre esporte.",
     },
     {
-      title: "Edital de Artes Cênicas 2026",
+      title: "[BRAVE-TITULO] Edital de Artes Cênicas 2026",
       url: `${portal.base}/editais/teatro-2026`,
-      snippet: "Inscrições abertas, com linha audiovisual.",
+      snippet: "[BRAVE-TRECHO] Inscrições abertas, com linha audiovisual.",
     },
     {
-      title: "Edital de Ocupação Cultural 2026",
+      title: "[BRAVE-TITULO] Edital de Ocupação Cultural 2026",
       url: `${portal.base}/editais/ocupacao`,
-      snippet: "Chamada para coletivos, com sala e equipamento audiovisual.",
+      snippet: "[BRAVE-TRECHO] Chamada para coletivos, com sala e equipamento audiovisual.",
     },
     {
-      title: "Edital de Cinema 2025",
+      title: "[BRAVE-TITULO] Edital de Cinema 2025",
       url: `${official.base}/editais/cinema-2025`,
-      snippet: "Edital de cinema.",
+      snippet: "[BRAVE-TRECHO] Edital de cinema.",
     },
     { title: "Edital de cinema no Instagram", url: "https://instagram.com/p/edital", snippet: "" },
   ];
@@ -265,6 +265,32 @@ describe("runWebDiscovery (descoberta web)", () => {
       edital_id: esporte.id,
     });
     expect(byUrl("/curtas-2026")).toMatchObject({ status: "imported", site_kind: "known_source" });
+
+    // Persistência: do provedor de busca só a URL. Título/trecho da Brave ficam só em memória
+    // (a triagem acima usou os dois: sem eles, esses resultados nem seriam analisados).
+    const persisted = JSON.stringify({
+      editais: db.editais,
+      sightings: db.edital_sightings,
+      candidates: db.discovery_candidates,
+      runs: db.discovery_runs,
+      documents: db.edital_documents,
+    });
+    expect(persisted).not.toContain("[BRAVE-TITULO]");
+    expect(persisted).not.toContain("[BRAVE-TRECHO]");
+    expect(db.discovery_candidates!.every((item) => item.snippet === null)).toBe(true);
+    // Título gravado = título da página baixada (ou nulo quando a página não tem <title>).
+    expect(byUrl("/teatro-2026").title).toBe("Edital de Artes Cênicas 2026");
+    expect(byUrl("/memoria-esporte").title).toBe(
+      "Programa Memória do Esporte | Instituição Fictícia",
+    );
+    expect(byUrl("/curtas-2026").title).toBeNull();
+    // Página sem <title>: o edital usa o nome derivado do endereço baixado, não o da Brave.
+    expect(curtas.title).toBe("curtas 2026");
+    expect(
+      db.edital_sightings!.find((item) =>
+        String(item.url).endsWith("/oportunidades/memoria-esporte"),
+      )!.title,
+    ).toBe("Oportunidade | Portal Fictício");
 
     // Métricas da execução gravadas.
     expect(db.discovery_runs!.at(-1)).toMatchObject({

@@ -84,6 +84,11 @@ export type DiscoveryResult = {
   error?: string;
 };
 
+/**
+ * Resultado de busca em análise. `title` e `snippet` vêm da resposta do provedor (Brave) e
+ * são usados SÓ EM MEMÓRIA (triagem e decisão preliminar): nunca são gravados. Do provedor,
+ * só a URL (e o domínio derivado) é persistida.
+ */
 type Hit = {
   url: string;
   host: string;
@@ -101,6 +106,8 @@ type CandidateRecord = {
   officialHost?: string | null;
   officialReason?: string | null;
   institution?: string | null;
+  /** Título da página BAIXADA (referência/oficial), nunca o do provedor de busca. */
+  pageTitle?: string | null;
   audiovisual?: AudiovisualAssessment | null;
   editalId?: string | null;
 };
@@ -166,8 +173,9 @@ async function saveCandidate(
       url: hit.url.slice(0, 2000),
       host: hit.host.slice(0, 255),
       site_kind: hit.siteKind,
-      title: hit.title.slice(0, 300) || null,
-      snippet: hit.snippet.slice(0, 1000) || null,
+      // Nada da resposta do provedor além da URL: título da página baixada (ou nulo) e sem trecho.
+      title: record.pageTitle?.slice(0, 300) || null,
+      snippet: null,
       query: hit.query.slice(0, 300),
       official_url: record.officialUrl?.slice(0, 2000) ?? null,
       official_host: record.officialHost ?? null,
@@ -256,6 +264,8 @@ type Analysis = {
     page: PageClassification;
     regulation: LoadedRegulation | null;
     notes: string[];
+    /** Título da página descoberta (agregador/notícia) BAIXADA — não o do provedor. */
+    discoveredTitle: string | null;
   };
 };
 
@@ -313,6 +323,7 @@ export async function analyzeCandidate(
           record: {
             status: "suppressed",
             statusReason: "notícia sem link para a oportunidade oficial",
+            pageTitle: discovered.metadata.page_title ?? null,
           },
         };
       }
@@ -340,9 +351,12 @@ export async function analyzeCandidate(
           ? "fonte já cadastrada"
           : null),
     institution,
+    pageTitle: reference.metadata.page_title ?? null,
   };
 
-  const title = (reference.suggestedTitle || hit.title || institution).slice(0, 300);
+  // Título do edital: o da página baixada (ou, sem <title>, o derivado do endereço/arquivo
+  // pelo download) e, por fim, a instituição/domínio — nunca o título do provedor de busca.
+  const title = (reference.suggestedTitle || institution).slice(0, 300);
   const page = classifyPage({
     title,
     url: referenceUrl,
@@ -399,7 +413,15 @@ export async function analyzeCandidate(
   }
   return {
     record: { ...base, audiovisual, status: "imported", statusReason: "" },
-    ready: { reference, referenceUrl, title, page, regulation, notes },
+    ready: {
+      reference,
+      referenceUrl,
+      title,
+      page,
+      regulation,
+      notes,
+      discoveredTitle: discovered.metadata.page_title ?? null,
+    },
   };
 }
 
@@ -438,7 +460,8 @@ async function importAnalyzed(
   }: { now: Date; sourceByHost: Map<string | null, SourceLite>; context: OrgContext },
 ): Promise<"imported" | "duplicate" | "ignored"> {
   const { record } = analysis;
-  const { reference, referenceUrl, title, page, regulation, notes } = analysis.ready!;
+  const { reference, referenceUrl, title, page, regulation, notes, discoveredTitle } =
+    analysis.ready!;
   const referenceHost = hostOf(referenceUrl);
   const registered = referenceHost ? sourceByHost.get(referenceHost) : undefined;
   const outcome = await importOpportunity(
@@ -475,7 +498,8 @@ async function importAnalyzed(
         safeNormalize(referenceUrl) !== safeNormalize(hit.url)
           ? {
               url: hit.url,
-              title: hit.title || title,
+              // Avistamento da página descoberta: título da página baixada, sem o do provedor.
+              title: discoveredTitle || title,
               reason: `Descoberta web: resultado da consulta “${hit.query}”`.slice(0, 300),
             }
           : null,
