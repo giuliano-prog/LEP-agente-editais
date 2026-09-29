@@ -120,15 +120,28 @@ describe("configuração por variáveis de ambiente", () => {
 
   it("limites têm padrão e faixa segura", () => {
     expect(discoveryLimitsFromEnv({} as NodeJS.ProcessEnv)).toMatchObject({
-      maxQueries: 6,
-      resultsPerQuery: 10,
+      maxQueries: 5,
+      resultsPerQuery: 20,
+      pagesPerQuery: 1,
+      maxRawResults: 100,
+      maxRequestsPerRun: 10,
+      maxRequestsPerMonth: 300,
       maxCandidates: 8,
     });
+    // Paginação: no máximo 2 páginas por consulta (3 volta ao padrão 1).
+    expect(
+      discoveryLimitsFromEnv({ WEB_DISCOVERY_PAGES_PER_QUERY: "3" } as unknown as NodeJS.ProcessEnv)
+        .pagesPerQuery,
+    ).toBe(1);
+    expect(
+      discoveryLimitsFromEnv({ WEB_DISCOVERY_PAGES_PER_QUERY: "2" } as unknown as NodeJS.ProcessEnv)
+        .pagesPerQuery,
+    ).toBe(2);
     expect(
       discoveryLimitsFromEnv({
         WEB_DISCOVERY_MAX_QUERIES: "1000",
         WEB_DISCOVERY_RESULTS_PER_QUERY: "5",
       } as unknown as NodeJS.ProcessEnv),
-    ).toMatchObject({ maxQueries: 6, resultsPerQuery: 5 });
+    ).toMatchObject({ maxQueries: 5, resultsPerQuery: 5 });
   });
 });

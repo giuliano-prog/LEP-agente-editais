@@ -67,6 +67,41 @@ describe("triagem de resultados de busca", () => {
     expect(triageSearchHit(hit("Edital", "ftp://site.org/edital")).keep).toBe(false);
   });
 
+  it("edital cultural sem sinal de audiovisual não é baixado", () => {
+    expect(
+      triageSearchHit(hit("Edital de Cultura 2026", "https://cultura.example.gov.br/editais/2026")),
+    ).toMatchObject({ keep: false, reason: "sem sinal de produto audiovisual" });
+    expect(
+      triageSearchHit(
+        hit("Edital de cursos de curta duração", "https://escola.example/edital-cursos"),
+      ).keep,
+    ).toBe(false);
+  });
+
+  it("objeto não audiovisual já visível no trecho da busca é descartado sem download", () => {
+    const result = triageSearchHit(
+      hit(
+        "Edital de Artes Cênicas 2026",
+        "https://cultura.example.gov.br/editais/teatro",
+        "Montagem de espetáculos teatrais; os projetos podem prever registro audiovisual.",
+      ),
+    );
+    expect(result.keep).toBe(false);
+    expect(result.reason).toContain("objeto não audiovisual");
+  });
+
+  it("tema não audiovisual com produto audiovisual passa na triagem", () => {
+    expect(
+      triageSearchHit(
+        hit(
+          "Programa Memória do Esporte — edital",
+          "https://esporte.example.gov.br/programa",
+          "Apoio à produção de documentários sobre atletas.",
+        ),
+      ).keep,
+    ).toBe(true);
+  });
+
   it("classifica agregador, notícia e fonte já cadastrada", () => {
     expect(siteKindOf("https://prosas.com.br/editais/123")).toBe("aggregator");
     expect(siteKindOf("https://portal.org/noticias/edital-cinema")).toBe("news");

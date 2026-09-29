@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Field, FormError, FormSuccess, SubmitButton, TextArea } from "@/components/form";
+import { limitLabel } from "@/lib/discovery/labels";
 import type { MonitorSummary } from "@/lib/monitor/summary";
 import type { SourceAdapter } from "@lep/funding";
 import type { CatalogEntry } from "@/lib/monitor/catalog";
@@ -375,7 +376,9 @@ export function TestSourceButton({ sourceId }: { sourceId: string }) {
 
 const DISCOVERY_METRICS = [
   ["queriesRun", "Consultas"],
+  ["apiRequests", "Chamadas à API"],
   ["resultsReceived", "Resultados"],
+  ["triagedOut", "Descartados na triagem (sem download)"],
   ["analyzed", "Páginas analisadas"],
   ["audiovisualYes", "Audiovisuais"],
   ["audiovisualNo", "Não audiovisuais"],
@@ -421,6 +424,9 @@ export function DiscoveryButton() {
               </div>
             ))}
           </dl>
+          {limitLabel(result.limitReached) && (
+            <p className="text-xs text-warn">{limitLabel(result.limitReached)}</p>
+          )}
           {result.error && <p className="text-xs text-warn">{result.error}</p>}
           <p className="text-xs text-muted">
             Novas oportunidades entram como “revisão pendente”. Não audiovisuais e encerradas não

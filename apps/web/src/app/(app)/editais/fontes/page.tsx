@@ -5,6 +5,8 @@ import { PAGE_TYPE_LABELS, parseSourceAdapter, type PageType } from "@lep/fundin
 import { DbErrorNotice } from "@/components/db-error-notice";
 import { Badge, Card, EmptyState, PageHeader, SectionTitle, type BadgeTone } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
+import { limitLabel } from "@/lib/discovery/labels";
+import { discoveryLimitsFromEnv } from "@/lib/discovery/search-provider";
 import { CATALOG_KIND_LABELS, SOURCE_CATALOG } from "@/lib/monitor/catalog";
 import { SUGGESTED_SOURCES } from "@/lib/monitor/suggested";
 import { createClient } from "@/lib/supabase/server";
@@ -98,55 +100,71 @@ export default async function SourcesPage({
   const filter: SourceFilter =
     filtro && filtro in SOURCE_FILTERS ? (filtro as SourceFilter) : "todas";
 
-  const [sources, runs, ignoredPages, discoveryRuns, uncertain, discovered] = await Promise.all([
-    supabase
-      .from("edital_sources")
-      // select("*"): a tela funciona antes e depois da migração do adaptador (etapa 6).
-      .select("*")
-      .eq("org_id", membership.orgId)
-      .order("name"),
-    supabase
-      .from("monitor_runs")
-      .select("*")
-      .eq("org_id", membership.orgId)
-      .order("started_at", { ascending: false })
-      .limit(20),
-    supabase
-      .from("monitor_ignored_urls")
-      .select("id, source_id, url, title, page_type, reasons, last_seen_at")
-      .eq("org_id", membership.orgId)
-      .order("last_seen_at", { ascending: false })
-      .limit(30),
-    // Descoberta web (ADR-0024): só administradores leem (RLS). Sem vitrine de descartados.
-    isAdmin
-      ? supabase
-          .from("discovery_runs")
-          .select("*")
-          .eq("org_id", membership.orgId)
-          .order("started_at", { ascending: false })
-          .limit(5)
-      : null,
-    isAdmin
-      ? supabase
-          .from("discovery_candidates")
-          .select(
-            "id, url, title, institution, audiovisual_reasons, audiovisual_evidence, status_reason, last_seen_at",
-          )
-          .eq("org_id", membership.orgId)
-          .eq("status", "uncertain")
-          .order("last_seen_at", { ascending: false })
-          .limit(10)
-      : null,
-    isAdmin
-      ? supabase
-          .from("discovery_candidates")
-          .select("official_host, official_url, institution")
-          .eq("org_id", membership.orgId)
-          .eq("audiovisual", "yes")
-          .in("status", ["imported", "duplicate"])
-          .limit(200)
-      : null,
-  ]);
+  // Mês corrente no fuso de Brasília (mesma regra do contador no banco).
+  const month = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+  const monthlyLimit = discoveryLimitsFromEnv().maxRequestsPerMonth;
+  const [sources, runs, ignoredPages, discoveryRuns, uncertain, discovered, usage] =
+    await Promise.all([
+      supabase
+        .from("edital_sources")
+        // select("*"): a tela funciona antes e depois da migração do adaptador (etapa 6).
+        .select("*")
+        .eq("org_id", membership.orgId)
+        .order("name"),
+      supabase
+        .from("monitor_runs")
+        .select("*")
+        .eq("org_id", membership.orgId)
+        .order("started_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("monitor_ignored_urls")
+        .select("id, source_id, url, title, page_type, reasons, last_seen_at")
+        .eq("org_id", membership.orgId)
+        .order("last_seen_at", { ascending: false })
+        .limit(30),
+      // Descoberta web (ADR-0024): só administradores leem (RLS). Sem vitrine de descartados.
+      isAdmin
+        ? supabase
+            .from("discovery_runs")
+            .select("*")
+            .eq("org_id", membership.orgId)
+            .order("started_at", { ascending: false })
+            .limit(5)
+        : null,
+      isAdmin
+        ? supabase
+            .from("discovery_candidates")
+            .select(
+              "id, url, title, institution, audiovisual_reasons, audiovisual_evidence, status_reason, last_seen_at",
+            )
+            .eq("org_id", membership.orgId)
+            .eq("status", "uncertain")
+            .order("last_seen_at", { ascending: false })
+            .limit(10)
+        : null,
+      isAdmin
+        ? supabase
+            .from("discovery_candidates")
+            .select("official_host, official_url, institution")
+            .eq("org_id", membership.orgId)
+            .eq("audiovisual", "yes")
+            .in("status", ["imported", "duplicate"])
+            .limit(200)
+        : null,
+      isAdmin
+        ? supabase
+            .from("search_api_usage")
+            .select("requests")
+            .eq("org_id", membership.orgId)
+            .eq("month", month)
+            .maybeSingle()
+        : null,
+    ]);
   const allSources = [...(sources.data ?? [])].sort(
     (a, b) =>
       Number(Boolean(b.is_favorite)) - Number(Boolean(a.is_favorite)) ||
@@ -204,6 +222,10 @@ export default async function SourcesPage({
             O que não é audiovisual, está encerrado ou não é oportunidade não vira edital. Favoritas
             ⭐ têm prioridade, mas não limitam a busca.
           </p>
+          <p className="mb-3 text-xs text-muted">
+            Chamadas à API de busca neste mês: {usage?.error ? "—" : (usage?.data?.requests ?? 0)}{" "}
+            de {monthlyLimit} (teto mensal; ao atingir, a busca para).
+          </p>
           <DiscoveryButton />
           {!discoveryRuns?.error && (discoveryRuns?.data ?? []).length > 0 && (
             <div className="mt-4 overflow-x-auto">
@@ -214,6 +236,7 @@ export default async function SourcesPage({
                     <th className="py-2 pr-3 font-medium">Origem</th>
                     <th className="py-2 pr-3 font-medium">Resultado</th>
                     <th className="py-2 pr-3 text-right font-medium">Consultas</th>
+                    <th className="py-2 pr-3 text-right font-medium">Chamadas à API</th>
                     <th className="py-2 pr-3 text-right font-medium">Analisadas</th>
                     <th className="py-2 pr-3 text-right font-medium">Audiovisuais</th>
                     <th className="py-2 pr-3 text-right font-medium">Novas</th>
@@ -236,8 +259,14 @@ export default async function SourcesPage({
                           {DISCOVERY_STATUS[run.status] ?? run.status}
                         </Badge>
                         {run.error && <span className="ml-2 text-muted">{run.error}</span>}
+                        {limitLabel(run.limit_reached) && (
+                          <span className="ml-2 text-warn">{limitLabel(run.limit_reached)}</span>
+                        )}
                       </td>
                       <td className="py-2 pr-3 text-right tabular-nums">{run.queries_run}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">
+                        {run.api_requests ?? "—"}
+                      </td>
                       <td className="py-2 pr-3 text-right tabular-nums">{run.analyzed}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">{run.audiovisual_yes}</td>
                       <td className="py-2 pr-3 text-right font-medium tabular-nums text-brand">

@@ -5,6 +5,7 @@
  * (classifyAudiovisualRelevance).
  */
 import { normalize } from "../territory";
+import { classifyAudiovisualRelevance } from "./audiovisual";
 
 export type SearchHit = {
   title: string;
@@ -46,8 +47,12 @@ const NEWS_PATH = /\/(noticias?|news|blog|imprensa|sala-de-imprensa|artigos?|mat
 
 const EDITAL_TERMS =
   /\b(edita(l|is)|chamada|chamamento|selecao|concurso|premi\w+|fomento|credenciamento|programa|linha|inscric\w+|patrocinio|laboratorio|residencia)\b/;
+/**
+ * Sinais de PRODUTO audiovisual no resultado de busca (sem palavras ambíguas sozinhas:
+ * "curta"/"longa" duração, "séries iniciais", roteiro turístico…).
+ */
 const AV_TERMS =
-  /\b(audiovisua\w*|cinema\w*|cinematografic\w*|film\w*|longa|curta|metragem|series?|documentari\w+|animac\w+|roteiro\w*|ancine|fsa)\b/;
+  /\b(audiovisua\w*|cinema\w*|cinematografic\w*|filmes?|longas?[- ]?metrage(m|ns)|curtas?[- ]?metrage(m|ns)|medias?[- ]?metrage(m|ns)|documentari\w+|documenta(l|is)|series? (audiovisua\w*|documenta\w*|de ficcao|de animacao|de tv|televisiva\w*)|webseries?|telefilmes?|animac(ao|oes)|videoclipes?|roteiros? (de|para) (cinema|filme|longa|curta|serie|audiovisual)|ancine|fsa|fundo setorial do audiovisual|spcine|riofilme)\b/;
 
 export function hostOf(url: string): string | null {
   try {
@@ -117,11 +122,26 @@ export function triageSearchHit(
   if (!edital) {
     return { keep: false, url: clean, host, reason: "sem indício de edital/chamada/prêmio" };
   }
+  // "Edital cultural" não é sinônimo de audiovisual: sem sinal de produto audiovisual no
+  // título, trecho ou endereço, o resultado não é baixado.
+  if (!av) {
+    return { keep: false, url: clean, host, reason: "sem sinal de produto audiovisual" };
+  }
+  // O próprio trecho já mostra objeto de outra natureza (ex.: teatro com registro audiovisual).
+  const cheap = classifyAudiovisualRelevance({ title: hit.title, text: hit.snippet });
+  if (cheap.relevance === "no") {
+    return {
+      keep: false,
+      url: clean,
+      host,
+      reason: `objeto não audiovisual no resultado (${cheap.reasons[0]})`.slice(0, 300),
+    };
+  }
   return {
     keep: true,
     url: clean,
     host,
     siteKind: siteKindOf(clean, options),
-    reason: av ? "termos de edital e de audiovisual" : "termos de edital (audiovisual a confirmar)",
+    reason: "termos de edital e de produto audiovisual",
   };
 }

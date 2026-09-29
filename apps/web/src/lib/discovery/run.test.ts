@@ -51,10 +51,13 @@ type Result = { title: string; url: string; snippet: string };
 class FakeProvider implements SearchProvider {
   readonly name = "fake";
   calls: SearchRequest[] = [];
-  constructor(private readonly answer: (query: string) => Result[] | SearchProviderError) {}
+  constructor(
+    private readonly answer: (query: string, page: number) => Result[] | SearchProviderError,
+    private readonly hasMore = false,
+  ) {}
   async search(request: SearchRequest) {
     this.calls.push(request);
-    const answer = this.answer(request.query);
+    const answer = this.answer(request.query, request.page);
     if (answer instanceof SearchProviderError) throw answer;
     return {
       results: answer.map((item, index) => ({
@@ -63,14 +66,18 @@ class FakeProvider implements SearchProvider {
         domain: new URL(item.url).hostname,
         age: null,
       })),
-      hasMore: false,
+      hasMore: this.hasMore,
     };
   }
 }
 
 const limits = {
   maxQueries: 2,
-  resultsPerQuery: 10,
+  resultsPerQuery: 20,
+  pagesPerQuery: 1,
+  maxRawResults: 100,
+  maxRequestsPerRun: 10,
+  maxRequestsPerMonth: 1000,
   maxCandidates: 10,
   minQueryIntervalMs: 0,
   timeBudgetMs: 60_000,
@@ -144,12 +151,12 @@ beforeAll(async () => {
     {
       title: "Edital de Artes Cênicas 2026",
       url: `${portal.base}/editais/teatro-2026`,
-      snippet: "Edital para espetáculos teatrais.",
+      snippet: "Inscrições abertas, com linha audiovisual.",
     },
     {
       title: "Edital de Ocupação Cultural 2026",
       url: `${portal.base}/editais/ocupacao`,
-      snippet: "Chamada para coletivos culturais.",
+      snippet: "Chamada para coletivos, com sala e equipamento audiovisual.",
     },
     {
       title: "Edital de Cinema 2025",
@@ -201,6 +208,9 @@ describe("runWebDiscovery (descoberta web)", () => {
       provider: "fake",
       queriesRun: 2,
       uniqueUrls: 5, // a rede social cai na triagem
+      triagedOut: 2, // a mesma rede social nas duas consultas
+      apiRequests: 2,
+      limitReached: null,
       alreadyKnown: 0,
       analyzed: 5,
       imported: 2,
@@ -264,6 +274,8 @@ describe("runWebDiscovery (descoberta web)", () => {
       imported: 2,
       audiovisual_no: 1,
       queries_run: 2,
+      api_requests: 2,
+      limit_reached: null,
     });
   });
 
@@ -328,5 +340,94 @@ describe("runWebDiscovery (descoberta web)", () => {
     expect(provider.calls).toHaveLength(1);
     expect(result).toMatchObject({ status: "error", providerLimited: true, queriesRun: 0 });
     expect(db.discovery_runs!.at(-1)).toMatchObject({ status: "error", provider_limited: true });
+  });
+});
+
+/** Resultados que a triagem descarta sem download (sem termo de edital): só medem a busca. */
+const noise = (query: string, page: number) =>
+  Array.from({ length: 20 }, (_, index) => ({
+    title: `Crítica do filme ${index}`,
+    url: `https://critica.example/${Buffer.from(query).toString("hex")}/${page}/${index}`,
+    snippet: "",
+  }));
+
+describe("proteção de custo da descoberta web", () => {
+  const run = async (provider: SearchProvider, override: Partial<typeof limits>) => {
+    const { runWebDiscovery } = await import("./run");
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const [result] = await runWebDiscovery(createAdminClient(), {
+      trigger: "manual",
+      orgId: ORG,
+      now: NOW,
+      provider,
+      limits: { ...limits, ...override },
+    });
+    return result!;
+  };
+
+  it("paginação: 2ª página só quando o provedor indica mais resultados", async () => {
+    const withMore = new FakeProvider(noise, true);
+    const result = await run(withMore, { pagesPerQuery: 2 });
+    expect(withMore.calls.map((call) => call.page)).toEqual([0, 1, 0, 1]);
+    expect(result).toMatchObject({ apiRequests: 4, resultsReceived: 80, limitReached: null });
+    expect(result.triagedOut).toBe(80);
+
+    const noMore = new FakeProvider(noise, false);
+    await run(noMore, { pagesPerQuery: 2 });
+    expect(noMore.calls.map((call) => call.page)).toEqual([0, 0]);
+  });
+
+  it("teto de resultados brutos: para de buscar e nunca passa do teto", async () => {
+    const provider = new FakeProvider(noise, true);
+    const result = await run(provider, { pagesPerQuery: 2, maxRawResults: 30 });
+    expect(provider.calls).toHaveLength(2);
+    expect(result).toMatchObject({
+      resultsReceived: 30,
+      limitReached: "raw_results",
+      status: "ok",
+    });
+  });
+
+  it("teto de chamadas por execução: a 4ª chamada não acontece", async () => {
+    const provider = new FakeProvider(noise, true);
+    const result = await run(provider, { pagesPerQuery: 2, maxRequestsPerRun: 3 });
+    expect(provider.calls).toHaveLength(3);
+    expect(result).toMatchObject({ apiRequests: 3, limitReached: "per_run" });
+    expect(db.discovery_runs!.at(-1)).toMatchObject({ api_requests: 3, limit_reached: "per_run" });
+  });
+
+  it("nova tentativa após falha transitória também é contada e reservada", async () => {
+    let failures = 0;
+    const provider = new FakeProvider((query, page) => {
+      if (failures++ === 0) return new SearchProviderError("network", "falha simulada");
+      return noise(query, page);
+    });
+    const result = await run(provider, { maxQueries: 1 });
+    expect(provider.calls).toHaveLength(2);
+    expect(result.apiRequests).toBe(2);
+  });
+
+  it("teto mensal: reserva recusada no banco impede a chamada", async () => {
+    const usage = db.search_api_usage!.find((row) => row.org_id === ORG)!;
+    const before = Number(usage.requests);
+    const provider = new FakeProvider(noise);
+    const result = await run(provider, { maxRequestsPerMonth: before + 1 });
+    expect(provider.calls).toHaveLength(1);
+    expect(result).toMatchObject({ apiRequests: 1, limitReached: "per_month", status: "partial" });
+    expect(Number(usage.requests)).toBe(before + 1);
+  });
+
+  it("falha ao reservar no contador: não busca nada (falha fechada)", async () => {
+    db.__fail_reserve = [{}];
+    const provider = new FakeProvider(noise);
+    const result = await run(provider, {});
+    delete db.__fail_reserve;
+    expect(provider.calls).toHaveLength(0);
+    expect(result).toMatchObject({
+      apiRequests: 0,
+      limitReached: "reservation_failed",
+      status: "error",
+    });
+    expect(db.discovery_runs!.at(-1)).toMatchObject({ limit_reached: "reservation_failed" });
   });
 });

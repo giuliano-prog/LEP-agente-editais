@@ -31,6 +31,7 @@ import {
   type LoadedRegulation,
 } from "@/lib/monitor/run";
 import { loadPartnerTerritories, loadProponent } from "@/lib/proponent";
+import { DISCOVERY_LIMIT_LABELS, type DiscoveryLimitReason } from "./labels";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import {
   discoveryLimitsFromEnv,
@@ -74,6 +75,12 @@ export type DiscoveryResult = {
   blocked: number;
   providerLimited: boolean;
   queries: string[];
+  /** Resultados eliminados pela triagem barata (sem download). */
+  triagedOut: number;
+  /** Chamadas à API de busca feitas (toda tentativa conta). */
+  apiRequests: number;
+  /** Limite que interrompeu as buscas (o que já foi coletado segue para a análise). */
+  limitReached: DiscoveryLimitReason | null;
   error?: string;
 };
 
@@ -127,6 +134,9 @@ const emptyResult = (orgId: string, provider: string | null): DiscoveryResult =>
   blocked: 0,
   providerLimited: false,
   queries: [],
+  apiRequests: 0,
+  limitReached: null,
+  triagedOut: 0,
 });
 
 /** Tempo reservado para analisar uma página antes do fim do orçamento da execução. */
@@ -186,14 +196,51 @@ async function seenCandidates(admin: Admin, orgId: string) {
   return new Map((data ?? []).map((row) => [safeNormalize(row.url), row]));
 }
 
+/** Limite de custo atingido antes de chamar a API (a chamada NÃO acontece). */
+class RequestBudgetError extends Error {
+  constructor(readonly reason: DiscoveryLimitReason) {
+    super(DISCOVERY_LIMIT_LABELS[reason]);
+  }
+}
+
+/**
+ * Orçamento de chamadas à API de busca. Cada tentativa (inclusive a nova tentativa após
+ * falha transitória) primeiro passa pelo teto da execução e depois RESERVA 1 chamada no
+ * contador mensal do banco (core.reserve_search_request, atômica). Reserva recusada ou
+ * com erro = não chama a API (falha fechada).
+ */
+function requestBudget(
+  admin: Admin,
+  orgId: string,
+  limits: DiscoveryLimits,
+  result: DiscoveryResult,
+) {
+  return async () => {
+    if (result.apiRequests >= limits.maxRequestsPerRun) throw new RequestBudgetError("per_run");
+    const { data, error } = await admin.rpc("reserve_search_request", {
+      p_org_id: orgId,
+      p_limit: limits.maxRequestsPerMonth,
+    });
+    if (error || typeof data !== "boolean") throw new RequestBudgetError("reservation_failed");
+    if (!data) throw new RequestBudgetError("per_month");
+    result.apiRequests++;
+  };
+}
+
 /** Consulta o provedor com uma nova tentativa em falhas transitórias (nunca em cota/chave). */
-async function searchWithRetry(provider: SearchProvider, query: string, count: number) {
+async function searchWithRetry(
+  provider: SearchProvider,
+  reserve: () => Promise<void>,
+  request: { query: string; count: number; page: number },
+) {
+  await reserve();
   try {
-    return await provider.search({ query, count, page: 0 });
+    return await provider.search(request);
   } catch (error) {
     if (error instanceof SearchProviderError && error.retryable) {
       await sleep(1_500);
-      return provider.search({ query, count, page: 0 });
+      await reserve();
+      return provider.search(request);
     }
     throw error;
   }
@@ -561,22 +608,59 @@ async function discoverForOrg(
   );
   result.queriesPlanned = plan.length;
 
-  // 1) Busca (com limite, intervalo mínimo e uma nova tentativa em falha transitória).
+  // 1) Busca: consultas-base × páginas, com teto de resultados brutos, teto de chamadas por
+  // execução, reserva no contador mensal ANTES de cada chamada, intervalo mínimo e uma
+  // nova tentativa só em falha transitória. Ao atingir um limite, as buscas param e o que
+  // já foi coletado segue para a triagem/análise.
   const hits = new Map<string, Hit>();
+  const reserve = requestBudget(admin, orgId, limits, result);
   let lastCall = 0;
+  let stop = false;
   for (const item of plan) {
-    if (Date.now() > deadlineAt) break;
-    const wait = limits.minQueryIntervalMs - (Date.now() - lastCall);
-    if (lastCall && wait > 0) await sleep(wait);
-    lastCall = Date.now();
-    try {
-      const page = await searchWithRetry(provider, item.query, limits.resultsPerQuery);
-      result.queriesRun++;
-      result.queries.push(item.query);
-      result.resultsReceived += page.results.length;
-      for (const found of page.results) {
+    if (stop || Date.now() > deadlineAt) break;
+    let ran = false;
+    for (let page = 0; page < limits.pagesPerQuery; page++) {
+      if (result.resultsReceived >= limits.maxRawResults) {
+        result.limitReached = "raw_results";
+        stop = true;
+        break;
+      }
+      if (Date.now() > deadlineAt) break;
+      const wait = limits.minQueryIntervalMs - (Date.now() - lastCall);
+      if (lastCall && wait > 0) await sleep(wait);
+      lastCall = Date.now();
+      let response;
+      try {
+        response = await searchWithRetry(provider, reserve, {
+          query: item.query,
+          count: limits.resultsPerQuery,
+          page,
+        });
+      } catch (error) {
+        if (error instanceof RequestBudgetError) {
+          result.limitReached = error.reason;
+          stop = true;
+          break;
+        }
+        const kind = error instanceof SearchProviderError ? error.kind : "network";
+        result.error = error instanceof Error ? error.message : "Falha no provedor de busca.";
+        if (kind === "quota" || kind === "auth" || kind === "config") {
+          result.providerLimited = kind === "quota";
+          stop = true;
+        }
+        break;
+      }
+      ran = true;
+      // Nunca passa do teto de resultados brutos da execução.
+      const room = limits.maxRawResults - result.resultsReceived;
+      const received = response.results.slice(0, Math.max(0, room));
+      result.resultsReceived += received.length;
+      for (const found of received) {
         const triage = triageSearchHit(found, { knownHosts });
-        if (!triage.keep) continue;
+        if (!triage.keep) {
+          result.triagedOut++;
+          continue;
+        }
         const key = safeNormalize(triage.url);
         if (hits.has(key)) continue;
         hits.set(key, {
@@ -589,13 +673,12 @@ async function discoverForOrg(
           siteKind: triage.siteKind,
         });
       }
-    } catch (error) {
-      const kind = error instanceof SearchProviderError ? error.kind : "network";
-      result.error = error instanceof Error ? error.message : "Falha no provedor de busca.";
-      if (kind === "quota" || kind === "auth" || kind === "config") {
-        result.providerLimited = kind === "quota";
-        break;
-      }
+      // A página seguinte só se o provedor indicar que há mais resultados.
+      if (!response.hasMore) break;
+    }
+    if (ran) {
+      result.queriesRun++;
+      result.queries.push(item.query);
     }
   }
   result.uniqueUrls = hits.size;
@@ -672,7 +755,10 @@ async function discoverForOrg(
     await saveCandidate(admin, orgId, hit, record, now);
   }
   result.newSources = newHosts.size;
-  result.status = result.error ? (result.queriesRun > 0 ? "partial" : "error") : "ok";
+  const blockedByBudget =
+    result.limitReached === "per_month" || result.limitReached === "reservation_failed";
+  result.status =
+    result.error || blockedByBudget ? (result.queriesRun > 0 ? "partial" : "error") : "ok";
 
   const { error } = await admin.from("discovery_runs").insert({
     org_id: orgId,
@@ -696,6 +782,8 @@ async function discoverForOrg(
     blocked: result.blocked,
     provider_limited: result.providerLimited,
     queries: result.queries,
+    api_requests: result.apiRequests,
+    limit_reached: result.limitReached,
     error: result.error?.slice(0, 500) ?? null,
     started_at: startedAt.toISOString(),
     finished_at: new Date().toISOString(),

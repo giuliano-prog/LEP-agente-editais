@@ -52,6 +52,24 @@ export async function startFakeSupabase(db: FakeDb) {
       prefixes.forEach((prefix) => files.delete(prefix));
       return send(200, []);
     }
+    // Reserva atômica do contador mensal (core.reserve_search_request). Uma linha em
+    // db.__fail_reserve simula falha do banco.
+    if (url.pathname === "/rest/v1/rpc/reserve_search_request") {
+      const args = JSON.parse((await read(req)).toString()) as {
+        p_org_id: string;
+        p_limit: number;
+      };
+      if ((db.__fail_reserve ?? []).length > 0) return send(500, { message: "falha simulada" });
+      db.search_api_usage ??= [];
+      let row = db.search_api_usage.find((item) => item.org_id === args.p_org_id);
+      if (!row) {
+        row = { org_id: args.p_org_id, month: "2026-09", requests: 0 };
+        db.search_api_usage.push(row);
+      }
+      if (args.p_limit <= 0 || Number(row.requests) >= args.p_limit) return send(200, false);
+      row.requests = Number(row.requests) + 1;
+      return send(200, true);
+    }
     if (url.pathname === "/rest/v1/rpc/create_edital_with_document") {
       const args = JSON.parse((await read(req)).toString()) as Record<string, unknown>;
       const id = `edital-${++seq}`;

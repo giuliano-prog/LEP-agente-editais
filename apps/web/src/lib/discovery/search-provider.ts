@@ -68,6 +68,10 @@ export class BraveSearchProvider implements SearchProvider {
     const url = new URL(this.endpoint);
     url.searchParams.set("q", query);
     url.searchParams.set("count", String(perPage));
+    // NÃO VERIFICADO na documentação atual da Brave (o site da documentação é bloqueado no
+    // ambiente de desenvolvimento): segue a interpretação pública conhecida de que `offset`
+    // conta PÁGINAS (0 = primeira, 1 = segunda), até 9. Por isso a descoberta usa 1 página por
+    // consulta por padrão (WEB_DISCOVERY_PAGES_PER_QUERY=1) até a LEP confirmar no painel da Brave.
     url.searchParams.set("offset", String(Math.min(Math.max(page, 0), 9)));
     url.searchParams.set("country", "BR");
     url.searchParams.set("safesearch", "moderate");
@@ -168,8 +172,19 @@ export function searchProviderFromEnv(env: NodeJS.ProcessEnv = process.env): {
 
 /** Limites da descoberta (controle de custo). Valores fora da faixa voltam ao padrão. */
 export type DiscoveryLimits = {
+  /** Consultas-base por execução. */
   maxQueries: number;
+  /** Resultados por página pedida ao provedor (máximo da Brave: 20). */
   resultsPerQuery: number;
+  /** Páginas por consulta (padrão 1; máximo 2 — a 2ª só com mais resultados disponíveis). */
+  pagesPerQuery: number;
+  /** Teto de resultados brutos (antes da triagem) por execução. */
+  maxRawResults: number;
+  /** Teto rígido de chamadas à API por execução (toda tentativa conta). */
+  maxRequestsPerRun: number;
+  /** Teto mensal de chamadas à API por organização (contador atômico no banco). */
+  maxRequestsPerMonth: number;
+  /** Páginas completas analisadas por execução (downloads). */
   maxCandidates: number;
   /** Intervalo mínimo entre consultas ao provedor (rate limiting). */
   minQueryIntervalMs: number;
@@ -183,8 +198,12 @@ const bounded = (raw: string | undefined, fallback: number, min: number, max: nu
 
 export function discoveryLimitsFromEnv(env: NodeJS.ProcessEnv = process.env): DiscoveryLimits {
   return {
-    maxQueries: bounded(env.WEB_DISCOVERY_MAX_QUERIES, 6, 1, 30),
-    resultsPerQuery: bounded(env.WEB_DISCOVERY_RESULTS_PER_QUERY, 10, 1, 20),
+    maxQueries: bounded(env.WEB_DISCOVERY_MAX_QUERIES, 5, 1, 30),
+    resultsPerQuery: bounded(env.WEB_DISCOVERY_RESULTS_PER_QUERY, 20, 1, 20),
+    pagesPerQuery: bounded(env.WEB_DISCOVERY_PAGES_PER_QUERY, 1, 1, 2),
+    maxRawResults: bounded(env.WEB_DISCOVERY_MAX_RAW_RESULTS, 100, 1, 400),
+    maxRequestsPerRun: bounded(env.WEB_SEARCH_MAX_REQUESTS_PER_RUN, 10, 1, 60),
+    maxRequestsPerMonth: bounded(env.WEB_SEARCH_MAX_REQUESTS_PER_MONTH, 300, 1, 100_000),
     maxCandidates: bounded(env.WEB_DISCOVERY_MAX_CANDIDATES, 8, 1, 30),
     minQueryIntervalMs: 1_100,
     timeBudgetMs: 50_000,
