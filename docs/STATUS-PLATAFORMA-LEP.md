@@ -1,6 +1,6 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-29 (preparação do 1º teste real da descoberta web no staging, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> **Atualizado em:** 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência:** descoberta web `81af51e` (+ commit de documentação; auditoria em `83f8444`) · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
@@ -61,7 +61,7 @@ detalhes em §2.1 e §3.
 
 **🟡 Dependem da LEP / de produção**: SMTP e modelo de convite no Supabase (etapa 3); planilha das 38 oportunidades
 (etapa 4); endereços oficiais e teste das novas fontes no site real (etapa 11); escolha do fornecedor de IA (etapa 12);
-decisão de integrar o branch à produção (aplica 8 migrações pelo workflow).
+decisão de integrar o branch à produção (aplica 10 migrações novas pelo workflow; 15 no total).
 
 **⬜ Planejado**: alertas por e-mail, Diários Oficiais, OCR (se necessário), tela de parcerias, módulos futuros.
 
@@ -269,8 +269,8 @@ código: `83f8444` (regressão de acesso antes da migração de status dos vínc
 
 ### 4.1 Auditoria pré-merge (2026-09-29)
 
-**Recomendação técnica:** ✅ **pronto para revisão humana de merge**, com duas condições: (1) as 8 migrações
-novas devem ser aplicadas pelo workflow `supabase-migrations.yml` **junto com ou antes** do deploy do código;
+**Recomendação técnica:** ✅ **pronto para revisão humana de merge**, com duas condições: (1) as migrações
+novas (hoje 10: `20260930120000` a `20261009120000`) devem ser aplicadas pelo workflow `supabase-migrations.yml` **junto com ou antes** do deploy do código;
 (2) confirmar antes do merge qual é o valor de `SUPABASE_MIGRATIONS_BRANCH` (não verificável daqui). Não há
 merge, deploy nem migração em produção feitos por esta auditoria.
 
@@ -291,7 +291,7 @@ migrações e testes SQL encontrada além do item 1 abaixo.
    banco. Gravações nas colunas novas (evidências, deduplicação, alterações) também falham antes das respectivas
    migrações. Mitigação: aplicar as migrações antes ou junto do deploy (o Diagnóstico aponta migrações faltantes).
 3. **Registrado — `SUPABASE_MIGRATIONS_BRANCH` desconhecido:** se for `claude/epic-cerf-abwkc1`, o merge (push que
-   altera `supabase/migrations/`) dispara a aplicação automática das 8 migrações em produção. O workflow também
+   altera `supabase/migrations/`) dispara a aplicação automática das 10 migrações novas em produção. O workflow também
    aceita execução manual (`workflow_dispatch`) de qualquer branch.
 4. **Registrado — datas das migrações no futuro** (`20260930…` a `20261007…`, hoje é 2026-09-29): uma migração nova
    criada nos próximos dias com data "de hoje" ficaria **antes** delas na ordem. O workflow usa `--include-all`, então
@@ -312,7 +312,7 @@ todas as tabelas novas (testado); upload/download de PDF inalterados (bucket pri
 regras territoriais sem descarte automático; Match nunca afirma aprovação; deduplicação e alterações só propõem
 (decisão da equipe); `EditalAnalyzer` não está ligado a nenhum fluxo (padrão sem fornecedor).
 
-**Simulação de atualização (local):** banco com as 5 migrações antigas + dados fictícios, depois as 8 novas 2x:
+**Simulação de atualização (local):** banco com as 5 migrações antigas + dados fictícios, depois as 8 novas da época 2x (simulação feita antes das migrações da descoberta web):
 vínculos existentes continuam ativos (admin incluído); descartes automáticos antigos viram "pendente / restrição
 territorial" com trecho; descartes humanos mantidos; histórico preservado.
 
@@ -358,20 +358,23 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 - **Supabase:** PostgreSQL 17 (local via CLI), Auth, Storage. Schema exposto na API: `core`.
 - **Tabelas (`core`):** `organizations`, `profiles`, `memberships`, `audit_log`, `ai_usage`, `editais`, `projetos`,
   `edital_documents`, `edital_sources`, `monitor_runs`; novas no branch: `monitor_ignored_urls` (etapa 6),
-  `edital_sightings` (etapa 8), `edital_matches` (etapa 9), `edital_changes` (etapa 10).
+  `edital_sightings` (etapa 8), `edital_matches` (etapa 9), `edital_changes` (etapa 10), `discovery_runs` e
+  `discovery_candidates` (descoberta web), `search_api_usage` (contador mensal de chamadas à API de busca).
 - **Colunas novas relevantes:** `memberships.status/invited_at/accepted_at/suspended_*`; `editais.eligibility_*`,
   `page_type/opportunity_kind/page_type_reasons`, `field_evidence/extraction_notes/extracted_at`,
   `canonical_key/possible_duplicate_*`, `last_checked_at/content_hash`; `edital_sources.adapter_config`;
   `organizations.partner_territories` (reservada, sem tela); contadores novos em `monitor_runs`.
 - **Funções:** `has_role`, `role_in_org` (só vínculos ativos), `try_uuid`, `create_edital_with_document`,
-  `accept_my_invitations`, `guard_membership_status`, `stamp_edital_change_resolution`, triggers de
+  `accept_my_invitations`, `guard_membership_status`, `stamp_edital_change_resolution`,
+  `reserve_search_request` (reserva atômica de chamada à API de busca; só chave de serviço), triggers de
   auditoria/updated_at/perfil/último admin ativo.
 - **Storage:** bucket privado `edital-documents` (PDF/HTML, 25 MB), caminho `<org_id>/...`.
 - **Migrations** (`supabase/migrations/`, todas idempotentes — ADR-0014):
   `20260925120000_core_foundation` · `20260926120000_editais_projetos` · `20260927120000_edital_documents` ·
   `20260928120000_monitoramento` · `20260929120000_diretrizes_territorio` · `20260930120000_monitor_resumo` · `20261001120000_membros_status` ·
   `20261002120000_elegibilidade` · `20261003120000_classificador_paginas` ·
-  `20261004120000_evidencias` · `20261005120000_deduplicacao` · `20261006120000_match_v2` · `20261007120000_alteracoes` · `20261008120000_descoberta_web`
+  `20261004120000_evidencias` · `20261005120000_deduplicacao` · `20261006120000_match_v2` · `20261007120000_alteracoes` · `20261008120000_descoberta_web` · `20261009120000_descoberta_limites`
+  (**15 no total; 10 novas no branch**, de `20260930120000` a `20261009120000`)
   (branch `claude/melhorias-editais`, ainda não aplicadas em produção: entra pelo workflow quando o branch for
   integrado ao de produção).
 - **Workflow de produção:** `.github/workflows/supabase-migrations.yml` — push no branch de produção
@@ -481,16 +484,16 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 
 ## 10. Pendências
 
-0. **Ambiente de teste (staging) para testar as 12 etapas sem tocar na produção — plano em §13, ainda não
-   executado.**
-1. **Antes do merge:** confirmar `SUPABASE_MIGRATIONS_BRANCH`; planejar o deploy para que as 8 migrações sejam
+0. ✅ **Ambiente de teste (staging) executado** (§13): projeto Supabase de TESTE criado, workflow de staging aplicando
+   as migrações (15), Preview com login funcionando. Pendente: primeiro teste real da descoberta web (§14.1).
+1. **Antes do merge:** confirmar `SUPABASE_MIGRATIONS_BRANCH`; planejar o deploy para que as 10 migrações novas sejam
    aplicadas pelo workflow antes ou junto do código (§4.1 itens 2–3); depois do deploy, rodar o Diagnóstico e uma
    varredura manual e conferir PDF/tempo na Vercel (§4.1 itens 5–6).
 2. Configurar em produção: SMTP próprio, modelo de e-mail de convite e URLs de redirecionamento do Supabase Auth.
 3. Benchmark: enviar a planilha das 38 oportunidades e transformá-la em casos (em `benchmark/private/`, fora do Git).
 4. Novas fontes: colar os endereços oficiais no catálogo, testar e ativar (produção).
 5. Integrar o branch `claude/melhorias-editais` ao branch de produção (decisão da LEP; aplica as migrações
-   `20260930120000` a `20261008120000` — **9 migrações** — pelo workflow).
+   `20260930120000` a `20261009120000` — **10 migrações novas**, 15 no total — pelo workflow).
 6. Descoberta web (§14): LEP escolher/contratar o provedor de busca, configurar as variáveis no Preview, testar pelo
    botão e só depois agendar o cron.
 7. IA: `EditalAnalyzer` pronto (etapa 12); falta a LEP escolher o fornecedor para implementar um `AiProvider`.
@@ -540,12 +543,13 @@ futuro (hoje só lê).
 |                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) · `b9cbce6` disparo (conexão recusada) · `f1f4cd2` disparo (✅ 13 migrações no teste) |
 | Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                                                                                                              |
 |                            | Descoberta web: `ad9d6a3` lógica pura · `45b64ac` migração · `52322e3` pipeline reutilizável · `0c7ef95` orquestração · `81af51e` interface · commit de documentação                                                          |
+|                            | Descoberta web — limites: `f47dad9` contador mensal · `e9281ff` busca/triagem/limites · commit de documentação                                                                                                                |
 | Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                                                                                                         |
 | Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                                                                              |
 
 ---
 
-## 13. Ambiente de teste (staging) — ✅ 13 migrações aplicadas no Supabase de TESTE (2026-09-29); Preview pendente
+## 13. Ambiente de teste (staging) — ✅ migrações aplicadas no Supabase de TESTE pelo workflow (13 em 2026-09-29, depois 14 e 15 — §14/§14.2)
 
 Objetivo: testar as 12 etapas completas no Preview da Vercel do branch `claude/melhorias-editais` com um **segundo
 projeto Supabase, gratuito e separado**, sem tocar no Supabase de produção. Análise feita em 2026-09-29 a partir do
@@ -560,7 +564,7 @@ repositório; a configuração atual da Vercel e dos projetos Supabase **não é
   `20260927120000`.
 - **Workflow `supabase-migrations.yml` NÃO serve para o teste:** usa sempre o segredo `SUPABASE_DB_URL` do ambiente
   `production`. ⚠ **Rodá-lo manualmente (Run workflow) a partir de qualquer branch, inclusive
-  `claude/melhorias-editais`, aplicaria as 8 migrações na PRODUÇÃO.** Em push, só roda no branch definido por
+  `claude/melhorias-editais`, aplicaria as migrações novas (hoje 10) na PRODUÇÃO.** Em push, só roda no branch definido por
   `SUPABASE_MIGRATIONS_BRANCH` (padrão `main`; valor real não verificado).
 - **Execução manual do GitHub (`workflow_dispatch`)** só fica disponível para workflows que existem no branch padrão
   (`claude/epic-cerf-abwkc1`, que não pode ser alterado). Por isso um workflow de teste precisa rodar por **push**
@@ -579,7 +583,7 @@ repositório; a configuração atual da Vercel e dos projetos Supabase **não é
 ### 13.2 ⚠ Risco a verificar ANTES de tudo
 
 Se as variáveis do Supabase na Vercel foram cadastradas para "All Environments" (Production + Preview), **o Preview
-do branch `claude/melhorias-editais` já aponta para o Supabase de PRODUÇÃO** (sem as 8 migrações). Nesse caso o
+do branch `claude/melhorias-editais` já aponta para o Supabase de PRODUÇÃO** (sem as migrações novas). Nesse caso o
 Preview pode gravar dados reais (ex.: "Verificar agora", Membros) e várias telas falham. Não verificado daqui. Até o
 staging existir, não usar o Preview desse branch com login de produção.
 
@@ -595,7 +599,7 @@ staging existir, não usar o Preview desse branch com login de produção.
 | 6   | Com o passo 4 pronto, o Claude faz um push que altera o workflow (ex.: comentário) → o workflow testa em banco descartável e aplica as 13 migrações **só no banco de teste**; conferir o log do Actions.                                                                                                                                          | Claude/LEP |
 | 7   | Vercel → Environment Variables → para **Preview** (de preferência só no branch `claude/melhorias-editais`): as 3 chaves do projeto de TESTE (URL, publishable, secret), `SITE_URL` = endereço do Preview, `CRON_SECRET` próprio. Production fica intacto. Redeploy do Preview.                                                                    | LEP        |
 | 8   | Primeiro administrador do teste: `pnpm members:invite --email <e-mail> --role admin --yes` com `.env.local` apontando para o projeto de TESTE (cria a organização e envia o convite), ou convite pelo painel + vínculo criado pelo Claude via workflow (a combinar).                                                                              | LEP        |
-| 9   | No Preview: Diagnóstico (deve mostrar as 13 migrações), sede do proponente, fontes, "Verificar agora", editais, Match, alterações, Membros. Registrar resultados neste documento.                                                                                                                                                                 | LEP/Claude |
+| 9   | No Preview: Diagnóstico (deve mostrar as 15 migrações), sede do proponente, fontes, "Verificar agora", editais, Match, alterações, Membros. Registrar resultados neste documento.                                                                                                                                                                 | LEP/Claude |
 
 ### 13.6 Workflow de staging (criado em 2026-09-29, ainda NÃO executado)
 
@@ -795,7 +799,8 @@ servidor, em cabeçalho, nunca repassada a outro domínio.
   chave ausente → "Provedor de busca não configurado" e nenhuma busca.
 - Chamada: `GET https://api.search.brave.com/res/v1/web/search` com cabeçalho `X-Subscription-Token: <chave>`,
   `Accept: application/json`, parâmetros `q`, `count` (≤20), `offset` (0), `country=BR`, `safesearch=moderate`,
-  `text_decorations=false`; lê `web.results[].title/url/description/age` e `query.more_results_available`. A chave vai
+  `text_decorations=false` (o `offset` conta páginas segundo a documentação pública conhecida — **NÃO VERIFICADO**,
+  ver §14.2); lê `web.results[].title/url/description/age` e `query.more_results_available`. A chave vai
   só no cabeçalho (nunca na URL nem em log), por `safeFetch` (sem redirecionamentos para a API).
 - **Não verificado:** compatibilidade com a documentação ATUAL da Brave e chamada real — a rede deste ambiente
   bloqueia `api.search.brave.com` e o site de documentação da Brave. O formato acima segue a API pública conhecida.
@@ -807,13 +812,20 @@ servidor, em cabeçalho, nunca repassada a outro domínio.
 **Variáveis (Vercel → Settings → Environment Variables → ambiente Preview, branch `claude/melhorias-editais`;
 NUNCA em Production nem no repositório):**
 
-| Variável                          | Valor                           | Observação                         |
-| --------------------------------- | ------------------------------- | ---------------------------------- |
-| `WEB_SEARCH_PROVIDER`             | `brave`                         | obrigatória                        |
-| `WEB_SEARCH_API_KEY`              | chave da conta Brave Search API | obrigatória, marcar como sensível  |
-| `WEB_DISCOVERY_MAX_QUERIES`       | `3`                             | recomendado no 1º teste (padrão 6) |
-| `WEB_DISCOVERY_MAX_CANDIDATES`    | `4`                             | recomendado no 1º teste (padrão 8) |
-| `WEB_DISCOVERY_RESULTS_PER_QUERY` | `10`                            | padrão                             |
+| Variável                            | Valor no 1º teste | Padrão | Faixa aceita  | Função                                                      |
+| ----------------------------------- | ----------------- | ------ | ------------- | ----------------------------------------------------------- |
+| `WEB_SEARCH_PROVIDER`               | `brave`           | —      | `brave`       | obrigatória                                                 |
+| `WEB_SEARCH_API_KEY`                | chave da Brave    | —      | 8+ caracteres | obrigatória, secreta (marcar como sensível)                 |
+| `WEB_DISCOVERY_MAX_QUERIES`         | `5`               | 5      | 1–30          | consultas-base por execução                                 |
+| `WEB_DISCOVERY_RESULTS_PER_QUERY`   | `20`              | 20     | 1–20          | resultados por página (máximo da Brave)                     |
+| `WEB_DISCOVERY_PAGES_PER_QUERY`     | `1`               | 1      | 1–2           | páginas por consulta (2ª só depois de confirmar o `offset`) |
+| `WEB_DISCOVERY_MAX_RAW_RESULTS`     | `100`             | 100    | 1–400         | teto de resultados brutos por execução                      |
+| `WEB_SEARCH_MAX_REQUESTS_PER_RUN`   | `10`              | 10     | 1–60          | teto rígido de chamadas à API por execução                  |
+| `WEB_SEARCH_MAX_REQUESTS_PER_MONTH` | `300`             | 300    | 1–100000      | teto mensal por organização (contador no banco)             |
+| `WEB_DISCOVERY_MAX_CANDIDATES`      | `5`               | 8      | 1–30          | páginas completas baixadas e analisadas por execução        |
+
+Valor fora da faixa volta ao padrão. Fixos no código: 50 s por execução, ≥1,1 s entre chamadas, 1 nova tentativa só
+em falha transitória (que também é contada e reservada).
 
 Também precisam estar no Preview (já usadas pelo staging): `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e **`SUPABASE_SECRET_KEY` do projeto de TESTE** (a descoberta grava com a chave
@@ -824,12 +836,78 @@ confirmar no painel da Brave — não verificados daqui); cadastrar as variávei
 (variáveis só valem em deploy novo).
 
 **Procedimento do 1º teste:** Preview → Configurações → Diagnóstico (conferir "Descoberta web — provedor de busca" OK
-e migração 20261008120000 OK) → Editais → Fontes (administrador) → **Buscar novas oportunidades** (até ~1 min).
+e migrações 20261008120000/20261009120000 OK) → Editais → Fontes (administrador) → **Buscar novas oportunidades** (até
+~1 min).
 
-**Resultado esperado:** resumo com Consultas (3), Resultados, Páginas analisadas (≤4), Audiovisuais / Não
+**Resultado esperado:** resumo com Consultas (até 5), Chamadas à API (5 com 1 página por consulta; ≤10), Resultados
+(≤100), Descartados na triagem, Páginas analisadas (≤5), Audiovisuais / Não
 audiovisuais / Incertos, Fontes oficiais localizadas, Novas oportunidades. Oportunidades audiovisuais abertas entram
 em Editais com o selo "Busca web" e "revisão pendente" (filtro "Novos (varredura e busca web)"), com elegibilidade,
 evidências e Match; não audiovisuais e encerradas não aparecem no painel; incertas vão para "Para confirmar".
 Erros possíveis e significado: "Chave do provedor de busca recusada" (chave errada), "recusou a consulta (HTTP 4xx)"
 (parâmetro incompatível — trazer o código para ajuste), "Limite do provedor" (cota), "Tempo da execução esgotado"
-(parcial; clicar de novo continua com outras consultas). Resultado real: **a registrar aqui após o teste**.
+(parcial; clicar de novo continua com outras consultas), e os avisos de limite (por execução, mensal, teto de resultados,
+falha ao reservar). Resultado real: **a registrar aqui após o teste**.
+
+### 14.2 Estratégia ajustada e proteção de custo (2026-09-29, migração `20261009120000`)
+
+**Busca mais ampla, filtragem antes de baixar:** até 5 consultas-base × 20 resultados (1 página por consulta por
+padrão; até 2 permitidas) = até **100 resultados brutos** por execução, em **5 chamadas** à API (teto rígido de 10). A
+triagem barata (sem download) agora exige, além de termo de edital, **sinal de produto audiovisual** no título, trecho
+ou endereço ("edital cultural" sozinho não passa; "curta/longa duração" e "séries iniciais" não contam), e descarta o
+resultado cujo próprio trecho já mostra objeto não audiovisual (ex.: teatro com registro audiovisual). Só os que
+passam são baixados (até `WEB_DISCOVERY_MAX_CANDIDATES`), com fonte oficial, classificação da página, decisão
+audiovisual pelo objeto (página + regulamento), prazo e o pipeline existente. Uso previsto: manual, 1–2 vezes por
+semana; **cron não agendado**.
+
+**Paginação:** 2ª página só se `WEB_DISCOVERY_PAGES_PER_QUERY=2`, se o teto de resultados brutos não foi atingido e se
+a resposta anterior trouxe `query.more_results_available = true`. **`offset` NÃO VERIFICADO**: a documentação da Brave
+é bloqueada neste ambiente (tentativa em 2026-09-29: `EGRESS_BLOCKED`); o código segue a interpretação pública
+conhecida (0 = 1ª página, 1 = 2ª), com comentário. Manter 1 página até a LEP confirmar no painel da Brave.
+
+**Proteção de custo:**
+
+- Por execução: ao chegar a `WEB_SEARCH_MAX_REQUESTS_PER_RUN`, nenhuma chamada nova.
+- Mensal: `core.search_api_usage` (organização × mês AAAA-MM no fuso America/Sao_Paulo) e
+  `core.reserve_search_request(org, limite)`, que **reserva antes de cada chamada** com uma única instrução
+  `INSERT … ON CONFLICT DO UPDATE … WHERE requests < limite RETURNING` (atômica: execuções simultâneas disputam a mesma
+  linha; a segunda espera a trava e reavalia o limite com o valor novo). Toda tentativa conta (nova tentativa e
+  chamadas com erro). Reserva recusada → não chama; erro na reserva → não chama (falha fechada). Função executável só
+  pela chave de serviço; RLS: administradores leem o contador; ninguém grava pela sessão.
+- Ao atingir qualquer limite: as buscas param, o que já foi coletado segue para a análise, o histórico registra
+  `discovery_runs.limit_reached` (`per_run` | `per_month` | `raw_results` | `reservation_failed`) e
+  `discovery_runs.api_requests`; a tela mostra o aviso no resumo, no histórico e o uso do mês ("Chamadas à API de
+  busca neste mês: N de 300").
+
+**Commits:** `f47dad9` migração/contador · `e9281ff` busca, triagem e limites · documentação no commit seguinte.
+
+**Testes (2026-09-29, local):** `pnpm check` ✅ **337** (core 8, ai 10, projects 3, ingestion 54, funding 175, web 87);
+build ✅; SQL ✅ **240** verificações em 15 arquivos (teste 015: reserva até o teto, recusa, teto zero, por
+organização, mês válido, só servidor executa, administrador lê, equipe não vê), migrações 2x e cenário parcial ✅.
+**Concorrência verificada** em PostgreSQL 16 local com duas sessões simultâneas (a 1ª segurando a transação): com teto
+1 e com teto 2 a segunda reserva foi recusada e o contador terminou exatamente no teto.
+
+**Candidatos que não couberam na execução:** os que passam na triagem mas ficam além de
+`WEB_DISCOVERY_MAX_CANDIDATES` ou do limite de 50 s **não são gravados** — ficam perdidos até aparecerem de novo numa
+busca futura (o rodízio de consultas torna isso incerto). Menor mudança proposta (não implementada): gravá-los em
+`core.discovery_candidates` com um status novo `queued` (URL, host, tipo de site, consulta) e, na execução seguinte,
+analisá-los antes de gastar chamadas novas à API.
+
+**Auditoria de dados (só relatório):**
+
+- (a) O parâmetro `q` vem só de `planDiscoveryQueries`: termos fixos do código (termos audiovisuais, formato × ação,
+  instituições), o ano (data de Brasília) e os nomes das fontes marcadas como favoritas (`edital_sources.agency` ou
+  `name`, digitados pelo administrador). Nenhum dado de `core.projetos`, valores, orçamentos, membros ou editais entra
+  na consulta; os demais parâmetros enviados são fixos (`count`, `offset`, `country`, `safesearch`,
+  `text_decorations`).
+- (b) Origem de cada campo gravado. `core.discovery_candidates`: `url` e `host` ← URL do resultado da Brave;
+  `site_kind` ← derivado da URL; **`title` ← título da Brave; `snippet` ← descrição da Brave**; `query` ← nossa
+  consulta; `official_url`, `official_host`, `official_reason`, `institution`, `audiovisual*` ← página baixada depois
+  por `safeFetch` (e regulamento); `status*`, datas, `times_seen`, `edital_id` ← nossos. `age` da Brave **não** é
+  gravado. `core.discovery_runs`: só contadores, consultas (nossas) e mensagens nossas — nada da resposta da Brave.
+  Fora dessas tabelas: `edital_sightings.url` ← URL da Brave e **`edital_sightings.title` ← título da Brave** (quando
+  o resultado é agregador/notícia); `editais.title` usa o título da página baixada e só cai no título da Brave se a
+  página não tiver título. Termos de armazenamento da Brave **não verificados** daqui. Menor mudança proposta (não
+  implementada): não gravar `snippet` (usar só em memória na triagem); gravar em `title` o título da página baixada
+  (ou nulo quando nada foi baixado); nos avistamentos usar o título da página baixada; no fallback do título do
+  edital usar a instituição/domínio em vez do título da Brave. Assim, da resposta da Brave só a URL seria persistida.

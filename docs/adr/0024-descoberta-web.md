@@ -37,6 +37,11 @@ não conhece, sem encher o painel de editais que não são de audiovisual e sem 
   mínimo entre consultas, uma nova tentativa só em falha transitória, parada em cota/chave recusada, 50 s por
   execução; downloads só por `safeFetch` (anti-SSRF, redirecionamentos revalidados, limites) e `robots.txt`; chave
   só no servidor, enviada em cabeçalho e nunca repassada em redirecionamento para outro domínio.
+- **Proteção de custo (migração `20261009120000`)**: teto rígido de chamadas por execução e teto mensal por
+  organização em `core.search_api_usage`, com reserva atômica (`core.reserve_search_request`) ANTES de cada chamada
+  (toda tentativa conta; reserva recusada ou com erro = não chama). Até 5 consultas × 20 resultados (1 página por
+  padrão; 2ª página só com `more_results_available` e após confirmar o `offset` da Brave, ainda não verificado),
+  teto de 100 resultados brutos. A triagem barata exige sinal de produto audiovisual antes de qualquer download.
 - **Execução**: botão "Buscar novas oportunidades" (admin) e rota `/api/cron/discovery` com a mesma função. A rota
   ainda **não está agendada** em `vercel.json`.
 - **Métricas** por execução em `core.discovery_runs`.
