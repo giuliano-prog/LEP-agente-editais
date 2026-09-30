@@ -1,6 +1,6 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-30 (criação direta de membros, Minha conta e foto de perfil, §16; fechamento da versão atual: navegação, Home, Buscar Editais, Membros e plantas, §15); 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> **Atualizado em:** 2026-09-30 (fechamento da V1 para apresentação, §17); 2026-09-30 (criação direta de membros, Minha conta e foto de perfil, §16; fechamento da versão atual: navegação, Home, Buscar Editais, Membros e plantas, §15); 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência:** descoberta web `81af51e` (+ commit de documentação; auditoria em `83f8444`) · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
@@ -259,6 +259,11 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 ---
 
 ## 4. Última alteração implementada
+
+**Fechamento da V1 para apresentação (2026-09-30)** — telas de "planta" viraram V1 demonstrável: Home com 5
+indicadores, Editais com indicadores e **Analisar Edital** (PDF → análise → Adicionar aos Editais), Buscar Editais
+simplificado, Produções Concluídas + ficha compartilhada (trailer de A Conspiração Condor), Produções Atuais e
+Equipe Audiovisual com dados demonstrativos em código. **Sem migração.** Detalhes em **§17**. Sem merge/deploy.
 
 **Criação direta de membros + Minha conta + foto de perfil (2026-09-30, ADR-0025)** — ADM cria acesso com senha
 inicial (sem SMTP), nome e foto aparecem na Home e no menu; **1 migração nova** (`20261010120000_avatares`).
@@ -1058,3 +1063,98 @@ sessão + RLS (membro não altera perfil nem papel de outra pessoa — teste SQL
 produção); `SUPABASE_SECRET_KEY` já é exigida no servidor (Vercel) — sem ela a criação direta mostra aviso;
 nenhuma mudança de SMTP. Depois, completar nome/foto do ADM atual em Minha conta e cadastrar pela tela as
 pessoas previstas pela LEP.
+
+---
+
+## 17. Fechamento da V1 para apresentação (2026-09-30) — ✅ no branch; aguardando revisão humana
+
+**Branch:** `claude/melhorias-editais` (repositório `giuliano-prog/LEP-agente-editais`, conferidos antes de começar).
+**Objetivo:** apresentar a plataforma como V1 funcional — sem textos de "planta", "em desenvolvimento", "fluxo
+futuro" — sem inventar funcionalidades e preservando o motor de Editais.
+**Confirmação:** nenhum merge, nenhuma alteração na branch de produção, nenhum deploy/promoção para Production,
+nenhuma alteração no Supabase de produção, nenhuma migração, nenhum seed.
+Obs.: o pedido citou `STATUS_PROJETO_LEP.md`; o arquivo oficial do projeto (CLAUDE.md) é este
+`docs/STATUS-PLATAFORMA-LEP.md` — atualizado aqui para não criar um documento duplicado.
+
+**Implementado por módulo**
+
+- **Home:** 5 cards sempre visíveis — Editais Ativos e Novos Editais para Revisar (dados reais; regra única em
+  `lib/editais/metrics.ts`), Produções Atuais, Equipe Audiovisual e Orçamentos Ativos (**0**: ainda sem cadastro no
+  banco; os exemplos das telas nunca entram na conta). Atalho "Produções Concluídas"; link do site LEP no final;
+  removidos "Em desenvolvimento" e o texto sobre contagens futuras.
+- **Navegação:** "Produções" → "Produções Concluídas" (rota `/projetos` e tabela `core.projetos` inalteradas);
+  status dos itens passou de "blueprint" para "demo".
+- **Editais:** indicadores Editais Ativos, Para Revisar e Próximos do Prazo (até 15 dias), com dados reais;
+  "Buscar Editais" mantido; "+ Novo edital" → **Analisar Edital**. Filtros, Match, elegibilidade, territorialidade,
+  fontes, descoberta e extração inalterados.
+- **Analisar Edital (`/editais/analisar`, Diretoria/ADM):** o navegador envia o PDF ao bucket privado
+  (mesmo caminho do cadastro); `analyzeEditalUpload` lê o texto (`extractPdfText`), roda `extractFields`,
+  `assessEligibility`, `matchProjects`/`summarizeAdherence`, `findDuplicate` e o novo `extractHighlights`
+  (`@lep/funding`, trechos LITERAIS: título, instituição, objeto, quem pode participar, requisitos, documentação)
+  e **apaga o PDF do Storage** — nada é cadastrado. A tela mostra resumo (objeto), informações principais,
+  participação, requisitos, documentação, territorialidade, pontos de atenção, aderência e produções compatíveis,
+  com "Trecho do documento" (origem) em cada informação. **Adicionar aos Editais** reenvia o arquivo e usa o fluxo
+  existente `createEditalFromUpload` (agora aceita o título identificado) → revisão do edital. Documento já
+  cadastrado → "Abrir edital já cadastrado". `/editais/novo` (link/manual) continua acessível.
+  Preparação futura "Pergunte sobre este edital": contrato `EditalQuestionAnswerer` + `NoopEditalQuestionAnswerer`
+  - `chunkEditalText` (base de RAG) em `packages/ai` — sem fornecedor, sem interface.
+- **Buscar Editais:** Fontes Cadastradas e Buscar na Web preservados. Card da fonte: nome, Ativa/Pausada e
+  "Acessar fonte ↗"; dados técnicos, erros, pausar/remover/testar e configuração em "Detalhes e configuração".
+  Nova Fonte, catálogo e fontes descobertas com os mesmos campos: **Nome / Instituição**, **Página de Listagem de
+  Editais** e **Página Principal**. Decisão: não existe coluna para Página Principal e não foi criada migração —
+  ela é **derivada** da listagem (raiz do site, `homepageOf`) e exibida só para conferência; filtro de endereço e
+  "fonte exclusiva de audiovisual" ficaram em "Opções avançadas".
+- **Produções Concluídas (`/projetos`):** cards inteiros clicáveis; "+ Adicionar Produção Concluída" abre
+  `/projetos/nova` (formulário existente; após salvar abre a ficha). Toda linha de `core.projetos` aparece como
+  "Finalizada" enquanto o banco não tem ciclo de vida.
+- **Ficha da produção (`/projetos/[id]` e `/producoes-atuais/[slug]`):** o MESMO componente
+  (`components/productions/production-sheet.tsx`): ciclo de vida com a etapa atual destacada e as 10 áreas
+  (abas por `?area=`); áreas sem dados mostram estado vazio. Visão Geral com sinopse e dados; **Trailer / Mídia**
+  de A Conspiração Condor incorporado via `youtube-nocookie` (+ link externo). A associação título → trailer fica em
+  `lib/productions/media.ts` (não há coluna de mídia).
+- **Produções Atuais:** cards "Nome da Produção 01 — Em orçamento" e "Nome da Produção 02 — Em produção"
+  (demonstrativos, selo "Exemplo"), clicáveis para a ficha; ciclo de vida abaixo. Removidos os textos de
+  protótipo e o "Cartão de cada produção (planta)".
+- **Orçamentos:** "Nenhum orçamento ativo" + estrutura do orçamento, sem aviso de planta.
+- **Equipe Audiovisual:** "+ Cadastrar Profissional" (Diretoria/ADM), busca por nome/função (sem acentos),
+  categorias com contagem (Direção … Atrizes e Atores, Pós-produção; lista aberta), "Profissionais cadastrados"
+  com Giuliano Carvalho — Assistente de Platô (exemplo; card clicável) e ficha com todos os campos pedidos
+  ("Não informado" onde não há dado). Um profissional pode ter várias funções (`otherRoles`). Direção futura
+  (sugestão de equipes, nunca escalação automática) registrada em `lib/team/model.ts`.
+- **Membros / Minha conta / permissões:** sem alterações.
+
+**Somente demonstrativo (em código, marcado "Exemplo", nunca no Supabase):** `lib/demo/productions.ts`
+(Produções Atuais) e `lib/demo/professionals.ts` (Equipe Audiovisual). O formulário "Cadastrar Profissional"
+não grava (botão desabilitado, sem Server Action) — ainda não há tabela de profissionais. Orçamentos sem cadastro.
+
+**Banco/migrations:** nenhuma.
+
+**Principais arquivos:** `app/(app)/page.tsx`, `app/(app)/editais/{page,actions}.tsx`,
+`app/(app)/editais/analisar/page.tsx`, `components/editais/analyze-edital.tsx`, `lib/editais/{analysis,metrics,links}.ts`,
+`packages/modules/funding/src/highlights.ts`, `packages/ai/src/edital-questions.ts`,
+`app/(app)/editais/fontes/{page,source-forms}.tsx`, `app/(app)/projetos/{page,actions,[id]/page,nova/page}.tsx`,
+`components/productions/production-sheet.tsx`, `lib/productions/{model,media}.ts`,
+`app/(app)/producoes-atuais/{page,[slug]/page}.tsx`, `app/(app)/equipe-audiovisual/{page,[slug]/page,novo/page}.tsx`,
+`components/team/team-directory.tsx`, `lib/team/model.ts`, `lib/demo/*`, `lib/navigation.ts`,
+`app/(app)/orcamentos/page.tsx`. Removidos: `lib/blueprints.ts`, `components/blueprint.tsx`.
+
+**Testes executados (2026-09-30, resultados reais)**
+
+- `pnpm check`: ✅ saída 0 — web 128, funding 181, ingestion 54, ai 12, core 9, projects 3.
+- `pnpm build`: ✅ saída 0 (novas rotas: `/editais/analisar`, `/projetos/[id]`, `/projetos/nova`,
+  `/producoes-atuais/[slug]`, `/equipe-audiovisual/[slug]`, `/equipe-audiovisual/novo`).
+- `DB_TEST_SHIM=1 pnpm db:test` (PostgreSQL 16 local): ✅ 16/16 (sem mudanças de banco).
+- Playwright + Supabase **simulado** (dados fictícios; PDF fictício gerado para o teste): ADM 59/59 — Home,
+  Editais, Analisar Edital (análise sem cadastro, PDF removido do Storage, Adicionar aos Editais pelo fluxo
+  existente), Buscar Editais, Produções Concluídas, ficha com trailer e 10 áreas, Produções Atuais, Equipe
+  (busca/categorias/ficha), Membros, Minha conta, Diagnóstico; Diretoria 16/16 e Equipe 16/16 (Diagnóstico
+  bloqueado por rota; Analisar Edital, Adicionar Produção e Cadastrar Profissional liberados só para Diretoria/ADM;
+  Equipe consulta tudo); sem rolagem horizontal em 820 e 390 px. Regressão de Membros/Minha conta (rodada anterior):
+  27/27.
+- **Não verificado:** Supabase/Storage reais e o player do YouTube (o ambiente de teste não acessa a internet);
+  Vercel Preview (o deploy é da Vercel após o push).
+
+**Pendências / limitações da V1:** ciclo de vida das produções no banco (hoje concluídas = todas as de
+`core.projetos`; atuais = exemplos); tabelas de profissionais e orçamentos; coluna de mídia/trailer; Página
+Principal persistida (hoje derivada); análise do PDF é determinística (trechos literais) — IA e "Pergunte sobre
+este edital" dependem de fornecedor; PDF digitalizado (imagem) não é lido (sem OCR).
