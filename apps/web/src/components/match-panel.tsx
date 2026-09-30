@@ -158,9 +158,9 @@ export function MatchPanel({ results }: { results: MatchResult[] }) {
 
       {results.length === 0 ? (
         <p className="text-sm text-muted">
-          Nenhum projeto cadastrado.{" "}
+          Nenhuma produção cadastrada.{" "}
           <Link href="/projetos" className="text-brand hover:underline">
-            Cadastre projetos
+            Cadastre produções
           </Link>{" "}
           para ver a análise de compatibilidade.
         </p>

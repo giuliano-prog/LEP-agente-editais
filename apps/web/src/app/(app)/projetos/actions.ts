@@ -31,12 +31,12 @@ export async function createProject(
     .insert({ ...parsed.data, org_id: membership.orgId });
   if (error) {
     console.error("Erro ao cadastrar projeto:", error.code);
-    return { error: "Não foi possível cadastrar o projeto. Tente novamente." };
+    return { error: "Não foi possível cadastrar a produção. Tente novamente." };
   }
 
   // Novo projeto: recalcula e grava o Match v2 com todos os editais.
   await persistMatches(supabase, membership.orgId, "all");
   revalidatePath("/projetos");
   revalidatePath("/editais");
-  return { success: `Projeto "${parsed.data.title}" cadastrado.`, savedAt: Date.now() };
+  return { success: `Produção "${parsed.data.title}" cadastrada.`, savedAt: Date.now() };
 }

@@ -16,7 +16,7 @@ export function ProjectForm() {
         required
         minLength={2}
         maxLength={200}
-        placeholder="Título do projeto"
+        placeholder="Título da produção"
       />
       <div className="grid gap-4">
         <Select label="Formato" name="format" options={PROJECT_FORMATS} required />
@@ -33,10 +33,10 @@ export function ProjectForm() {
         placeholder="Ex.: 2500000"
         hint="Opcional, mas necessário para comparar com a faixa de orçamento dos editais."
       />
-      <TextArea label="Sinopse" name="synopsis" maxLength={5000} placeholder="Resumo do projeto" />
+      <TextArea label="Sinopse" name="synopsis" maxLength={5000} placeholder="Resumo da produção" />
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
-      <SubmitButton>Cadastrar projeto</SubmitButton>
+      <SubmitButton>Cadastrar Produção</SubmitButton>
     </form>
   );
 }
