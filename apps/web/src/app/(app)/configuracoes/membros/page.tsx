@@ -10,7 +10,13 @@ import {
 import { Avatar } from "@/components/avatar";
 import { Badge, Card, PageHeader, SectionTitle, type BadgeTone } from "@/components/ui";
 import { DbErrorNotice } from "@/components/db-error-notice";
-import { CreateMemberForm, EditMemberForm, InviteForm, MemberActions } from "./member-forms";
+import {
+  CreateMemberForm,
+  DeleteMemberForm,
+  EditMemberForm,
+  InviteForm,
+  MemberActions,
+} from "./member-forms";
 import { requireMembership } from "@/lib/auth/session";
 import { signedAvatarUrls } from "@/lib/profile/avatar";
 import { createClient } from "@/lib/supabase/server";
@@ -144,12 +150,25 @@ export default async function MembersPage() {
                     {member.userId && (
                       <details className="text-sm">
                         <summary className="cursor-pointer text-xs text-muted hover:text-brand">
-                          Editar nome e foto
+                          Editar membro
                         </summary>
                         <EditMemberForm
                           userId={member.userId}
                           fullName={member.name}
                           avatarUrl={member.avatarUrl}
+                          role={member.role}
+                          isSelf={member.isSelf}
+                        />
+                      </details>
+                    )}
+                    {member.userId && !member.isSelf && (
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-xs text-muted hover:text-bad">
+                          Excluir usuário
+                        </summary>
+                        <DeleteMemberForm
+                          userId={member.userId}
+                          name={member.name ?? member.email ?? "este membro"}
                         />
                       </details>
                     )}
@@ -201,12 +220,25 @@ export default async function MembersPage() {
                           {member.userId && (
                             <details className="text-sm">
                               <summary className="cursor-pointer text-xs text-muted hover:text-brand">
-                                Editar nome e foto
+                                Editar membro
                               </summary>
                               <EditMemberForm
                                 userId={member.userId}
                                 fullName={member.name}
                                 avatarUrl={member.avatarUrl}
+                                role={member.role}
+                                isSelf={member.isSelf}
+                              />
+                            </details>
+                          )}
+                          {member.userId && !member.isSelf && (
+                            <details className="text-sm">
+                              <summary className="cursor-pointer text-xs text-muted hover:text-bad">
+                                Excluir usuário
+                              </summary>
+                              <DeleteMemberForm
+                                userId={member.userId}
+                                name={member.name ?? member.email ?? "este membro"}
                               />
                             </details>
                           )}

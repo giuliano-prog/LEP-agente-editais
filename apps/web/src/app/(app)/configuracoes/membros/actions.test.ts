@@ -68,6 +68,22 @@ describe("Membros — criação direta e edição só para ADM", () => {
     },
   );
 
+  it.each<Role>(["viewer", "editor"])(
+    "perfil %s não exclui usuário nem altera perfil de acesso",
+    async (current) => {
+      role = current;
+      const { deleteMemberAction, updateMemberProfileAction } = await import("./actions");
+      const target = { user_id: "00000000-0000-4000-8000-000000000001" };
+      await expect(
+        deleteMemberAction({}, form({ ...target, confirmation: "EXCLUIR" })),
+      ).rejects.toThrow("NEXT_REDIRECT");
+      await expect(
+        updateMemberProfileAction({}, form({ ...target, full_name: "Nome", role: "admin" })),
+      ).rejects.toThrow("NEXT_REDIRECT");
+      expect(createAdminClient).not.toHaveBeenCalled();
+    },
+  );
+
   it("ADM passa pela checagem; senha fraca é recusada antes de chamar o Supabase Auth", async () => {
     role = "admin";
     const { createMemberAction } = await import("./actions");

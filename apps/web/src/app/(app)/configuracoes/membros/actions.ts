@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
+import { ROLES } from "@lep/core";
 import { UF_NAMES } from "@lep/funding";
 import { requireMembership } from "@/lib/auth/session";
 import {
@@ -18,6 +19,7 @@ import {
   isMemberOfOrg,
   memberNameSchema,
 } from "@/lib/members/create";
+import { changeMemberRole, removeMember } from "@/lib/members/manage";
 import { checkAvatar, uploadedFile } from "@/lib/profile/avatar-rules";
 import { saveProfile } from "@/lib/profile/save";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
@@ -251,7 +253,11 @@ export async function createMemberAction(
   };
 }
 
-/** ADM completa/edita nome e foto de um membro da PRÓPRIA organização (papel não muda aqui). */
+/**
+ * ADM edita nome, foto e perfil de acesso de um membro da PRÓPRIA organização.
+ * O perfil é gravado pela sessão do ADM (RLS + trava "um administrador ativo"); ninguém
+ * altera o próprio perfil.
+ */
 export async function updateMemberProfileAction(
   _prev: MemberActionState,
   formData: FormData,
@@ -266,6 +272,21 @@ export async function updateMemberProfileAction(
     return { error: "Membro não encontrado nesta organização." };
   }
 
+  const rawRole = formData.get("role");
+  let roleNote = "";
+  if (rawRole !== null && rawRole !== "" && rawRole !== formData.get("current_role")) {
+    const role = z.enum(ROLES).safeParse(rawRole);
+    if (!role.success) return { error: "Perfil inválido." };
+    const changed = await changeMemberRole(await createClient(), {
+      orgId: context.session.membership.orgId,
+      actorId: context.session.userId,
+      userId: userId.data,
+      role: role.data,
+    });
+    if (!changed.ok) return { error: changed.error };
+    roleNote = ` ${changed.message}`;
+  }
+
   const saved = await saveProfile(context.admin, userId.data, {
     fullName: name.data,
     avatar: uploadedFile(formData.get("avatar")),
@@ -273,5 +294,25 @@ export async function updateMemberProfileAction(
   });
   if (!saved.ok) return { error: saved.error };
   revalidatePath("/", "layout");
-  return { success: "Dados do membro atualizados.", savedAt: Date.now() };
+  return { success: `Dados do membro atualizados.${roleNote}`, savedAt: Date.now() };
+}
+
+/** Exclusão permanente (só ADM, com confirmação digitada; nunca o próprio usuário). */
+export async function deleteMemberAction(
+  _prev: MemberActionState,
+  formData: FormData,
+): Promise<MemberActionState> {
+  const context = await directAdminContext();
+  if ("error" in context) return { error: context.error };
+  const userId = z.uuid().safeParse(formData.get("user_id"));
+  if (!userId.success) return { error: "Membro inválido." };
+  const result = await removeMember(await createClient(), context.admin, {
+    orgId: context.session.membership.orgId,
+    actorId: context.session.userId,
+    userId: userId.data,
+    confirmation: String(formData.get("confirmation") ?? ""),
+  });
+  if (!result.ok) return { error: result.error };
+  revalidatePath("/", "layout");
+  return { success: result.message, savedAt: Date.now() };
 }
