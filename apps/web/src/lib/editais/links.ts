@@ -33,3 +33,12 @@ export function findSameSource<T extends { list_url: string }>(
   if (!key) return null;
   return sources.find((source) => sourceKey(source.list_url) === key) ?? null;
 }
+
+/**
+ * Página Principal (site institucional) a partir da Página de Listagem de Editais.
+ * Não há coluna própria no banco: é sempre derivada da listagem (raiz do mesmo site).
+ */
+export function homepageOf(listUrl: string): string | null {
+  const safe = safeExternalUrl(listUrl);
+  return safe ? `${new URL(safe).origin}/` : null;
+}

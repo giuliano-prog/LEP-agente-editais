@@ -9,7 +9,7 @@ import { Badge, Card, EmptyState, PageHeader, SectionTitle, type BadgeTone } fro
 import { requireMembership } from "@/lib/auth/session";
 import { limitLabel } from "@/lib/discovery/labels";
 import { discoveryLimitsFromEnv } from "@/lib/discovery/search-provider";
-import { findSameSource, safeExternalUrl } from "@/lib/editais/links";
+import { findSameSource, homepageOf, safeExternalUrl } from "@/lib/editais/links";
 import { CATALOG_KIND_LABELS, SOURCE_CATALOG } from "@/lib/monitor/catalog";
 import { SUGGESTED_SOURCES } from "@/lib/monitor/suggested";
 import { createClient } from "@/lib/supabase/server";
@@ -105,6 +105,27 @@ function ExternalLink({ href, children }: { href: string | null; children: React
       {children} <NavIcon name="external" className="h-3 w-3" />
       <span className="sr-only">(abre em nova aba)</span>
     </a>
+  );
+}
+
+/** Nome / Instituição, Página de Listagem e Página Principal (mesmo padrão em todo lugar). */
+function SourceSummary({ name, listUrl }: { name: string; listUrl: string | null }) {
+  const homepage = listUrl ? homepageOf(listUrl) : null;
+  return (
+    <dl className="space-y-1 text-xs">
+      <div>
+        <dt className="sr-only">Nome / Instituição</dt>
+        <dd className="text-sm font-medium text-fg">{name}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-muted">Página de Listagem de Editais</dt>
+        <dd className="truncate">{listUrl ?? "Informe ao cadastrar (página oficial)"}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-muted">Página Principal</dt>
+        <dd className="truncate">{homepage ?? "—"}</dd>
+      </div>
+    </dl>
   );
 }
 
@@ -343,107 +364,112 @@ export default async function SourcesPage({
           {visibleSources.map((source) => {
             const status = source.last_status ? STATUS[source.last_status] : null;
             const { adapter, warning } = parseSourceAdapter(source.adapter_config);
+            const homepage = homepageOf(source.list_url);
             return (
               <article
                 key={source.id}
-                className={`min-w-0 rounded-xl border bg-card p-4 sm:p-5 ${
+                className={`min-w-0 rounded-xl border bg-card p-4 ${
                   source.is_favorite ? "border-brand/60" : "border-line"
                 }`}
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-1">
-                    <h3 className="flex items-center gap-2 font-semibold">
-                      {isAdmin ? (
-                        <form action={toggleFavorite.bind(null, source.id, !source.is_favorite)}>
-                          <button
-                            aria-label={
-                              source.is_favorite ? "Desmarcar favorita" : "Marcar como favorita"
-                            }
-                            title={
-                              source.is_favorite
-                                ? "Favorita (clique para desmarcar)"
-                                : "Marcar como favorita"
-                            }
-                            className={
-                              source.is_favorite ? "text-brand" : "text-muted hover:text-brand"
-                            }
-                          >
-                            {source.is_favorite ? "★" : "☆"}
-                          </button>
-                        </form>
-                      ) : (
-                        source.is_favorite && (
-                          <span aria-label="Favorita" className="text-brand">
-                            ★
-                          </span>
-                        )
-                      )}
-                      <span className="break-words">{source.name}</span>
-                    </h3>
-                    <p className="truncate text-xs text-muted">{source.list_url}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {!source.active && <Badge>Pausada</Badge>}
-                    {source.origin === "web_discovery" && (
-                      <Badge tone="brand">Descoberta automaticamente</Badge>
-                    )}
-                    {status ? (
-                      <Badge tone={status.tone}>{status.label}</Badge>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="flex min-w-0 items-center gap-2 font-semibold">
+                    {isAdmin ? (
+                      <form action={toggleFavorite.bind(null, source.id, !source.is_favorite)}>
+                        <button
+                          aria-label={
+                            source.is_favorite ? "Desmarcar favorita" : "Marcar como favorita"
+                          }
+                          title={
+                            source.is_favorite
+                              ? "Favorita (clique para desmarcar)"
+                              : "Marcar como favorita"
+                          }
+                          className={
+                            source.is_favorite ? "text-brand" : "text-muted hover:text-brand"
+                          }
+                        >
+                          {source.is_favorite ? "★" : "☆"}
+                        </button>
+                      </form>
                     ) : (
-                      <Badge>Ainda não verificada</Badge>
+                      source.is_favorite && (
+                        <span aria-label="Favorita" className="text-brand">
+                          ★
+                        </span>
+                      )
                     )}
+                    <span className="break-words">{source.name}</span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={source.active ? "ok" : "neutral"}>
+                      {source.active ? "Ativa" : "Pausada"}
+                    </Badge>
+                    <ExternalLink href={source.list_url}>Acessar fonte</ExternalLink>
                   </div>
                 </div>
-                <p className="mt-3 text-xs text-muted">
-                  Última verificação: {dateTime(source.last_run_at)}
-                  {source.last_imported !== null && ` · ${source.last_imported} novo(s)`}
-                  {source.link_contains && ` · filtro: ${source.link_contains}`}
-                  {source.audiovisual_only
-                    ? " · fonte de audiovisual"
-                    : " · fonte geral (filtra audiovisual)"}
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  Até {adapter.maxImports} nova(s) por verificação
-                  {adapter.classifyPages
-                    ? " · classifica páginas"
-                    : " · sem classificação de páginas"}
-                  {adapter.linkExcludes.length + adapter.titleExcludes.length > 0 &&
-                    ` · ${adapter.linkExcludes.length + adapter.titleExcludes.length} regra(s) de exclusão`}
-                  {!adapter.allowPdfLinks && " · ignora links de PDF"}
-                </p>
-                {warning && <p className="mt-2 text-xs text-warn">{warning}</p>}
-                {source.last_error && <p className="mt-2 text-sm text-bad">{source.last_error}</p>}
-                <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                  <ExternalLink href={source.list_url}>Acessar fonte</ExternalLink>
-                  {isAdmin && (
-                    <>
-                      <form action={toggleSource.bind(null, source.id, !source.active)}>
-                        <button className="rounded-md border border-line px-3 py-1 hover:border-brand hover:text-brand">
-                          {source.active ? "Pausar" : "Reativar"}
-                        </button>
-                      </form>
-                      <form action={deleteSource.bind(null, source.id)}>
-                        <button className="rounded-md border border-line px-3 py-1 text-muted hover:border-bad hover:text-bad">
-                          Remover
-                        </button>
-                      </form>
-                      <TestSourceButton sourceId={source.id} />
-                    </>
-                  )}
-                </div>
-                {isAdmin && (
-                  <details className="mt-3 text-sm">
-                    <summary className="cursor-pointer text-muted hover:text-brand">
-                      Configurar fonte
-                    </summary>
-                    <SourceConfigForm
-                      sourceId={source.id}
-                      adapter={adapter}
-                      linkContains={source.link_contains}
-                      audiovisualOnly={source.audiovisual_only}
-                    />
-                  </details>
-                )}
+                <details className="mt-3 text-sm">
+                  <summary className="cursor-pointer text-xs text-muted hover:text-brand">
+                    Detalhes{isAdmin ? " e configuração" : ""}
+                    {(status?.tone === "bad" || warning) && (
+                      <span className="ml-2 text-bad">· requer atenção</span>
+                    )}
+                  </summary>
+                  <div className="mt-3 space-y-2 text-xs text-muted">
+                    <dl className="grid gap-2 sm:grid-cols-2">
+                      <div className="min-w-0">
+                        <dt>Página de Listagem de Editais</dt>
+                        <dd className="truncate text-fg">{source.list_url}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt>Página Principal</dt>
+                        <dd className="truncate text-fg">{homepage ?? "—"}</dd>
+                      </div>
+                    </dl>
+                    <p>
+                      {status ? `Última verificação: ${status.label}` : "Ainda não verificada"} ·{" "}
+                      {dateTime(source.last_run_at)}
+                      {source.last_imported !== null && ` · ${source.last_imported} novo(s)`}
+                      {source.origin === "web_discovery" && " · descoberta pela busca na web"}
+                    </p>
+                    <p>
+                      {source.audiovisual_only
+                        ? "Fonte de audiovisual"
+                        : "Fonte geral (filtra audiovisual)"}
+                      {source.link_contains && ` · filtro: ${source.link_contains}`} · até{" "}
+                      {adapter.maxImports} nova(s) por verificação
+                      {adapter.classifyPages ? " · classifica páginas" : ""}
+                      {adapter.linkExcludes.length + adapter.titleExcludes.length > 0 &&
+                        ` · ${adapter.linkExcludes.length + adapter.titleExcludes.length} regra(s) de exclusão`}
+                      {!adapter.allowPdfLinks && " · ignora links de PDF"}
+                    </p>
+                    {warning && <p className="text-warn">{warning}</p>}
+                    {source.last_error && <p className="text-bad">{source.last_error}</p>}
+                    {isAdmin && (
+                      <>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <form action={toggleSource.bind(null, source.id, !source.active)}>
+                            <button className="rounded-md border border-line px-3 py-1 text-fg hover:border-brand hover:text-brand">
+                              {source.active ? "Pausar" : "Reativar"}
+                            </button>
+                          </form>
+                          <form action={deleteSource.bind(null, source.id)}>
+                            <button className="rounded-md border border-line px-3 py-1 hover:border-bad hover:text-bad">
+                              Remover
+                            </button>
+                          </form>
+                          <TestSourceButton sourceId={source.id} />
+                        </div>
+                        <SourceConfigForm
+                          sourceId={source.id}
+                          adapter={adapter}
+                          linkContains={source.link_contains}
+                          audiovisualOnly={source.audiovisual_only}
+                        />
+                      </>
+                    )}
+                  </div>
+                </details>
               </article>
             );
           })}
@@ -464,8 +490,11 @@ export default async function SourcesPage({
               {missingSuggestions.length > 0 && (
                 <ul className="mb-4 space-y-3 text-sm">
                   {missingSuggestions.map((suggestion) => (
-                    <li key={suggestion.list_url} className="space-y-2">
-                      <p className="font-medium">{suggestion.name}</p>
+                    <li
+                      key={suggestion.list_url}
+                      className="space-y-2 rounded-md border border-line p-3"
+                    >
+                      <SourceSummary name={suggestion.name} listUrl={suggestion.list_url} />
                       <div className="flex flex-wrap gap-2 text-xs">
                         <ExternalLink href={suggestion.list_url}>Acessar fonte</ExternalLink>
                         <form action={addSuggestedSource.bind(null, suggestion.list_url)}>
@@ -499,7 +528,11 @@ export default async function SourcesPage({
                           · {entry.host} · {entry.count} oportunidade(s)
                         </span>
                       </summary>
-                      <div className="mt-2">
+                      <div className="mt-2 space-y-2">
+                        <SourceSummary
+                          name={entry.institution}
+                          listUrl={originOf(entry.sampleUrl, entry.host)}
+                        />
                         <ExternalLink href={originOf(entry.sampleUrl, entry.host)}>
                           Acessar fonte
                         </ExternalLink>
@@ -512,9 +545,9 @@ export default async function SourcesPage({
                   ))}
                 </div>
               )}
-              <h3 className="mb-2 text-sm font-medium">Modelos prontos</h3>
+              <h3 className="mb-2 text-sm font-medium">Fontes recomendadas</h3>
               <p className="mb-2 text-xs text-muted">
-                Configuração pronta: cole a página oficial, teste e cadastre.
+                Configuração pronta: informe a página de listagem oficial, teste e cadastre.
               </p>
               <div className="space-y-2">
                 {SOURCE_CATALOG.map((entry) => (
@@ -523,6 +556,9 @@ export default async function SourcesPage({
                       <span className="font-medium">{entry.name}</span>{" "}
                       <span className="text-xs text-muted">
                         · {CATALOG_KIND_LABELS[entry.kind]}
+                      </span>
+                      <span className="mt-1 block text-xs text-muted">
+                        Página de Listagem: informe ao cadastrar · Página Principal: derivada
                       </span>
                     </summary>
                     <p className="mt-2 text-xs text-muted">{entry.notes}</p>

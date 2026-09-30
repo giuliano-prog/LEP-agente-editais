@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Field, FormError, FormSuccess, SubmitButton, TextArea } from "@/components/form";
 import { EditalCard } from "@/components/editais/edital-card";
 import { limitLabel } from "@/lib/discovery/labels";
+import { homepageOf } from "@/lib/editais/links";
 import type { MonitorSummary } from "@/lib/monitor/summary";
 import type { SourceAdapter } from "@lep/funding";
 import type { CatalogEntry } from "@/lib/monitor/catalog";
@@ -22,47 +23,91 @@ import {
   type SourceActionState,
 } from "./actions";
 
+/**
+ * Campos padrão de uma fonte: Nome / Instituição, Página de Listagem de Editais e
+ * Página Principal. A Página Principal não tem coluna no banco: é sempre a raiz do
+ * site da listagem (`homepageOf`), mostrada aqui só para conferência.
+ */
+function SourceFields({
+  defaultName,
+  agency,
+  defaultListUrl = "",
+  listHint,
+}: {
+  defaultName?: string;
+  /** Instituição gravada junto (catálogo/descoberta); omitida = sem instituição separada. */
+  agency?: string;
+  defaultListUrl?: string;
+  listHint?: string;
+}) {
+  const [listUrl, setListUrl] = useState(defaultListUrl);
+  const homepage = homepageOf(listUrl);
+  return (
+    <>
+      <Field
+        label="Nome / Instituição"
+        name="name"
+        required
+        maxLength={120}
+        defaultValue={defaultName}
+        placeholder="Ex.: Spcine — Editais"
+      />
+      {agency !== undefined && <input type="hidden" name="agency" value={agency} />}
+      <Field
+        label="Página de Listagem de Editais"
+        name="list_url"
+        type="url"
+        required
+        value={listUrl}
+        onChange={(event) => setListUrl(event.target.value)}
+        placeholder="https://…"
+        hint={listHint ?? "Endereço específico onde a instituição publica os editais."}
+      />
+      <div className="space-y-1">
+        <span className="text-sm font-medium text-fg">Página Principal</span>
+        <p className="truncate rounded-md border border-dashed border-line px-3 py-2 text-sm text-muted">
+          {homepage ?? "Preenchida a partir da página de listagem"}
+        </p>
+        <span className="block text-xs text-muted">Site institucional da fonte.</span>
+      </div>
+    </>
+  );
+}
+
 export function SourceForm() {
   const [state, action] = useActionState<SourceActionState, FormData>(createSource, {});
   return (
     <form key={state.savedAt ?? "source"} action={action} className="space-y-4">
-      <Field
-        label="Nome"
-        name="name"
-        required
-        maxLength={120}
-        placeholder="Ex.: Spcine — Editais"
-      />
-      <Field label="Instituição" name="agency" maxLength={200} placeholder="Ex.: Spcine" />
-      <Field
-        label="Página de listagem de editais"
-        name="list_url"
-        type="url"
-        required
-        placeholder="https://…"
-        hint="Página pública onde o órgão lista os editais. Sites com login não são acessados."
-      />
-      <Field
-        label="Filtro de endereço (opcional)"
-        name="link_contains"
-        maxLength={200}
-        placeholder="/editais/"
-        hint="Só considera links cujo endereço contém este trecho."
-      />
-      <label className="flex items-start gap-3 text-sm">
-        <input
-          type="checkbox"
-          name="audiovisual_only"
-          defaultChecked
-          className="mt-1 accent-brand"
-        />
-        <span>
-          Fonte exclusiva de audiovisual
-          <span className="block text-xs text-muted">
-            Desmarque para fontes gerais de cultura: aí só entram links com termos de audiovisual.
-          </span>
-        </span>
-      </label>
+      <SourceFields />
+      <details className="text-sm">
+        <summary className="cursor-pointer text-xs text-muted hover:text-brand">
+          Opções avançadas
+        </summary>
+        <div className="mt-3 space-y-4">
+          <Field
+            label="Filtro de endereço (opcional)"
+            name="link_contains"
+            maxLength={200}
+            placeholder="/editais/"
+            hint="Só considera links cujo endereço contém este trecho."
+          />
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="audiovisual_only"
+              defaultChecked
+              className="mt-1 accent-brand"
+            />
+            <span>
+              Fonte exclusiva de audiovisual
+              <span className="block text-xs text-muted">
+                Desmarque para fontes gerais de cultura: aí só entram links com termos de
+                audiovisual.
+              </span>
+            </span>
+          </label>
+        </div>
+      </details>
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
       <SubmitButton>Cadastrar fonte</SubmitButton>
@@ -439,15 +484,10 @@ export function CatalogSourceForm({ entry }: { entry: CatalogEntry }) {
   );
   return (
     <form className="mt-3 space-y-3">
-      <Field label="Nome" name="name" defaultValue={entry.name} maxLength={120} required />
-      <Field label="Instituição" name="agency" defaultValue={entry.agency} maxLength={200} />
-      <Field
-        label="Página oficial de editais"
-        name="list_url"
-        type="url"
-        required
-        placeholder="https://…"
-        hint="Cole o endereço oficial da listagem (não é preenchido automaticamente)."
+      <SourceFields
+        defaultName={entry.name}
+        agency={entry.agency}
+        listHint="Cole o endereço oficial da listagem de editais."
       />
       <div className="flex flex-wrap gap-2">
         <button
@@ -462,7 +502,7 @@ export function CatalogSourceForm({ entry }: { entry: CatalogEntry }) {
           disabled={adding}
           className="rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-surface hover:bg-brand-strong disabled:opacity-60"
         >
-          Adicionar (pausada)
+          Cadastrar fonte
         </button>
       </div>
       <FormError message={testState.error ?? addState.error} />
@@ -545,19 +585,15 @@ export function DiscoveredSourceForm({ name, listUrl }: { name: string; listUrl:
   const [state, action] = useActionState<SourceActionState, FormData>(addDiscoveredSource, {});
   return (
     <form key={state.savedAt ?? "discovered"} action={action} className="mt-2 space-y-3">
-      <Field label="Nome" name="name" required maxLength={120} defaultValue={`${name} — Editais`} />
-      <Field label="Instituição" name="agency" maxLength={200} defaultValue={name} />
-      <Field
-        label="Página de listagem de editais"
-        name="list_url"
-        type="url"
-        required
-        defaultValue={listUrl}
-        hint="Confira no site oficial a página que lista as oportunidades (sugestão: página inicial do domínio)."
+      <SourceFields
+        defaultName={`${name} — Editais`}
+        agency={name}
+        defaultListUrl={listUrl}
+        listHint="Confira no site oficial a página que lista as oportunidades."
       />
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
-      <SubmitButton>Adicionar pausada</SubmitButton>
+      <SubmitButton>Cadastrar fonte</SubmitButton>
     </form>
   );
 }
