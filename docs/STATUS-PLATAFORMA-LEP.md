@@ -1,6 +1,6 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> **Atualizado em:** 2026-09-30 (fechamento da versão atual: navegação, Home, Buscar Editais, Membros e plantas, §15); 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência:** descoberta web `81af51e` (+ commit de documentação; auditoria em `83f8444`) · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
@@ -259,6 +259,10 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 ---
 
 ## 4. Última alteração implementada
+
+**Fechamento da versão atual (2026-09-30)** — menu lateral, Home, Buscar Editais com resultado na própria tela,
+Produções (nome na interface), Membros simplificado e plantas de Produções Atuais, Orçamentos e Equipe Audiovisual.
+**Sem migração.** Detalhes, testes e pendências em **§15**. Aguardando revisão humana; sem merge.
 
 **Descoberta web de oportunidades audiovisuais + fontes favoritas ⭐ (2026-09-29, ADR-0024)** — nova camada que busca
 oportunidades na web (inclusive em instituições não cadastradas) e entrega ao pipeline existente. Detalhes, testes,
@@ -544,6 +548,7 @@ futuro (hoje só lê).
 | Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                                                                                                              |
 |                            | Descoberta web: `ad9d6a3` lógica pura · `45b64ac` migração · `52322e3` pipeline reutilizável · `0c7ef95` orquestração · `81af51e` interface · commit de documentação                                                          |
 |                            | Descoberta web — limites: `f47dad9` contador mensal · `e9281ff` busca/triagem/limites · commit de documentação                                                                                                                |
+|                            | Fechamento da versão (2026-09-30): `66f6b7c` navegação+Home · `aeb72d5` Editais/Buscar Editais · `f7119d1` Produções + plantas · `61554e6` Equipe Audiovisual · `4f8a6e6` Membros/permissões · commit de documentação         |
 | Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                                                                                                         |
 | Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                                                                              |
 
@@ -924,3 +929,73 @@ analisá-los antes de gastar chamadas novas à API.
     (editais, avistamentos, candidatos, execuções, documentos), enquanto a triagem continua usando-os em memória.
     Nenhum registro real existia antes da correção (o 1º teste real ainda não foi feito). Termos de armazenamento
     da Brave continuam **não verificados** daqui.
+
+---
+
+## 15. Fechamento da versão atual (2026-09-30) — ✅ implementado no branch; aguardando revisão humana
+
+Branch `claude/melhorias-editais`. **Nenhuma migração, nenhuma alteração de banco, nenhum merge, nada em produção.**
+
+**Implementado**
+
+- **Navegação:** menu lateral com hamburger (desktop recolhível com preferência local; drawer no celular/tablet que
+  fecha ao navegar e com Esc). Configuração única em `apps/web/src/lib/navigation.ts` (rótulo, rota, ícone,
+  permissão, status, seção, ordem): Início, Editais, Produções, Produções Atuais, Equipe Audiovisual, Membros e,
+  separado no fim, Diagnóstico (só ADM; a rota continua protegida por `requireMembership("admin")`).
+  Identidade do membro: avatar (iniciais) + nome, sem e-mail; menu com "Minha conta" e "Sair".
+- **Home:** "Olá, {primeiro nome}", título com "audiovisual." destacado, atalhos (Editais, Produções, Produções
+  Atuais, Orçamentos — os dois últimos "Em desenvolvimento"), Visão Geral só com números reais (editais ativos,
+  novos para revisar, produções cadastradas), link "Acessar site da LEP Filmes ↗" (nova aba, `noopener`). Removido
+  "Seu acesso: Administrador".
+- **Editais:** "Fontes monitoradas" → "Buscar Editais"; blocos de triagem/elegibilidade/situação saíram só da
+  interface (motor, dados e filtros por URL preservados); cada edital tem "Acessar edital ↗" (URL oficial, só
+  http/https, nova aba) e "Ver análise"; cartões no celular.
+- **Buscar Editais:** "Fontes Cadastradas" (antigo "Verificar agora") e "Buscar na Web" (descoberta Brave existente,
+  não reescrita) lado a lado; após executar, a página continua em Buscar Editais e mostra os editais encontrados
+  (título, instituição, prazo, aderência, situação, origem, Novo/Já cadastrado, ações) com o resumo técnico
+  recolhido. Nova Fonte mantida. Catálogo: "Acessar fonte ↗" / "Cadastrar fonte" por item, checagem de duplicidade
+  (www/barra final/fragmento) antes de cadastrar (também em Nova Fonte, catálogo e fontes descobertas). Histórico
+  de varreduras, buscas na web anteriores e páginas ignoradas recolhíveis.
+- **Produções:** "Projetos" → "Produções" só na interface ("Cadastrar Produção"); rota `/projetos`, tabela
+  `core.projetos` e API inalteradas. Planta das 10 áreas e do ciclo de vida.
+- **Plantas (sem dados, sem tabela):** `/producoes-atuais`, `/orcamentos`, `/equipe-audiovisual` (perfil de
+  demonstração "Giuliano — Assistente de Platô", avatar provisório, nenhum outro dado). Vocabulário em
+  `apps/web/src/lib/blueprints.ts`.
+- **Membros:** todos os perfis consultam (quem não é ADM vê só vínculos ativos); convite/reenvio/suspensão/
+  reativação só ADM (tela e Server Actions). Lista: foto (iniciais — não há armazenamento de fotos; nada foi
+  criado), nome, e-mail, selo ADM/Diretoria/Equipe. Bloco "Proponente" saiu só da tela (dados, tabela,
+  `updateProponent` e motor de elegibilidade preservados).
+- **Permissões:** `can(role, permissão)` em `packages/core/src/auth/permissions.ts` como ponto único
+  (`members.read`, `diagnostics.view`, `editais.search`); comentário prevê permissões granulares futuras.
+  `ROLE_LABELS.admin` = "ADM".
+
+**Permissões por perfil**
+
+| Perfil    | Papel    | Acesso                                                                       |
+| --------- | -------- | ---------------------------------------------------------------------------- |
+| ADM       | `admin`  | Tudo, incluindo Diagnóstico, buscas de editais, fontes e gestão de membros   |
+| Diretoria | `editor` | Geral; cadastra/revisa editais e produções; sem Diagnóstico, buscas e gestão |
+| Equipe    | `viewer` | Geral de consulta; sem Diagnóstico, buscas e gestão                          |
+
+**Testes executados (resultados reais, 2026-09-30)**
+
+- `pnpm check` (formatação + lint + tipos + testes): ✅ saída 0 — web 97 testes (19 arquivos), funding 175,
+  ingestion 54, ai 10, projects 3, core 9.
+- `pnpm build`: ✅ saída 0; rotas novas `/producoes-atuais`, `/orcamentos`, `/equipe-audiovisual`.
+- Navegador (Playwright + Supabase simulado, dados fictícios) em 1360/820/390 px: Início, Editais, Buscar Editais,
+  Produções, Produções Atuais, Orçamentos, Equipe Audiovisual, Membros, Diagnóstico — todas 200 e **sem rolagem
+  horizontal**. Diretoria e Equipe: Diagnóstico some do menu e o acesso direto à rota redireciona para
+  `/sem-acesso?motivo=permissao`; sem botões de busca nem de gestão de membros. ADM: "Verificar fontes
+  cadastradas" e "Buscar na web" permanecem em `/editais/fontes` e exibem o resultado na tela (no simulado, sem
+  chave de serviço, o resultado é a mensagem de erro de configuração).
+- **Não verificado:** execução bem-sucedida de busca com editais reais listados na tela (exige chave de serviço e
+  sites reais — testar no Preview/staging); testes SQL (`pnpm db:test`) não reexecutados (sem mudança de banco).
+
+**Pendências deliberadas:** módulos Produções Atuais, Orçamentos e Equipe Audiovisual são só plantas; foto de
+membro sem armazenamento (iniciais); sede da proponente não é mais editável pela tela (continua no banco e no motor;
+reexpor em Configurações quando necessário); busca restrita a ADM (usa chave de serviço e tem custo); permissões
+granulares não implementadas.
+
+**Riscos para produção:** as 10 migrações anteriores deste branch continuam pendentes do workflow (§10 item 5);
+o resultado da busca na tela depende de `discovered_at`/`edital_sightings.last_seen_at` (limite de 40 itens);
+`maxDuration = 60` na página de busca (mesmo limite anterior).
