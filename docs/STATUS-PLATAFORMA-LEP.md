@@ -1,6 +1,6 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-30 (fechamento da V1 para apresentação, §17); 2026-09-30 (criação direta de membros, Minha conta e foto de perfil, §16; fechamento da versão atual: navegação, Home, Buscar Editais, Membros e plantas, §15); 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> **Atualizado em:** 2026-09-30 (ajustes da V1 após o Preview, §18; fechamento da V1 para apresentação, §17); 2026-09-30 (criação direta de membros, Minha conta e foto de perfil, §16; fechamento da versão atual: navegação, Home, Buscar Editais, Membros e plantas, §15); 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência:** descoberta web `81af51e` (+ commit de documentação; auditoria em `83f8444`) · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
@@ -259,6 +259,10 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 ---
 
 ## 4. Última alteração implementada
+
+**Ajustes da V1 após o Preview (2026-09-30)** — trailer como bloco de apresentação da Condor, Produções Atuais com
+navegação em blocos, Beatriz Reis (exemplo) na Equipe, e Membros com troca de perfil de acesso e exclusão de
+usuário. **Sem migração.** Detalhes em **§18**. Sem merge/deploy.
 
 **Fechamento da V1 para apresentação (2026-09-30)** — telas de "planta" viraram V1 demonstrável: Home com 5
 indicadores, Editais com indicadores e **Analisar Edital** (PDF → análise → Adicionar aos Editais), Buscar Editais
@@ -1158,3 +1162,64 @@ não grava (botão desabilitado, sem Server Action) — ainda não há tabela de
 `core.projetos`; atuais = exemplos); tabelas de profissionais e orçamentos; coluna de mídia/trailer; Página
 Principal persistida (hoje derivada); análise do PDF é determinística (trechos literais) — IA e "Pergunte sobre
 este edital" dependem de fornecedor; PDF digitalizado (imagem) não é lido (sem OCR).
+
+---
+
+## 18. Ajustes da V1 após revisão do Preview (2026-09-30) — ✅ no branch; aguardando revisão humana
+
+**Branch:** `claude/melhorias-editais` (repositório `giuliano-prog/LEP-agente-editais`, conferidos antes de alterar).
+**Confirmação:** nenhum merge, nenhuma alteração na branch de produção, nenhum deploy/promoção para Production,
+nenhuma alteração no Supabase de produção, nenhuma migração/seed, nenhum usuário real alterado.
+(O pedido cita `STATUS_PROJETO_LEP.md`; o arquivo oficial do projeto é este, `docs/STATUS-PLATAFORMA-LEP.md`.)
+
+**Alterações**
+
+- **Trailer (Produções Concluídas):** o trailer já existia, mas só aparecia se o título cadastrado batesse com
+  "A Conspiração Condor". A identificação passou a exigir só as palavras significativas ("conspiração" e
+  "condor"), sem diferenciar acentos, maiúsculas, artigos/preposições e complementos (ex.: "A Conspiração do
+  Condor (documentário)"). O trailer (embed responsivo `youtube-nocookie`, 16:9, + link "Assistir no YouTube")
+  virou o PRIMEIRO bloco da Visão Geral, em largura total. Navegação em abas das Concluídas inalterada.
+  Não verificado: o título exato da produção no banco do Preview (se não contiver as duas palavras, o trailer
+  não aparece — basta ajustar o título ou `lib/productions/media.ts`).
+- **Produções Atuais:** `ProductionSheet` ganhou `navigation="blocks"` (só nas atuais): grid de 10 blocos
+  clicáveis — 2 colunas no celular, 3 no tablet, 5 no desktop, altura mínima de 80 px — cada um leva direto à área
+  (`?area=…#area-atual`, rola até o conteúdo). Ciclo de vida no topo inalterado. Mesma entidade e mesmos dados;
+  só a interface muda (atual = operacional em blocos; concluída = consulta em abas).
+- **Equipe Audiovisual:** Beatriz Reis — Produtora (exemplo em `lib/demo/professionals.ts`, só nome e função,
+  card clicável e mesma ficha). Categoria Produção passou a incluir as funções "Produtora"/"Produtor".
+- **Membros (ADM):**
+  - "Editar membro": nome, foto e **perfil de acesso** (ADM/Diretoria/Equipe). O perfil é gravado em
+    `core.memberships.role` pela sessão do ADM (RLS `memberships_update_admins` + trava do banco "pelo menos um
+    administrador ativo"; auditoria registra quem alterou). Ninguém altera o próprio perfil. E-mail continua não
+    editável (evita risco com o Supabase Auth).
+  - **"Excluir usuário"** (`lib/members/manage.ts`, `deleteMemberAction`): só ADM; exige digitar EXCLUIR +
+    confirmação do navegador; aviso de ação permanente (sugere "Suspender" para só bloquear); não aparece para o
+    próprio usuário e o servidor recusa autoexclusão; recusa excluir o último ADM ativo.
+  - **Análise Auth × memberships:** `profiles` → `auth.users` e `memberships` → `profiles` são `on delete cascade`;
+    autoria em editais/documentos/alterações/vínculos é `on delete set null`; `audit_log.actor_id` guarda só o id
+    (histórico preservado). A cascata do Auth NÃO passa pela trava de último administrador do banco — por isso a
+    checagem é feita no servidor antes, e o vínculo é removido primeiro pela sessão do ADM (onde a trava vale).
+    Depois: se a pessoa não tem vínculo com outra organização, a foto é apagada e a conta é removida do Supabase
+    Auth (`auth.admin.deleteUser`, chave de serviço só após `requireMembership("admin")`); se tiver, só o acesso a
+    esta organização é removido.
+  - **Limitação:** se o Supabase Auth recusar a exclusão da conta, o acesso já foi removido (a conta não entra em
+    nada) e a tela orienta a remoção manual em Supabase → Authentication → Users. Não há "desfazer".
+
+**Arquivos:** `components/productions/production-sheet.tsx`, `app/(app)/producoes-atuais/[slug]/page.tsx`,
+`lib/productions/media.ts` (+teste), `lib/demo/professionals.ts`, `lib/team/model.ts`,
+`lib/members/manage.ts` (+teste), `app/(app)/configuracoes/membros/{actions,member-forms,page}.tsx` (+teste).
+
+**Testes (2026-09-30, resultados reais)**
+
+- `pnpm check`: ✅ saída 0 — web 136, funding 181, ingestion 54, ai 12, core 9, projects 3.
+- `pnpm build`: ✅ saída 0. `DB_TEST_SHIM=1 pnpm db:test`: ✅ 16/16.
+- Playwright + Supabase **simulado** (dados fictícios): rodada nova 32/32 — trailer incorporado e primeiro bloco;
+  Concluídas em abas; Atuais em blocos (10, 2 colunas e 173×80 px no celular, sem rolagem horizontal; bloco abre a
+  área); Beatriz e Giuliano, busca e filtros; criar membro Equipe → alterar para Diretoria (vínculo gravado, login
+  do membro com permissões de Diretoria e sem Diagnóstico); ADM não altera o próprio perfil nem vê Excluir em si;
+  suspender/reativar; exclusão desabilitada até digitar EXCLUIR, com aviso, removendo vínculo, conta e perfil;
+  Minha conta. Regressão: V1 ADM 59/59, Diretoria 16/16, Equipe 16/16; Membros/Minha conta 27/27.
+- Unitários novos: troca de perfil (Equipe → Diretoria, autoalteração, RLS, trava do banco) e exclusão
+  (confirmação, autoexclusão, último ADM, remoção com/sem outra organização); não-ADM não exclui nem altera perfil.
+- **Não verificado:** Supabase Auth/Storage reais (exclusão real de conta) e o player do YouTube (sem internet no
+  ambiente de teste) — conferir no Preview.
