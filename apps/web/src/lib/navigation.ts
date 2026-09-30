@@ -5,8 +5,8 @@ import { can, type Permission, type Role } from "@lep/core";
  * espalhados em componentes. Cada item declara a permissão necessária; a rota
  * continua protegendo o acesso no servidor (`requireMembership`), o menu só esconde.
  *
- * `status`: "active" = módulo funcional; "blueprint" = planta (estrutura visual
- * do módulo futuro, sem dados fictícios).
+ * `status`: "active" = módulo ligado ao banco; "demo" = tela da V1 com dados
+ * demonstrativos definidos em código (`lib/demo/`), nunca gravados no Supabase.
  */
 export type NavIcon =
   "home" | "editais" | "producoes" | "producoes-atuais" | "equipe" | "membros" | "diagnostico";
@@ -18,7 +18,7 @@ export type NavigationItem = {
   icon: NavIcon;
   /** Permissão exigida para ver o item (padrão: qualquer membro ativo). */
   permission?: Permission;
-  status: "active" | "blueprint";
+  status: "active" | "demo";
   /** "main" = menu principal; "admin" = bloco separado ao final. */
   section: "main" | "admin";
 };
@@ -34,9 +34,9 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     section: "main",
   },
   {
-    // Rótulo "Produções"; a rota e o banco continuam `projetos` (compatibilidade).
+    // Rótulo "Produções Concluídas"; a rota e o banco continuam `projetos` (compatibilidade).
     key: "producoes",
-    label: "Produções",
+    label: "Produções Concluídas",
     href: "/projetos",
     icon: "producoes",
     status: "active",
@@ -47,7 +47,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     label: "Produções Atuais",
     href: "/producoes-atuais",
     icon: "producoes-atuais",
-    status: "blueprint",
+    status: "demo",
     section: "main",
   },
   {
@@ -55,7 +55,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     label: "Equipe Audiovisual",
     href: "/equipe-audiovisual",
     icon: "equipe",
-    status: "blueprint",
+    status: "demo",
     section: "main",
   },
   {

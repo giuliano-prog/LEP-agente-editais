@@ -1,20 +1,14 @@
 import Link from "next/link";
-import { CLOSED_STATUSES, toEdital } from "@lep/funding";
+import { toEdital } from "@lep/funding";
 import { NavIcon } from "@/components/nav-icon";
 import { requireMembership } from "@/lib/auth/session";
-import { isAutomaticOrigin } from "@/lib/editais/constants";
+import { isActiveEdital, needsReview } from "@/lib/editais/metrics";
 import { firstName, type NavIcon as NavIconName } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 const LEP_SITE = "https://www.lepfilmes.com.br/";
 
-const SHORTCUTS: {
-  href: string;
-  title: string;
-  text: string;
-  icon: NavIconName;
-  soon?: boolean;
-}[] = [
+const SHORTCUTS: { href: string; title: string; text: string; icon: NavIconName }[] = [
   {
     href: "/editais",
     title: "Editais",
@@ -22,24 +16,22 @@ const SHORTCUTS: {
     icon: "editais",
   },
   {
-    href: "/projetos",
-    title: "Produções",
-    text: "Histórico e cadastro das produções da LEP.",
-    icon: "producoes",
-  },
-  {
     href: "/producoes-atuais",
     title: "Produções Atuais",
-    text: "Operação dos trabalhos em andamento.",
+    text: "Acompanhamento das produções em andamento.",
     icon: "producoes-atuais",
-    soon: true,
+  },
+  {
+    href: "/projetos",
+    title: "Produções Concluídas",
+    text: "Histórico e biblioteca das produções da LEP.",
+    icon: "producoes",
   },
   {
     href: "/orcamentos",
     title: "Orçamentos",
     text: "Orçamentos das produções, em um só lugar.",
     icon: "diagnostico",
-    soon: true,
   },
 ];
 
@@ -52,43 +44,25 @@ export default async function HomePage({
   const { senha } = await searchParams;
   const supabase = await createClient();
 
-  // Só números reais: sem dado confiável, a métrica não aparece.
-  const [editaisQuery, projetos] = await Promise.all([
-    supabase.from("editais").select("*").eq("org_id", membership.orgId),
-    supabase
-      .from("projetos")
-      .select("*", { count: "exact", head: true })
-      .eq("org_id", membership.orgId),
-  ]);
+  const editaisQuery = await supabase.from("editais").select("*").eq("org_id", membership.orgId);
   const editais = editaisQuery.error ? null : (editaisQuery.data ?? []).map((row) => toEdital(row));
-  const metrics = [
-    editais && {
-      label: "Editais ativos",
-      value: editais.filter(
-        (e) =>
-          e.reviewStatus !== "discarded" &&
-          (e.status === "open" || e.status === "upcoming") &&
-          !(e.status && CLOSED_STATUSES.has(e.status)),
-      ).length,
+  // Só números reais. Produções Atuais, Equipe Audiovisual e Orçamentos ainda não têm
+  // cadastro no banco: mostram 0 (os exemplos dessas telas NUNCA entram na contagem).
+  const metrics: { label: string; value: number | null; href: string }[] = [
+    {
+      label: "Editais Ativos",
+      value: editais ? editais.filter((edital) => isActiveEdital(edital)).length : null,
       href: "/editais",
     },
-    editais && {
-      label: "Novos editais para revisar",
-      value: editais.filter(
-        (e) =>
-          isAutomaticOrigin(e.origin) &&
-          e.reviewStatus !== "validated" &&
-          e.reviewStatus !== "discarded",
-      ).length,
+    {
+      label: "Novos Editais para Revisar",
+      value: editais ? editais.filter((edital) => needsReview(edital)).length : null,
       href: "/editais?filtro=varredura",
     },
-    !projetos.error &&
-      projetos.count !== null && {
-        label: "Produções cadastradas",
-        value: projetos.count,
-        href: "/projetos",
-      },
-  ].filter((metric): metric is { label: string; value: number; href: string } => !!metric);
+    { label: "Produções Atuais", value: 0, href: "/producoes-atuais" },
+    { label: "Equipe Audiovisual", value: 0, href: "/equipe-audiovisual" },
+    { label: "Orçamentos Ativos", value: 0, href: "/orcamentos" },
+  ];
 
   const name = firstName(fullName);
 
@@ -116,16 +90,6 @@ export default async function HomePage({
         <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
           Inteligência e automação para o <span className="text-brand">audiovisual.</span>
         </h1>
-        <a
-          href={LEP_SITE}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-sm text-muted transition hover:text-brand"
-        >
-          Acessar site da LEP Filmes
-          <NavIcon name="external" className="h-3.5 w-3.5" />
-          <span className="sr-only">(abre em nova aba)</span>
-        </a>
       </section>
 
       <section aria-label="Atalhos" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -139,11 +103,6 @@ export default async function HomePage({
               <span className="rounded-lg border border-brand/30 bg-brand/10 p-2 text-brand">
                 <NavIcon name={item.icon} />
               </span>
-              {item.soon && (
-                <span className="text-[11px] uppercase tracking-wider text-muted">
-                  Em desenvolvimento
-                </span>
-              )}
             </span>
             <span>
               <span className="block font-semibold group-hover:text-brand">{item.title} →</span>
@@ -157,29 +116,37 @@ export default async function HomePage({
         <h2 id="visao-geral" className="text-sm font-semibold uppercase tracking-wider text-muted">
           Visão Geral
         </h2>
-        {metrics.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {metrics.map((metric) => (
-              <Link
-                key={metric.label}
-                href={metric.href}
-                className="rounded-xl border border-line bg-card p-5 transition hover:border-brand/60"
-              >
-                <span className="block text-3xl font-semibold tabular-nums text-brand">
-                  {metric.value}
-                </span>
-                <span className="mt-1 block text-sm text-muted">{metric.label}</span>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted">Não foi possível carregar os números agora.</p>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {metrics.map((metric) => (
+            <Link
+              key={metric.label}
+              href={metric.href}
+              className="rounded-xl border border-line bg-card p-5 transition hover:border-brand/60"
+            >
+              <span className="block text-3xl font-semibold tabular-nums text-brand">
+                {metric.value ?? "—"}
+              </span>
+              <span className="mt-1 block text-sm text-muted">{metric.label}</span>
+            </Link>
+          ))}
+        </div>
+        {!editais && (
+          <p className="text-xs text-muted">Não foi possível carregar os editais agora.</p>
         )}
-        <p className="text-xs text-muted">
-          Produções atuais, orçamentos ativos e Equipe Audiovisual passam a ser contados quando
-          esses módulos tiverem cadastro.
-        </p>
       </section>
+
+      <footer className="border-t border-line pt-6">
+        <a
+          href={LEP_SITE}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-sm text-muted transition hover:text-brand"
+        >
+          Acessar site da LEP Filmes
+          <NavIcon name="external" className="h-3.5 w-3.5" />
+          <span className="sr-only">(abre em nova aba)</span>
+        </a>
+      </footer>
     </div>
   );
 }

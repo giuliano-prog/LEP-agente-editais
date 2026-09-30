@@ -8,7 +8,7 @@ describe("navegação global", () => {
     expect(NAVIGATION_ITEMS.map((item) => item.label)).toEqual([
       "Início",
       "Editais",
-      "Produções",
+      "Produções Concluídas",
       "Produções Atuais",
       "Equipe Audiovisual",
       "Membros",
