@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { projectInputSchema } from "@lep/projects";
 import { requireMembership } from "@/lib/auth/session";
 import { persistMatches } from "@/lib/editais/matches";
@@ -26,11 +27,13 @@ export async function createProject(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("projetos")
-    .insert({ ...parsed.data, org_id: membership.orgId });
-  if (error) {
-    console.error("Erro ao cadastrar projeto:", error.code);
+    .insert({ ...parsed.data, org_id: membership.orgId })
+    .select("id")
+    .single();
+  if (error || !data) {
+    console.error("Erro ao cadastrar projeto:", error?.code);
     return { error: "Não foi possível cadastrar a produção. Tente novamente." };
   }
 
@@ -38,5 +41,6 @@ export async function createProject(
   await persistMatches(supabase, membership.orgId, "all");
   revalidatePath("/projetos");
   revalidatePath("/editais");
-  return { success: `Produção "${parsed.data.title}" cadastrada.`, savedAt: Date.now() };
+  // Abre a ficha da produção recém-cadastrada.
+  redirect(`/projetos/${data.id}`);
 }

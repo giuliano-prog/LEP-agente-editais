@@ -36,7 +36,7 @@ export function ProjectForm() {
       <TextArea label="Sinopse" name="synopsis" maxLength={5000} placeholder="Resumo da produção" />
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
-      <SubmitButton>Cadastrar Produção</SubmitButton>
+      <SubmitButton>Adicionar Produção Concluída</SubmitButton>
     </form>
   );
 }

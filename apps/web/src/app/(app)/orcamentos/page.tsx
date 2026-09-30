@@ -1,48 +1,44 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BlueprintAreaGrid, BlueprintNotice } from "@/components/blueprint";
-import { PageHeader } from "@/components/ui";
+import { EmptyState, PageHeader, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
-import { BUDGET_SECTIONS } from "@/lib/blueprints";
+import { BUDGET_SECTIONS } from "@/lib/productions/model";
 
 export const metadata: Metadata = { title: "Orçamentos" };
 
-/** Planta de Orçamentos: conceito apenas — sem banco e sem cadastro. */
+/**
+ * Orçamentos das produções. Ainda não há tabela de orçamentos no banco: a tela mostra
+ * 0 orçamentos ativos (sem dados inventados) e a estrutura usada por cada orçamento.
+ */
 export default async function OrcamentosPage() {
   await requireMembership();
   return (
     <div className="space-y-8">
       <PageHeader
         title="Orçamentos"
-        description="Orçamento de cada produção, por etapa e rubrica."
+        description="Orçamentos das produções da LEP. Cada orçamento pertence a uma produção."
       />
-      <BlueprintNotice>
-        Conceito do módulo. Ainda não há cadastro de orçamentos; o valor informado em{" "}
-        <Link href="/projetos" className="text-brand hover:underline">
-          Produções
-        </Link>{" "}
-        continua sendo usado no Match com os editais.
-      </BlueprintNotice>
 
-      <section aria-labelledby="regra" className="space-y-3">
-        <h2 id="regra" className="text-lg font-semibold">
-          Regra principal
-        </h2>
-        <ul className="list-disc space-y-2 pl-5 text-sm text-muted">
-          <li>Todo orçamento pertence a uma Produção — não existe orçamento solto.</li>
-          <li>
-            Nesta tela ficarão os orçamentos de todas as produções; dentro da produção, a área
-            Orçamento mostra só o dela.
-          </li>
-          <li>Versões do orçamento ficam no histórico da produção.</li>
+      <EmptyState title="Nenhum orçamento ativo">
+        Os orçamentos aparecem aqui e na área Orçamento de cada produção em{" "}
+        <Link href="/producoes-atuais" className="text-brand hover:underline">
+          Produções Atuais
+        </Link>
+        .
+      </EmptyState>
+
+      <section aria-labelledby="estrutura" className="space-y-3">
+        <SectionTitle>
+          <span id="estrutura">Estrutura do orçamento</span>
+        </SectionTitle>
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {BUDGET_SECTIONS.map((section) => (
+            <li key={section.key} className="rounded-xl border border-line bg-card p-4">
+              <p className="font-medium">{section.label}</p>
+              <p className="mt-1 text-sm text-muted">{section.description}</p>
+            </li>
+          ))}
         </ul>
-      </section>
-
-      <section aria-labelledby="blocos" className="space-y-3">
-        <h2 id="blocos" className="text-lg font-semibold">
-          Blocos previstos
-        </h2>
-        <BlueprintAreaGrid areas={BUDGET_SECTIONS} />
       </section>
     </div>
   );
