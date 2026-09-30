@@ -35,6 +35,18 @@ describe("can", () => {
   });
 });
 
+describe("permissões da navegação", () => {
+  it("Diagnóstico só para ADM; Membros visível a todos; gerenciar só ADM", () => {
+    expect(can("admin", "diagnostics.view")).toBe(true);
+    expect(can("editor", "diagnostics.view")).toBe(false);
+    expect(can("viewer", "diagnostics.view")).toBe(false);
+    expect(can("viewer", "members.read")).toBe(true);
+    expect(can("editor", "members.manage")).toBe(false);
+    expect(can("editor", "editais.search")).toBe(false);
+    expect(can("admin", "editais.search")).toBe(true);
+  });
+});
+
 describe("isRole", () => {
   it("valida strings de papel", () => {
     for (const role of ROLES) expect(isRole(role)).toBe(true);
