@@ -11,3 +11,4 @@ export * from "./extract";
 export * from "./dedup";
 export * from "./changes";
 export * from "./discovery";
+export * from "./highlights";

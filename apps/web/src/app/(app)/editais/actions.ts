@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  assessEligibility,
   DOCUMENT_KIND_LABELS,
   changeColumns,
   editalFormToInput,
@@ -11,7 +12,9 @@ import {
   isEligibilityStatus,
 } from "@lep/funding";
 import { requireMembership } from "@/lib/auth/session";
+import { assembleAnalysis, type EditalAnalysisView } from "@/lib/editais/analysis";
 import { checkEditalForChanges } from "@/lib/editais/changes";
+import { isValidUploadPath } from "@/lib/editais/constants";
 import { applyAutomaticSuggestions } from "@/lib/editais/extraction";
 import { persistMatches } from "@/lib/editais/matches";
 import {
@@ -24,6 +27,7 @@ import {
   type Duplicate,
   type IngestedDocument,
 } from "@/lib/editais/ingest";
+import { loadPartnerTerritories, loadProponent } from "@/lib/proponent";
 import { createClient } from "@/lib/supabase/server";
 
 export type EditalActionState = {
@@ -111,6 +115,8 @@ export async function createEditalFromUrl(
 export async function createEditalFromUpload(input: {
   path: string;
   fileName: string;
+  /** Título identificado na análise (opcional); senão, o nome do arquivo. */
+  title?: string;
 }): Promise<EditalActionState> {
   const { membership } = await requireMembership("editor");
 
@@ -118,12 +124,64 @@ export async function createEditalFromUpload(input: {
   try {
     const supabase = await createClient();
     const document = await ingestFromUpload(supabase, membership.orgId, input.path, input.fileName);
+    const title = typeof input.title === "string" ? input.title.trim() : "";
+    if (title.length >= 3) document.suggestedTitle = title.slice(0, 300);
     result = await createFromDocument(document, membership.orgId);
   } catch (error) {
     return failure(error);
   }
   if (typeof result !== "string") return result;
   redirect(`/editais/${result}/editar?novo=1`);
+}
+
+export type AnalyzeState = { error?: string; analysis?: EditalAnalysisView };
+
+/**
+ * Analisar Edital: lê o PDF que o navegador enviou ao Storage, monta a análise e
+ * APAGA o arquivo em seguida — nada é cadastrado. "Adicionar aos Editais" reenvia o
+ * arquivo e usa `createEditalFromUpload` (mesmo fluxo de cadastro de sempre).
+ */
+export async function analyzeEditalUpload(input: {
+  path: string;
+  fileName: string;
+}): Promise<AnalyzeState> {
+  const { membership } = await requireMembership("editor");
+  const supabase = await createClient();
+  const { orgId } = membership;
+  try {
+    const document = await ingestFromUpload(supabase, orgId, input.path, input.fileName);
+    const [projects, proponent, partnerTerritories, duplicate] = await Promise.all([
+      supabase
+        .from("projetos")
+        .select("id, title, format, genre, stage, budget")
+        .eq("org_id", orgId),
+      loadProponent(supabase, orgId),
+      loadPartnerTerritories(supabase, orgId),
+      findDuplicate(supabase, orgId, document),
+    ]);
+    const text = document.text ?? "";
+    const eligibility = assessEligibility(`${document.suggestedTitle}\n${text}`, {
+      proponent,
+      partnerTerritories,
+    });
+    return {
+      analysis: assembleAnalysis({
+        fileName: document.fileName ?? "documento.pdf",
+        suggestedTitle: document.suggestedTitle,
+        text,
+        pdf: document.pdf ?? null,
+        eligibility,
+        projects: projects.error ? null : (projects.data ?? []),
+        proponent,
+        duplicate,
+        now: new Date(),
+      }),
+    };
+  } catch (error) {
+    return { error: failure(error).error };
+  } finally {
+    if (isValidUploadPath(orgId, input.path)) await removeStored(supabase, input.path);
+  }
 }
 
 export async function createEditalManual(

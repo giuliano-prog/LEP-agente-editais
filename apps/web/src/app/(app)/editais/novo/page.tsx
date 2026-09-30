@@ -7,18 +7,18 @@ import { Card, PageHeader, SectionTitle } from "@/components/ui";
 import { requireMembership } from "@/lib/auth/session";
 import { createEditalFromUpload, createEditalFromUrl } from "../actions";
 
-export const metadata: Metadata = { title: "Novo edital" };
+export const metadata: Metadata = { title: "Cadastrar edital" };
 
 export default async function NewEditalPage() {
   const { membership } = await requireMembership("editor");
 
   return (
     <div className="space-y-6">
-      <Link href="/editais" className="inline-block text-sm text-muted hover:text-brand">
-        ← Voltar para editais
+      <Link href="/editais/analisar" className="inline-block text-sm text-muted hover:text-brand">
+        ← Voltar para Analisar Edital
       </Link>
       <PageHeader
-        title="Novo edital"
+        title="Cadastrar edital"
         description="Cadastre a partir da fonte oficial. A plataforma guarda uma cópia do documento e verifica se o edital já existe. Em seguida, você preenche e revisa os campos."
       />
 

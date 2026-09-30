@@ -19,6 +19,7 @@ import { requireMembership } from "@/lib/auth/session";
 import { loadProponent } from "@/lib/proponent";
 import { formatBRL } from "@/lib/format";
 import { isAutomaticOrigin } from "@/lib/editais/constants";
+import { DEADLINE_SOON_DAYS, editalMetrics } from "@/lib/editais/metrics";
 import { safeExternalUrl } from "@/lib/editais/links";
 import { createClient } from "@/lib/supabase/server";
 
@@ -153,6 +154,7 @@ export default async function EditaisPage({
   const pendingCount = all.filter(FILTERS.varredura.test).length;
   const discardedCount = all.filter(FILTERS.descartados.test).length;
   const lastRun = lastRunQuery.data?.started_at;
+  const kpis = editalMetrics(all, now);
 
   return (
     <div className="space-y-6">
@@ -184,16 +186,45 @@ export default async function EditaisPage({
           </Link>
           {canEdit && (
             <Link
-              href="/editais/novo"
+              href="/editais/analisar"
               className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong"
             >
-              + Novo edital
+              Analisar Edital
             </Link>
           )}
         </div>
       </PageHeader>
 
       <DbErrorNotice error={editaisQuery.error} isAdmin={isAdmin} context="os editais" />
+
+      {!editaisQuery.error && (
+        <section aria-label="Indicadores" className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Editais Ativos", value: kpis.active, href: "/editais" },
+            { label: "Para Revisar", value: kpis.toReview, href: href({ filtro: "varredura" }) },
+            {
+              label: "Próximos do Prazo",
+              hint: `até ${DEADLINE_SOON_DAYS} dias`,
+              value: kpis.deadlineSoon,
+              href: href({ situacao: "abertas" }),
+            },
+          ].map((kpi) => (
+            <Link
+              key={kpi.label}
+              href={kpi.href}
+              className="min-w-0 rounded-xl border border-line bg-card p-4 transition hover:border-brand/60 sm:p-5"
+            >
+              <span className="block text-2xl font-semibold tabular-nums text-brand sm:text-3xl">
+                {kpi.value}
+              </span>
+              <span className="mt-1 block text-xs text-muted sm:text-sm">
+                {kpi.label}
+                {kpi.hint && <span className="hidden sm:inline"> · {kpi.hint}</span>}
+              </span>
+            </Link>
+          ))}
+        </section>
+      )}
 
       {/* Triagem, elegibilidade e situação continuam no motor e nos filtros por endereço;
           a tela mostra só a visão principal e um atalho discreto para os descartados. */}
@@ -236,7 +267,7 @@ export default async function EditaisPage({
         >
           {all.length === 0 &&
             (canEdit
-              ? "Cadastre um edital (link ou PDF) ou configure as fontes monitoradas para a varredura diária."
+              ? "Analise um edital em PDF ou use Buscar Editais para encontrar oportunidades."
               : "Peça a um editor para cadastrar os editais.")}
         </EmptyState>
       ) : (
