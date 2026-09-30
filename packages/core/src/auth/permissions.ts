@@ -4,6 +4,11 @@ import { hasRole, type Role } from "./roles";
  * Permissões nomeadas usadas pela interface. A segurança real é garantida pelas
  * políticas RLS do banco; aqui decidimos apenas o que mostrar/permitir na tela.
  * Novos módulos adicionam suas permissões a este mapa.
+ *
+ * Ponto único de decisão: telas e menus perguntam `can(role, "<permissão>")`, nunca
+ * comparam papéis diretamente. Permissões granulares futuras (por módulo, produção,
+ * seção ou ação — ex.: "producoes.orcamento.edit" numa produção específica) entram aqui,
+ * ampliando `can` com um escopo opcional, sem espalhar checagens pela interface.
  */
 export const PERMISSIONS = {
   "content.read": "viewer",

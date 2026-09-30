@@ -57,7 +57,7 @@ describe("isRole", () => {
 
 describe("perfis e status", () => {
   it("rótulos da LEP: Administrador = admin, Diretoria = editor, Equipe = viewer", () => {
-    expect(ROLE_LABELS).toEqual({ admin: "Administrador", editor: "Diretoria", viewer: "Equipe" });
+    expect(ROLE_LABELS).toEqual({ admin: "ADM", editor: "Diretoria", viewer: "Equipe" });
   });
 
   it("status do vínculo iguais ao CHECK da migração", () => {

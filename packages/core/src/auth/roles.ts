@@ -10,13 +10,14 @@ export type Role = (typeof ROLES)[number];
 export const ROLE_LABELS: Record<Role, string> = {
   viewer: "Equipe",
   editor: "Diretoria",
-  admin: "Administrador",
+  admin: "ADM",
 };
 
+/** Resumo curto do perfil (formulário de convite). O detalhe fica em `PERMISSIONS`. */
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  viewer: "Consulta editais, projetos e aderência. Não altera dados.",
-  editor: "Cadastra, edita e revisa editais e projetos; faz a triagem.",
-  admin: "Tudo da Diretoria + membros, fontes monitoradas e diagnóstico.",
+  viewer: "Acesso geral de consulta. Sem Diagnóstico.",
+  editor: "Acesso geral; cadastra e revisa editais e produções. Sem Diagnóstico.",
+  admin: "Acesso total, incluindo membros, buscas de editais e Diagnóstico.",
 };
 
 /** Status do vínculo com a organização. Deve ficar igual ao CHECK de core.memberships.status. */
