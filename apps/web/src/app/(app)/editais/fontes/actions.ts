@@ -5,7 +5,11 @@ import { z } from "zod";
 import type { Database } from "@lep/db";
 import { linesToList, sourceAdapterSchema } from "@lep/funding";
 import { assertSafeUrl, UnsafeUrlError } from "@lep/ingestion";
+import { redirect } from "next/navigation";
+import { can } from "@lep/core";
 import { requireMembership } from "@/lib/auth/session";
+import { loadFoundEditais, type FoundEdital } from "@/lib/editais/found";
+import { findSameSource } from "@/lib/editais/links";
 import { checkMonitorAccess } from "@/lib/monitor/access";
 import {
   importUncertainCandidate,
@@ -20,6 +24,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type SourceActionState = {
+  /** Editais encontrados pela execução (novos e já cadastrados vistos de novo). */
+  found?: FoundEdital[];
   error?: string;
   success?: string;
   savedAt?: number;
@@ -41,6 +47,27 @@ const sourceSchema = z.object({
     .transform((value) => value || null),
   audiovisual_only: z.boolean(),
 });
+
+/** Buscas usam a chave de serviço e têm custo: permissão "editais.search" (hoje só ADM). */
+async function requireSearchPermission() {
+  const session = await requireMembership();
+  if (!can(session.membership.role, "editais.search")) redirect("/sem-acesso?motivo=permissao");
+  return session;
+}
+
+/** Fonte já cadastrada com o mesmo endereço (www/barra final não contam) → mensagem clara. */
+async function duplicateSourceError(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  listUrl: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("edital_sources")
+    .select("name, list_url")
+    .eq("org_id", orgId);
+  const same = findSameSource(data ?? [], listUrl);
+  return same ? `Esta fonte já está cadastrada (“${same.name}”).` : null;
+}
 
 type SourceInsert = Database["core"]["Tables"]["edital_sources"]["Insert"];
 
@@ -85,6 +112,8 @@ export async function createSource(
   }
 
   const supabase = await createClient();
+  const duplicate = await duplicateSourceError(supabase, membership.orgId, parsed.data.list_url);
+  if (duplicate) return { error: duplicate };
   const { error } = await supabase
     .from("edital_sources")
     .insert({ ...parsed.data, org_id: membership.orgId });
@@ -137,15 +166,22 @@ export async function deleteSource(sourceId: string): Promise<void> {
 
 /** "Verificar agora": roda a varredura só das fontes da organização do administrador. */
 export async function runMonitorNow(): Promise<SourceActionState> {
-  const { membership } = await requireMembership("admin");
+  const { membership } = await requireSearchPermission();
   const supabase = await createClient();
+  const since = new Date().toISOString();
 
   // Antes de rodar: o motor precisa enxergar as mesmas fontes ativas que a tela.
   const access = await checkMonitorAccess(supabase, membership.orgId);
   if (!access.ok)
-    return { error: access.problem ?? "O motor não consegue ler as fontes. Veja o Diagnóstico." };
+    return {
+      error: access.problem ?? "O motor não consegue ler as fontes. Veja o Diagnóstico.",
+      savedAt: Date.now(),
+    };
   if (access.engineActive === 0)
-    return { error: "Nenhuma fonte ativa para verificar. Ative ou cadastre uma fonte." };
+    return {
+      error: "Nenhuma fonte ativa para verificar. Ative ou cadastre uma fonte.",
+      savedAt: Date.now(),
+    };
 
   try {
     const results = await runMonitor(createAdminClient(), {
@@ -154,10 +190,12 @@ export async function runMonitorNow(): Promise<SourceActionState> {
     });
     revalidatePath("/editais");
     revalidatePath("/editais/fontes");
-    return { summary: summarize(results), savedAt: Date.now() };
+    // O resultado fica nesta tela (sem redirecionar): editais encontrados + resumo técnico.
+    const found = await loadFoundEditais(supabase, membership.orgId, since);
+    return { summary: summarize(results), found, savedAt: Date.now() };
   } catch (error) {
     console.error("Varredura manual falhou:", error instanceof Error ? error.message : error);
-    return { error: "A varredura falhou. Veja o Diagnóstico." };
+    return { error: "A varredura falhou. Veja o Diagnóstico.", savedAt: Date.now() };
   }
 }
 
@@ -283,6 +321,8 @@ export async function addCatalogSource(
   const form = parseCatalogForm(key, formData);
   if ("error" in form) return { error: form.error };
   const supabase = await createClient();
+  const duplicate = await duplicateSourceError(supabase, membership.orgId, form.data.list_url);
+  if (duplicate) return { error: duplicate };
   const { error } = await insertSources(supabase, [
     {
       org_id: membership.orgId,
@@ -336,11 +376,17 @@ export async function toggleFavorite(sourceId: string, favorite: boolean): Promi
   revalidatePath("/editais/fontes");
 }
 
-export type DiscoveryActionState = { error?: string; result?: DiscoveryResult; savedAt?: number };
+export type DiscoveryActionState = {
+  error?: string;
+  result?: DiscoveryResult;
+  found?: FoundEdital[];
+  savedAt?: number;
+};
 
 /** "Buscar novas oportunidades": descoberta web só da organização do administrador. */
 export async function runDiscoveryNow(): Promise<DiscoveryActionState> {
-  const { membership } = await requireMembership("admin");
+  const { membership } = await requireSearchPermission();
+  const since = new Date().toISOString();
   try {
     const [result] = await runWebDiscovery(createAdminClient(), {
       trigger: "manual",
@@ -348,12 +394,14 @@ export async function runDiscoveryNow(): Promise<DiscoveryActionState> {
     });
     revalidatePath("/editais");
     revalidatePath("/editais/fontes");
-    if (!result) return { error: "Nada foi executado." };
-    if (result.status === "not_configured") return { error: result.error, result };
-    return { result, savedAt: Date.now() };
+    if (!result) return { error: "Nada foi executado.", savedAt: Date.now() };
+    if (result.status === "not_configured")
+      return { error: result.error, result, savedAt: Date.now() };
+    const found = await loadFoundEditais(await createClient(), membership.orgId, since);
+    return { result, found, savedAt: Date.now() };
   } catch (error) {
     console.error("Descoberta web manual falhou:", error instanceof Error ? error.message : error);
-    return { error: "A descoberta web falhou. Veja o Diagnóstico." };
+    return { error: "A descoberta web falhou. Veja o Diagnóstico.", savedAt: Date.now() };
   }
 }
 
@@ -412,6 +460,8 @@ export async function addDiscoveredSource(
     return { error: error instanceof UnsafeUrlError ? error.message : "Endereço inválido." };
   }
   const supabase = await createClient();
+  const duplicate = await duplicateSourceError(supabase, membership.orgId, parsed.data.list_url);
+  if (duplicate) return { error: duplicate };
   const { error } = await insertSources(supabase, [
     {
       org_id: membership.orgId,
@@ -435,4 +485,15 @@ export async function addDiscoveredSource(
     success: "Fonte cadastrada PAUSADA. Use “Testar fonte” e, se estiver certa, “Reativar”.",
     savedAt: Date.now(),
   };
+}
+
+/** Cadastra UMA fonte sugerida (mesma configuração de "Adicionar sugeridas"), sem duplicar. */
+export async function addSuggestedSource(listUrl: string): Promise<void> {
+  const { membership } = await requireMembership("admin");
+  const suggestion = SUGGESTED_SOURCES.find((source) => source.list_url === listUrl);
+  if (!suggestion) return;
+  const supabase = await createClient();
+  if (await duplicateSourceError(supabase, membership.orgId, suggestion.list_url)) return;
+  await insertSources(supabase, [{ ...suggestion, org_id: membership.orgId, origin: "suggested" }]);
+  revalidatePath("/editais/fontes");
 }

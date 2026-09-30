@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Field, FormError, FormSuccess, SubmitButton, TextArea } from "@/components/form";
+import { EditalCard } from "@/components/editais/edital-card";
 import { limitLabel } from "@/lib/discovery/labels";
 import type { MonitorSummary } from "@/lib/monitor/summary";
 import type { SourceAdapter } from "@lep/funding";
@@ -69,20 +70,138 @@ export function SourceForm() {
   );
 }
 
-export function RunNowButton() {
-  const [state, action, pending] = useActionState<SourceActionState>(runMonitorNow, {});
+type Kind = "fontes" | "web";
+
+/**
+ * "Buscar Editais": duas ações lado a lado (Fontes Cadastradas × Buscar na Web). O
+ * resultado aparece aqui mesmo — editais encontrados primeiro, com "Acessar edital ↗"
+ * e "Ver análise"; o resumo técnico fica recolhido logo abaixo.
+ */
+export function SearchPanel() {
+  const [monitor, runMonitor, monitorPending] = useActionState<SourceActionState>(
+    runMonitorNow,
+    {},
+  );
+  const [web, runWeb, webPending] = useActionState<DiscoveryActionState>(runDiscoveryNow, {});
+  const pending: Kind | null = monitorPending ? "fontes" : webPending ? "web" : null;
+  const latest: Kind | null =
+    (monitor.savedAt ?? 0) === 0 && (web.savedAt ?? 0) === 0
+      ? null
+      : (monitor.savedAt ?? 0) >= (web.savedAt ?? 0)
+        ? "fontes"
+        : "web";
+  const current = latest === "fontes" ? monitor : latest === "web" ? web : null;
+
   return (
-    <form action={action} className="space-y-3">
+    <section aria-label="Buscar editais" className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2">
+        <SearchAction
+          action={runMonitor}
+          disabled={pending !== null}
+          busy={pending === "fontes"}
+          title="Fontes Cadastradas"
+          text="Procura oportunidades nos sites que a LEP já monitora (fontes ativas)."
+          button="Verificar fontes cadastradas"
+          busyText="Verificando fontes… (até 1 min)"
+          primary
+        />
+        <SearchAction
+          action={runWeb}
+          disabled={pending !== null}
+          busy={pending === "web"}
+          title="Buscar na Web"
+          text="Procura novas oportunidades e novas fontes audiovisuais na internet."
+          button="Buscar na web"
+          busyText="Buscando na web… (até 1 min)"
+        />
+      </div>
+
+      {current && (
+        <section
+          aria-live="polite"
+          aria-label="Resultado da busca"
+          className="space-y-4 rounded-xl border border-brand/40 bg-brand/5 p-4"
+        >
+          <h2 className="font-semibold">
+            Resultado — {latest === "fontes" ? "Fontes Cadastradas" : "Busca na Web"}
+          </h2>
+          <FormError message={current.error} />
+          {!current.error && (current.found ?? []).length === 0 && (
+            <p className="text-sm text-muted">
+              Nenhum edital novo ou atualizado nesta busca. Os detalhes técnicos estão abaixo.
+            </p>
+          )}
+          {(current.found ?? []).length > 0 && (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {current.found!.map((edital) => (
+                <EditalCard
+                  key={edital.id}
+                  edital={edital}
+                  highlight={
+                    edital.isNew
+                      ? { label: "Novo", tone: "brand" }
+                      : { label: "Já cadastrado", tone: "neutral" }
+                  }
+                />
+              ))}
+            </div>
+          )}
+          {(monitor.summary && latest === "fontes") || (web.result && latest === "web") ? (
+            <details className="rounded-lg border border-line bg-card p-3 text-sm">
+              <summary className="cursor-pointer text-muted hover:text-fg">
+                Detalhes técnicos da execução
+              </summary>
+              <div className="mt-3">
+                {latest === "fontes" && monitor.summary && <RunSummary summary={monitor.summary} />}
+                {latest === "web" && web.result && <DiscoverySummary result={web.result} />}
+              </div>
+            </details>
+          ) : null}
+        </section>
+      )}
+    </section>
+  );
+}
+
+function SearchAction({
+  action,
+  disabled,
+  busy,
+  title,
+  text,
+  button,
+  busyText,
+  primary = false,
+}: {
+  action: () => void;
+  disabled: boolean;
+  busy: boolean;
+  title: string;
+  text: string;
+  button: string;
+  busyText: string;
+  primary?: boolean;
+}) {
+  return (
+    <form
+      action={action}
+      className="flex flex-col justify-between gap-4 rounded-xl border border-line bg-card p-5"
+    >
+      <div className="space-y-1">
+        <h2 className="font-semibold">{title}</h2>
+        <p className="text-sm text-muted">{text}</p>
+      </div>
       <button
         type="submit"
-        disabled={pending}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong disabled:opacity-60"
+        disabled={disabled}
+        className={`w-full rounded-md px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60 sm:w-auto ${
+          primary
+            ? "bg-brand text-surface hover:bg-brand-strong"
+            : "border border-brand/60 text-brand hover:bg-brand/10"
+        }`}
       >
-        {pending ? "Verificando fontes… (até 1 min)" : "Verificar agora"}
+        {busy ? busyText : button}
       </button>
-      <FormError message={state.error} />
-      <FormSuccess message={state.success} />
-      {state.summary && <RunSummary summary={state.summary} />}
     </form>
   );
 }
@@ -391,50 +510,33 @@ const DISCOVERY_METRICS = [
   ["failed", "Falhas"],
 ] as const;
 
-/** "Buscar novas oportunidades" (descoberta web) com o resumo da execução. */
-export function DiscoveryButton() {
-  const [state, action, pending] = useActionState<DiscoveryActionState>(runDiscoveryNow, {});
-  const result = state.result;
+/** Resumo técnico da busca na web (métricas da execução). */
+function DiscoverySummary({ result }: { result: NonNullable<DiscoveryActionState["result"]> }) {
   return (
-    <form action={action} className="space-y-3">
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md border border-brand/60 px-4 py-2 text-sm font-semibold text-brand transition hover:bg-brand/10 disabled:opacity-60"
-      >
-        {pending ? "Buscando na web… (até 1 min)" : "Buscar novas oportunidades"}
-      </button>
-      <FormError message={state.error} />
-      {result && result.status !== "not_configured" && (
-        <section
-          aria-label="Resumo da busca web"
-          className="space-y-2 rounded-xl border border-brand/40 bg-brand/5 p-4 text-sm"
-        >
-          <p className="font-medium">
-            Busca web concluída{result.status === "partial" && " (parcial)"}
-            {result.providerLimited && (
-              <span className="text-warn"> · limite do provedor de busca atingido</span>
-            )}
-          </p>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
-            {DISCOVERY_METRICS.map(([key, label]) => (
-              <div key={key} className="flex justify-between gap-2">
-                <dt className="text-muted">{label}</dt>
-                <dd className="tabular-nums">{result[key]}</dd>
-              </div>
-            ))}
-          </dl>
-          {limitLabel(result.limitReached) && (
-            <p className="text-xs text-warn">{limitLabel(result.limitReached)}</p>
-          )}
-          {result.error && <p className="text-xs text-warn">{result.error}</p>}
-          <p className="text-xs text-muted">
-            Novas oportunidades entram como “revisão pendente”. Não audiovisuais e encerradas não
-            viram edital.
-          </p>
-        </section>
+    <section aria-label="Resumo da busca web" className="space-y-2 text-sm">
+      <p className="font-medium">
+        Busca web concluída{result.status === "partial" && " (parcial)"}
+        {result.providerLimited && (
+          <span className="text-warn"> · limite do provedor de busca atingido</span>
+        )}
+      </p>
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-2 lg:grid-cols-3">
+        {DISCOVERY_METRICS.map(([key, label]) => (
+          <div key={key} className="flex justify-between gap-2">
+            <dt className="text-muted">{label}</dt>
+            <dd className="tabular-nums">{result[key]}</dd>
+          </div>
+        ))}
+      </dl>
+      {limitLabel(result.limitReached) && (
+        <p className="text-xs text-warn">{limitLabel(result.limitReached)}</p>
       )}
-    </form>
+      {result.error && <p className="text-xs text-warn">{result.error}</p>}
+      <p className="text-xs text-muted">
+        Novas oportunidades entram como “revisão pendente”. Não audiovisuais e encerradas não viram
+        edital.
+      </p>
+    </section>
   );
 }
 

@@ -392,7 +392,8 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
     checks.push({
       label: "Chave de serviço (SUPABASE_SECRET_KEY)",
       status: "warn",
-      detail: "Não configurada: a varredura automática e o botão “Verificar agora” não funcionam.",
+      detail:
+        "Não configurada: a varredura automática e o botão “Fontes Cadastradas” (Buscar Editais) não funcionam.",
       fix: "Vercel → Settings → Environment Variables → SUPABASE_SECRET_KEY (Supabase → Project Settings → API Keys → Secret key). Refaça o deploy.",
     });
   } else {
