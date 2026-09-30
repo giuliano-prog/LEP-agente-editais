@@ -1045,6 +1045,7 @@ export type Database = {
       };
       profiles: {
         Row: {
+          avatar_path: string | null;
           created_at: string;
           email: string;
           full_name: string | null;
@@ -1052,6 +1053,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          avatar_path?: string | null;
           created_at?: string;
           email: string;
           full_name?: string | null;
@@ -1059,6 +1061,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          avatar_path?: string | null;
           created_at?: string;
           email?: string;
           full_name?: string | null;
@@ -1153,6 +1156,10 @@ export type Database = {
       try_uuid: {
         Args: { p_value: string };
         Returns: string | null;
+      };
+      shares_org_with: {
+        Args: { p_user: string };
+        Returns: boolean;
       };
       role_in_org: {
         Args: { p_org_id: string };
