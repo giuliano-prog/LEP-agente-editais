@@ -101,7 +101,18 @@ export default async function HomePage({
       )}
 
       <section className="space-y-3">
-        <p className="text-sm text-muted">{name ? `Olá, ${name}` : "Olá!"}</p>
+        <p className="text-sm text-muted">
+          {name ? (
+            `Olá, ${name}`
+          ) : (
+            <>
+              Olá!{" "}
+              <Link href="/conta" className="text-brand hover:underline">
+                Cadastre seu nome em Minha conta
+              </Link>
+            </>
+          )}
+        </p>
         <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
           Inteligência e automação para o <span className="text-brand">audiovisual.</span>
         </h1>

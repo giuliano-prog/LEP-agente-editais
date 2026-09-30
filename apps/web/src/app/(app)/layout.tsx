@@ -8,12 +8,12 @@ import { navigationFor } from "@/lib/navigation";
  * filtrados pelo papel; cada rota continua protegida no servidor.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { fullName, membership } = await requireMembership();
+  const { fullName, avatarUrl, membership } = await requireMembership();
   return (
     <AppShell
       items={navigationFor(membership.role)}
-      // Nome sem e-mail; foto ainda não existe no cadastro (avatar com iniciais).
-      user={{ name: fullName?.trim() || null, avatarUrl: null }}
+      // Nome e foto (URL assinada); sem foto, iniciais. O e-mail não aparece no menu.
+      user={{ name: fullName, avatarUrl }}
       orgName={membership.orgName}
     >
       {children}

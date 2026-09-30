@@ -32,7 +32,7 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 - Match (`packages/modules/funding`): regras determinísticas; nunca afirmar aprovação (`MATCH_DISCLAIMER`).
 - Documentos de editais: bucket privado `edital-documents` (`<org_id>/...`), `core.edital_documents` com SHA-256 imutável (ADR-0011). Buscar URLs externas só via `safeFetch` de `@lep/ingestion` (anti-SSRF).
 - Varredura (ADR-0012): `lib/monitor/run.ts` com cliente admin (`lib/supabase/admin.ts`) — uso restrito a varredura/cron/diagnóstico e convites de membros (ADR-0015, só após `requireMembership("admin")`), sempre filtrando `org_id`. Importados entram com revisão pendente.
-- Membros (ADR-0015): só `memberships.status = 'active'` dá acesso; perfis Administrador/Diretoria/Equipe = admin/editor/viewer. Nunca pedir nem guardar senhas.
+- Membros (ADR-0015): só `memberships.status = 'active'` dá acesso; perfis Administrador/Diretoria/Equipe = admin/editor/viewer. Nunca guardar senhas; a única senha pedida é a inicial do ADM na criação direta, enviada só ao Supabase Auth pelo servidor (ADR-0025). Foto de perfil: bucket privado `avatars` (`<user_id>/...`).
 - Descoberta web (ADR-0024): `lib/discovery/` reaproveita `importOpportunity` (nunca um pipeline paralelo); decide
   audiovisual pelo OBJETO, não pelo tema (`classifyAudiovisualRelevance`); não audiovisual/encerrado fica só em
   `core.discovery_candidates` (sem vitrine de descartados). Provedor de busca só via `SearchProvider` + env do servidor.

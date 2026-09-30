@@ -2,13 +2,96 @@
 
 import { useActionState } from "react";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES } from "@lep/core";
+import { AvatarField } from "@/components/avatar-field";
 import { Field, FormError, FormSuccess, Select, SubmitButton } from "@/components/form";
 import {
+  createMemberAction,
   inviteMemberAction,
   resendInviteAction,
   setMemberStatusAction,
+  updateMemberProfileAction,
   type MemberActionState,
 } from "./actions";
+
+/** Criação direta pelo ADM: conta no Supabase Auth com senha inicial, sem e-mail. */
+export function CreateMemberForm() {
+  const [state, action] = useActionState<MemberActionState, FormData>(createMemberAction, {});
+  return (
+    <form key={state.savedAt ?? "create"} action={action} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Nome"
+          name="full_name"
+          required
+          minLength={2}
+          maxLength={120}
+          autoComplete="off"
+        />
+        <Field
+          label="E-mail"
+          name="email"
+          type="email"
+          required
+          maxLength={254}
+          autoComplete="off"
+        />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Select label="Perfil" name="role" required options={ROLE_LABELS} defaultValue="viewer" />
+        <Field
+          label="Senha inicial"
+          name="password"
+          type="password"
+          required
+          minLength={10}
+          autoComplete="new-password"
+          hint="Mínimo de 10 caracteres, com maiúsculas, minúsculas e números."
+        />
+      </div>
+      <AvatarField name={null} />
+      <p className="text-xs text-muted">
+        A senha inicial vai direto para o Supabase Auth e não fica guardada na plataforma. Passe-a à
+        pessoa por um canal seguro; ela pode trocá-la em Minha conta.
+      </p>
+      <FormError message={state.error} />
+      <FormSuccess message={state.success} />
+      <SubmitButton>Criar acesso</SubmitButton>
+    </form>
+  );
+}
+
+/** ADM completa nome e foto de um membro (o perfil de acesso não muda aqui). */
+export function EditMemberForm({
+  userId,
+  fullName,
+  avatarUrl,
+}: {
+  userId: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+}) {
+  const [state, action] = useActionState<MemberActionState, FormData>(
+    updateMemberProfileAction,
+    {},
+  );
+  return (
+    <form key={state.savedAt ?? userId} action={action} className="mt-3 space-y-3">
+      <input type="hidden" name="user_id" value={userId} />
+      <Field
+        label="Nome"
+        name="full_name"
+        required
+        minLength={2}
+        maxLength={120}
+        defaultValue={fullName ?? ""}
+      />
+      <AvatarField name={fullName} currentUrl={avatarUrl} allowRemove />
+      <FormError message={state.error} />
+      <FormSuccess message={state.success} />
+      <SubmitButton>Salvar</SubmitButton>
+    </form>
+  );
+}
 
 export function InviteForm() {
   const [state, action] = useActionState<MemberActionState, FormData>(inviteMemberAction, {});

@@ -10,8 +10,9 @@ import {
 import { Avatar } from "@/components/avatar";
 import { Badge, Card, PageHeader, SectionTitle, type BadgeTone } from "@/components/ui";
 import { DbErrorNotice } from "@/components/db-error-notice";
-import { InviteForm, MemberActions } from "./member-forms";
+import { CreateMemberForm, EditMemberForm, InviteForm, MemberActions } from "./member-forms";
 import { requireMembership } from "@/lib/auth/session";
+import { signedAvatarUrls } from "@/lib/profile/avatar";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Membros" };
@@ -29,8 +30,8 @@ const ROLE_TONES: Record<Role, BadgeTone> = {
 };
 
 /**
- * Membros = quem usa a plataforma. Todos os perfis consultam a lista; convidar,
- * reenviar, suspender e reativar exigem `members.manage` (ADM).
+ * Membros = quem usa a plataforma. Todos os perfis consultam a lista; criar acesso,
+ * editar nome/foto, convidar, reenviar, suspender e reativar exigem `members.manage` (ADM).
  *
  * A sede da proponente (usada pelo motor de elegibilidade) continua no banco e em
  * `proponent-form.tsx`/`updateProponent`; o bloco só saiu desta tela.
@@ -41,21 +42,42 @@ export default async function MembersPage() {
   const supabase = await createClient();
 
   // O RLS garante que só membros da própria organização retornam.
-  const { data, error } = await supabase
-    .from("memberships")
-    .select(
-      "id, role, status, created_at, profiles!memberships_user_id_fkey ( id, email, full_name )",
-    )
-    .eq("org_id", membership.orgId)
-    .order("created_at", { ascending: true });
+  const list = (columns: string) =>
+    supabase
+      .from("memberships")
+      .select(`id, role, status, created_at, profiles!memberships_user_id_fkey ( ${columns} )`)
+      .eq("org_id", membership.orgId)
+      .order("created_at", { ascending: true })
+      .overrideTypes<
+        {
+          id: string;
+          role: Role;
+          status: string;
+          profiles: {
+            id: string;
+            email: string;
+            full_name: string | null;
+            avatar_path?: string | null;
+          } | null;
+        }[]
+      >();
+  let { data, error } = await list("id, email, full_name, avatar_path");
+  // Antes da migração 20261010120000 (fotos) a coluna não existe: lista sem fotos.
+  if (error?.code === "42703") ({ data, error } = await list("id, email, full_name"));
+  const avatars = await signedAvatarUrls(
+    supabase,
+    (data ?? []).map((member) => member.profiles?.avatar_path),
+  );
 
   const members = (data ?? [])
     .map((member) => ({
       id: member.id,
       role: member.role,
       status: isMembershipStatus(member.status) ? member.status : ("active" as const),
+      userId: member.profiles?.id ?? null,
       name: member.profiles?.full_name?.trim() || null,
       email: member.profiles?.email ?? null,
+      avatarUrl: avatars.get(member.profiles?.avatar_path ?? "") ?? null,
       isSelf: member.profiles?.id === userId,
     }))
     // Quem não gerencia vê só vínculos ativos (convites e suspensões são assunto do ADM).
@@ -74,8 +96,16 @@ export default async function MembersPage() {
 
       {canManage && (
         <Card>
-          <SectionTitle>Convidar membro</SectionTitle>
-          <InviteForm />
+          <SectionTitle>Criar acesso</SectionTitle>
+          <CreateMemberForm />
+          <details className="mt-6 border-t border-line pt-4 text-sm">
+            <summary className="cursor-pointer text-muted hover:text-brand">
+              Convidar por e-mail (exige SMTP configurado no Supabase)
+            </summary>
+            <div className="mt-4">
+              <InviteForm />
+            </div>
+          </details>
         </Card>
       )}
 
@@ -90,7 +120,7 @@ export default async function MembersPage() {
                 className="flex min-w-0 flex-col gap-3 rounded-xl border border-line bg-card p-4"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <Avatar name={member.name ?? member.email} />
+                  <Avatar name={member.name ?? member.email} src={member.avatarUrl} />
                   <div className="min-w-0">
                     <p className="truncate font-medium">{member.name ?? "—"}</p>
                     <p className="truncate text-sm text-muted">{member.email}</p>
@@ -105,11 +135,25 @@ export default async function MembersPage() {
                   )}
                 </div>
                 {canManage && (
-                  <MemberActions
-                    membershipId={member.id}
-                    status={member.status}
-                    isSelf={member.isSelf}
-                  />
+                  <div className="space-y-2">
+                    <MemberActions
+                      membershipId={member.id}
+                      status={member.status}
+                      isSelf={member.isSelf}
+                    />
+                    {member.userId && (
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-xs text-muted hover:text-brand">
+                          Editar nome e foto
+                        </summary>
+                        <EditMemberForm
+                          userId={member.userId}
+                          fullName={member.name}
+                          avatarUrl={member.avatarUrl}
+                        />
+                      </details>
+                    )}
+                  </div>
                 )}
               </li>
             ))}
@@ -132,7 +176,7 @@ export default async function MembersPage() {
                 {members.map((member) => (
                   <tr key={member.id} className="border-b border-line align-middle last:border-0">
                     <td className="px-4 py-3">
-                      <Avatar name={member.name ?? member.email} size="sm" />
+                      <Avatar name={member.name ?? member.email} src={member.avatarUrl} size="sm" />
                     </td>
                     <td className="px-4 py-3 font-medium">{member.name ?? "—"}</td>
                     <td className="break-all px-4 py-3 text-muted">{member.email}</td>
@@ -148,11 +192,25 @@ export default async function MembersPage() {
                     </td>
                     {canManage && (
                       <td className="px-4 py-3">
-                        <MemberActions
-                          membershipId={member.id}
-                          status={member.status}
-                          isSelf={member.isSelf}
-                        />
+                        <div className="max-w-sm space-y-2">
+                          <MemberActions
+                            membershipId={member.id}
+                            status={member.status}
+                            isSelf={member.isSelf}
+                          />
+                          {member.userId && (
+                            <details className="text-sm">
+                              <summary className="cursor-pointer text-xs text-muted hover:text-brand">
+                                Editar nome e foto
+                              </summary>
+                              <EditMemberForm
+                                userId={member.userId}
+                                fullName={member.name}
+                                avatarUrl={member.avatarUrl}
+                              />
+                            </details>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>

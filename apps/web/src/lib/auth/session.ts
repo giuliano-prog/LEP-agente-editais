@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { hasRole, isMembershipStatus, type MembershipStatus, type Role } from "@lep/core";
+import { signedAvatarUrls } from "@/lib/profile/avatar";
 import { createClient } from "@/lib/supabase/server";
 
 export type Membership = {
@@ -16,6 +17,8 @@ export type Session = {
   userId: string;
   email: string;
   fullName: string | null;
+  /** URL assinada (temporária) da foto de perfil; `null` = iniciais. */
+  avatarUrl: string | null;
   membership: Membership | null;
   /** Status do vínculo quando não há acesso (ex.: suspenso). `null` = sem vínculo algum. */
   membershipStatus: MembershipStatus | null;
@@ -43,10 +46,27 @@ export const getSession = cache(async (): Promise<Session | null> => {
       .limit(1)
       .maybeSingle();
 
-  const [{ data: profile }, first] = await Promise.all([
-    supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    loadMembership(),
-  ]);
+  const loadProfile = async () => {
+    const withAvatar = await supabase
+      .from("profiles")
+      .select("full_name, avatar_path")
+      .eq("id", user.id)
+      .maybeSingle();
+    // Antes da migração 20261010120000 a coluna da foto não existe (42703): só o nome.
+    if (withAvatar.error?.code !== "42703") return withAvatar.data;
+    const legacy = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    return legacy.data ? { ...legacy.data, avatar_path: null } : null;
+  };
+
+  const [profile, first] = await Promise.all([loadProfile(), loadMembership()]);
+  const avatarPath = profile?.avatar_path ?? null;
+  const avatarUrl = avatarPath
+    ? ((await signedAvatarUrls(supabase, [avatarPath])).get(avatarPath) ?? null)
+    : null;
 
   let membership = first.data;
   // Antes da migração 20261001120000 a coluna `status` não existe (42703): mantém o
@@ -72,7 +92,8 @@ export const getSession = cache(async (): Promise<Session | null> => {
   return {
     userId: user.id,
     email: user.email ?? "",
-    fullName: profile?.full_name ?? null,
+    fullName: profile?.full_name?.trim() || null,
+    avatarUrl,
     membershipStatus: status,
     membership:
       status === "active" && membership?.organizations

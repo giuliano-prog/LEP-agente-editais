@@ -300,6 +300,23 @@ export async function runDiagnostics(supabase: Supabase, orgId: string): Promise
         },
   );
 
+  // 3b10. Foto de perfil dos membros (coluna profiles.avatar_path + bucket privado avatars).
+  const avatarColumn = await supabase.from("profiles").select("avatar_path").limit(1);
+  checks.push(
+    avatarColumn.error
+      ? {
+          label: "Foto de perfil dos membros",
+          status: "fail",
+          detail: avatarColumn.error.message,
+          fix: "Aplique a migração 20261010120000 (GitHub → Actions → “Migrações Supabase (produção)” → Run workflow).",
+        }
+      : {
+          label: "Foto de perfil dos membros",
+          status: "ok",
+          detail: "Coluna da foto disponível (bucket privado avatars criado pela mesma migração).",
+        },
+  );
+
   // 3b9. Provedor de busca da descoberta web (só o nome; a chave nunca é exibida).
   const search = searchProviderFromEnv();
   checks.push(

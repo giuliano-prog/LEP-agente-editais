@@ -48,6 +48,7 @@ describe("navegação global", () => {
 
   it("primeiro nome e iniciais sem inventar dados", () => {
     expect(firstName("Maria Clara Souza")).toBe("Maria");
+    expect(firstName(" Pessoa  Teste ")).toBe("Pessoa");
     expect(firstName("  ")).toBeNull();
     expect(firstName(null)).toBeNull();
     expect(initials("Maria Clara Souza")).toBe("MS");

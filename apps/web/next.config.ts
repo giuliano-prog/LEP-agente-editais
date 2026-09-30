@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@lep/core", "@lep/db", "@lep/funding", "@lep/ingestion", "@lep/projects"],
   // pdfjs-dist (texto de PDF, etapa 7) roda no Node sem ser empacotado.
   serverExternalPackages: ["pdfjs-dist"],
+  // Foto de perfil (até 2 MB) enviada por Server Action; folga para o multipart.
+  experimental: { serverActions: { bodySizeLimit: "3mb" } },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

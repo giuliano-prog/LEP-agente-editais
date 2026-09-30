@@ -77,3 +77,67 @@ describe("getSession — status do vínculo", () => {
     expect(rpc).toHaveBeenCalledWith("accept_my_invitations");
   });
 });
+
+describe("getSession — nome e foto do membro", () => {
+  const active = { data: { role: "viewer", status: "active", organizations: org }, error: null };
+  const withProfile = (profiles: (columns: string) => unknown) => {
+    const signed = vi.fn(async (paths: string[]) => ({
+      data: paths.map((path) => ({
+        path,
+        signedUrl: `https://storage.test/${path}?token=t`,
+        error: null,
+      })),
+      error: null,
+    }));
+    const base = fakeClient(active, active);
+    return {
+      signed,
+      client: {
+        ...base,
+        storage: { from: () => ({ createSignedUrls: signed }) },
+        from: (table: string) => {
+          if (table !== "profiles") return base.from(table);
+          let columns = "";
+          const builder = {
+            select: (value: string) => ((columns = value), builder),
+            eq: () => builder,
+            maybeSingle: async () => profiles(columns),
+          };
+          return builder;
+        },
+      },
+    };
+  };
+
+  it("usa o nome cadastrado e a foto por URL assinada (bucket privado)", async () => {
+    const stub = withProfile(() => ({
+      data: { full_name: "  Pessoa Teste ", avatar_path: "u1/foto.png" },
+      error: null,
+    }));
+    client = stub.client as never;
+    const { getSession } = await import("./session");
+    const session = await getSession();
+    expect(session?.fullName).toBe("Pessoa Teste");
+    expect(session?.avatarUrl).toBe("https://storage.test/u1/foto.png?token=t");
+    expect(stub.signed).toHaveBeenCalledWith(["u1/foto.png"], 3600);
+  });
+
+  it("sem nome nem foto: null (tela usa saudação neutra e iniciais)", async () => {
+    const stub = withProfile(() => ({ data: { full_name: " ", avatar_path: null }, error: null }));
+    client = stub.client as never;
+    const { getSession } = await import("./session");
+    expect(await getSession()).toMatchObject({ fullName: null, avatarUrl: null });
+    expect(stub.signed).not.toHaveBeenCalled();
+  });
+
+  it("banco sem a migração da foto (42703): mantém o nome", async () => {
+    const stub = withProfile((columns) =>
+      columns.includes("avatar_path")
+        ? { data: null, error: { code: "42703" } }
+        : { data: { full_name: "Pessoa Antiga" }, error: null },
+    );
+    client = stub.client as never;
+    const { getSession } = await import("./session");
+    expect(await getSession()).toMatchObject({ fullName: "Pessoa Antiga", avatarUrl: null });
+  });
+});

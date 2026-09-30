@@ -245,7 +245,7 @@ function MemberMenu({ user }: { user: ShellUser }) {
           className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-line bg-card shadow-xl shadow-black/40"
         >
           <Link
-            href="/conta/senha"
+            href="/conta"
             role="menuitem"
             onClick={() => setOpen(false)}
             className="block px-4 py-2.5 text-sm hover:bg-card-raised hover:text-brand"
