@@ -1,6 +1,6 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualizado em:** 2026-09-30 (fechamento da versão atual: navegação, Home, Buscar Editais, Membros e plantas, §15); 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
+> **Atualizado em:** 2026-09-30 (criação direta de membros, Minha conta e foto de perfil, §16; fechamento da versão atual: navegação, Home, Buscar Editais, Membros e plantas, §15); 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência:** descoberta web `81af51e` (+ commit de documentação; auditoria em `83f8444`) · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
 >
@@ -259,6 +259,10 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 ---
 
 ## 4. Última alteração implementada
+
+**Criação direta de membros + Minha conta + foto de perfil (2026-09-30, ADR-0025)** — ADM cria acesso com senha
+inicial (sem SMTP), nome e foto aparecem na Home e no menu; **1 migração nova** (`20261010120000_avatares`).
+Detalhes em **§16**. Sem merge; aguardando revisão.
 
 **Fechamento da versão atual (2026-09-30)** — menu lateral, Home, Buscar Editais com resultado na própria tela,
 Produções (nome na interface), Membros simplificado e plantas de Produções Atuais, Orçamentos e Equipe Audiovisual.
@@ -549,6 +553,7 @@ futuro (hoje só lê).
 |                            | Descoberta web: `ad9d6a3` lógica pura · `45b64ac` migração · `52322e3` pipeline reutilizável · `0c7ef95` orquestração · `81af51e` interface · commit de documentação                                                          |
 |                            | Descoberta web — limites: `f47dad9` contador mensal · `e9281ff` busca/triagem/limites · commit de documentação                                                                                                                |
 |                            | Fechamento da versão (2026-09-30): `66f6b7c` navegação+Home · `aeb72d5` Editais/Buscar Editais · `f7119d1` Produções + plantas · `61554e6` Equipe Audiovisual · `4f8a6e6` Membros/permissões · commit de documentação         |
+|                            | Criação direta de membros/foto (2026-09-30): commits desta tarefa (migração + app + docs)                                                                                                                                     |
 | Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                                                                                                         |
 | Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                                                                              |
 
@@ -999,3 +1004,57 @@ granulares não implementadas.
 **Riscos para produção:** as 10 migrações anteriores deste branch continuam pendentes do workflow (§10 item 5);
 o resultado da busca na tela depende de `discovered_at`/`edital_sightings.last_seen_at` (limite de 40 itens);
 `maxDuration = 60` na página de busca (mesmo limite anterior).
+
+---
+
+## 16. Criação direta de membros, Minha conta e foto de perfil (2026-09-30) — ✅ no branch; aguardando revisão
+
+Branch `claude/melhorias-editais`. **Sem merge, nada em produção, nenhum usuário criado por código/migração/seed.**
+
+**Implementado**
+
+- **Membros → Criar acesso (só ADM):** nome, e-mail, perfil (ADM/Diretoria/Equipe), senha inicial, foto opcional.
+  Servidor: `requireMembership("admin")` → chave de serviço → `auth.admin.createUser` (e-mail confirmado) → vínculo
+  **ativo** no `org_id` do ADM; se o vínculo falhar, a conta é desfeita. E-mail já existente: nada é criado nem
+  alterado. Convite por e-mail mantido, recolhido ("exige SMTP").
+- **Membros → Editar nome e foto (só ADM):** para completar cadastros existentes (ex.: o ADM atual) sem mexer em
+  Auth, vínculo ou papel; confere que o membro é da organização do ADM.
+- **Minha conta (`/conta`):** nome, foto e senha da própria pessoa; perfil de acesso só exibido. `/conta/senha`
+  (destino dos convites) continua funcionando. Menu "Minha conta" aponta para `/conta`.
+- **Home:** "Olá, {primeiro nome}"; sem nome cadastrado: "Olá!" + link para cadastrar o nome em Minha conta.
+- **Menu lateral:** foto (URL assinada) e nome; sem foto, iniciais; e-mail não aparece.
+- **Diagnóstico:** nova checagem "Foto de perfil dos membros" (migração `20261010120000`).
+- Tolerância: antes da migração, sessão e Membros continuam funcionando (só sem foto); salvar foto mostra aviso.
+
+**Banco (migração `20261010120000_avatares.sql`, idempotente):** `core.profiles.avatar_path` (CHECK: caminho na
+pasta do próprio usuário); `grant update (full_name, avatar_path)`; bucket privado `avatars` (2 MB,
+JPEG/PNG/WebP); função `core.shares_org_with`; políticas de Storage (ler: própria pessoa e mesma organização;
+gravar/alterar/apagar: só a própria pasta). Teste `supabase/tests/016_avatares_rls.sql`.
+
+**Segurança (verificado):** senha só no Supabase Auth (teste unitário confere que nenhuma escrita em tabela e
+nenhum log contém a senha; no navegador, nenhuma tabela simulada nem o log do Next contém as senhas usadas);
+chave de serviço só em módulos `server-only` — o nome e o valor da chave não aparecem em `.next/static`;
+criação/edição por Diretoria ou Equipe é barrada antes de criar o cliente admin (teste unitário) e a tela não
+mostra os formulários; foto validada por tipo real e tamanho no servidor e no bucket; Minha conta usa o id da
+sessão + RLS (membro não altera perfil nem papel de outra pessoa — teste SQL).
+
+**Testes executados (2026-09-30, resultados reais)**
+
+- `pnpm check`: ✅ saída 0 — web 115 testes (novos: criação direta, bloqueio de não-ADM, regras da foto, sessão
+  com nome/foto e fallback 42703), funding 175, ingestion 54, ai 10, projects 3, core 9.
+- `pnpm build`: ✅ saída 0 (rotas `/conta` e `/conta/senha`).
+- `DB_TEST_SHIM=1 pnpm db:test` (PostgreSQL 16 local, migrações aplicadas 2x): ✅ 16/16 arquivos, incluindo
+  `016_avatares_rls.sql` (13 verificações). Cenário `remoto-parcial`: ✅.
+- Navegador (Playwright + Supabase **simulado**, dados fictícios): 27/27 verificações — ADM cria acesso com
+  foto; e-mail repetido recusado; arquivo não-imagem e foto > 2 MB recusados; ADM edita nome/foto (foto antiga
+  removida); Minha conta do ADM altera nome/foto; Home "Olá, {primeiro nome}"; menu com nome e foto, sem e-mail;
+  membro criado entra pela tela de login (senha errada não entra); Diretoria sem Diagnóstico (menu e rota) e sem
+  criação/edição de membros; membro edita o próprio nome e foto; troca de senha continua funcionando; fallback
+  "Olá!" sem nome.
+- **Não verificado:** Supabase Auth/Storage **reais** (sem Docker/Supabase local aqui) — testar no Preview/staging
+  após aplicar a migração.
+
+**Configuração manual necessária:** aplicar `20261010120000` pelo workflow de migrações (staging e depois
+produção); `SUPABASE_SECRET_KEY` já é exigida no servidor (Vercel) — sem ela a criação direta mostra aviso;
+nenhuma mudança de SMTP. Depois, completar nome/foto do ADM atual em Minha conta e cadastrar pela tela as
+pessoas previstas pela LEP.
