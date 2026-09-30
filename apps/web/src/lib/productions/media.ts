@@ -22,12 +22,21 @@ export function normalizeTitle(value: string): string {
     .trim();
 }
 
-/** Trailer da produção pelo título (com ou sem artigo "A"). */
+const STOPWORDS = new Set(["a", "o", "as", "os", "da", "do", "das", "dos", "de", "e"]);
+
+const words = (value: string) =>
+  normalizeTitle(value)
+    .split(" ")
+    .filter((word) => word && !STOPWORDS.has(word));
+
+/**
+ * Trailer da produção pelo título: todas as palavras significativas do título cadastrado
+ * aqui precisam aparecer no título da produção (acentos, maiúsculas, artigos e
+ * complementos não importam: "A Conspiração do Condor (documentário)" também vale).
+ */
 export function mediaForProduction(title: string): ProductionMedia | null {
-  const key = normalizeTitle(title);
-  const found = MEDIA.find(
-    (media) => media.title === key || media.title.replace(/^(a|o|as|os) /, "") === key,
-  );
+  const present = new Set(words(title));
+  const found = MEDIA.find((media) => words(media.title).every((word) => present.has(word)));
   return found && YOUTUBE_ID.test(found.youtubeId) ? found : null;
 }
 

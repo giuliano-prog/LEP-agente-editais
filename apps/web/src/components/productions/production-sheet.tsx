@@ -108,6 +108,7 @@ export function ProductionSheet({
   synopsis,
   media,
   budget,
+  navigation = "tabs",
 }: {
   title: string;
   stage: ProductionStage;
@@ -121,6 +122,11 @@ export function ProductionSheet({
   media?: ProductionMedia | null;
   /** Orçamento total informado no cadastro (se houver). */
   budget?: string | null;
+  /**
+   * "tabs" = abas compactas (Produções Concluídas, consulta/histórico);
+   * "blocks" = blocos grandes clicáveis (Produções Atuais, uso operacional/celular).
+   */
+  navigation?: "tabs" | "blocks";
 }) {
   const active = productionArea(area);
   return (
@@ -141,56 +147,84 @@ export function ProductionSheet({
 
       <LifecycleSteps current={stage} />
 
-      <nav aria-label="Áreas da produção" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        <ul className="flex min-w-max gap-1 border-b border-line">
-          {PRODUCTION_AREAS.map((item) => (
-            <li key={item.key}>
-              <Link
-                href={item.key === "visao-geral" ? basePath : `${basePath}?area=${item.key}`}
-                aria-current={item.key === active.key ? "page" : undefined}
-                scroll={false}
-                className={`block whitespace-nowrap border-b-2 px-3 py-2 text-sm transition ${
-                  item.key === active.key
-                    ? "border-brand text-brand"
-                    : "border-transparent text-muted hover:text-fg"
-                }`}
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      {navigation === "blocks" ? (
+        <nav aria-label="Áreas da produção">
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {PRODUCTION_AREAS.map((item) => (
+              <li key={item.key} className="min-w-0">
+                <Link
+                  href={`${item.key === "visao-geral" ? basePath : `${basePath}?area=${item.key}`}#area-atual`}
+                  aria-current={item.key === active.key ? "page" : undefined}
+                  className={`flex h-full min-h-20 flex-col justify-center rounded-xl border p-4 text-sm font-medium leading-snug transition ${
+                    item.key === active.key
+                      ? "border-brand bg-brand/10 text-brand"
+                      : "border-line bg-card hover:border-brand/60 hover:bg-card-raised"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : (
+        <nav aria-label="Áreas da produção" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <ul className="flex min-w-max gap-1 border-b border-line">
+            {PRODUCTION_AREAS.map((item) => (
+              <li key={item.key}>
+                <Link
+                  href={item.key === "visao-geral" ? basePath : `${basePath}?area=${item.key}`}
+                  aria-current={item.key === active.key ? "page" : undefined}
+                  scroll={false}
+                  className={`block whitespace-nowrap border-b-2 px-3 py-2 text-sm transition ${
+                    item.key === active.key
+                      ? "border-brand text-brand"
+                      : "border-transparent text-muted hover:text-fg"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
 
-      <section aria-labelledby="area-atual" className="space-y-4">
+      <section
+        id="area-atual"
+        aria-labelledby="area-atual-titulo"
+        className="scroll-mt-20 space-y-4"
+      >
         <div>
-          <h2 id="area-atual" className="text-lg font-semibold">
+          <h2 id="area-atual-titulo" className="text-lg font-semibold">
             {active.label}
           </h2>
           <p className="text-sm text-muted">{active.description}</p>
         </div>
 
         {active.key === "visao-geral" ? (
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="space-y-4 lg:col-span-2">
-              {media && <TrailerCard media={media} />}
-              <div className="rounded-xl border border-line bg-card p-5">
-                <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
-                  Sinopse
-                </h3>
-                <p className="whitespace-pre-line text-sm">
-                  {synopsis?.trim() || <span className="text-muted">Sinopse não informada.</span>}
-                </p>
-              </div>
-            </div>
-            <dl className="space-y-3 rounded-xl border border-line bg-card p-5 text-sm">
-              {facts.map((fact) => (
-                <div key={fact.label}>
-                  <dt className="text-xs uppercase tracking-wider text-muted">{fact.label}</dt>
-                  <dd className="mt-0.5">{fact.value}</dd>
+          <div className="space-y-4">
+            {media && <TrailerCard media={media} />}
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="space-y-4 lg:col-span-2">
+                <div className="rounded-xl border border-line bg-card p-5">
+                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
+                    Sinopse
+                  </h3>
+                  <p className="whitespace-pre-line text-sm">
+                    {synopsis?.trim() || <span className="text-muted">Sinopse não informada.</span>}
+                  </p>
                 </div>
-              ))}
-            </dl>
+              </div>
+              <dl className="space-y-3 rounded-xl border border-line bg-card p-5 text-sm">
+                {facts.map((fact) => (
+                  <div key={fact.label}>
+                    <dt className="text-xs uppercase tracking-wider text-muted">{fact.label}</dt>
+                    <dd className="mt-0.5">{fact.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
           </div>
         ) : active.key === "orcamento" && budget ? (
           <div className="rounded-xl border border-line bg-card p-5 text-sm">
@@ -212,12 +246,12 @@ export function ProductionSheet({
 function TrailerCard({ media }: { media: ProductionMedia }) {
   const urls = youtubeUrls(media.youtubeId);
   return (
-    <div className="space-y-2 rounded-xl border border-line bg-card p-5">
+    <section className="space-y-3 rounded-xl border border-line bg-card p-4 sm:p-5">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">Trailer / Mídia</h3>
-      <div className="relative aspect-video overflow-hidden rounded-lg border border-line bg-black">
+      <div className="relative mx-auto aspect-video w-full max-w-4xl overflow-hidden rounded-lg border border-line bg-black">
         <iframe
           src={urls.embed}
-          title="Trailer"
+          title="Trailer da produção"
           loading="lazy"
           allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           referrerPolicy="strict-origin-when-cross-origin"
@@ -234,6 +268,6 @@ function TrailerCard({ media }: { media: ProductionMedia }) {
         Assistir no YouTube <NavIcon name="external" className="h-3.5 w-3.5" />
         <span className="sr-only">(abre em nova aba)</span>
       </a>
-    </div>
+    </section>
   );
 }

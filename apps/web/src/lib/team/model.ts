@@ -33,7 +33,11 @@ export const TEAM_CATEGORIES: TeamCategory[] = [
   { key: "direcao", label: "Direção", roles: ["Direção", "Assistente de Direção"] },
   { key: "roteiro", label: "Roteiro", roles: ["Roteiro"] },
   { key: "producao-executiva", label: "Produção Executiva", roles: ["Produção Executiva"] },
-  { key: "producao", label: "Produção", roles: ["Direção de Produção", "Produção"] },
+  {
+    key: "producao",
+    label: "Produção",
+    roles: ["Direção de Produção", "Produção", "Produtora", "Produtor"],
+  },
   {
     key: "assistencia-producao",
     label: "Assistência de Produção",

@@ -29,6 +29,7 @@ export const DEMO_PROFESSIONALS: Professional[] = [
     mainRole: "Assistente de Platô",
     ...empty,
   },
+  { slug: "beatriz-reis", name: "Beatriz Reis", mainRole: "Produtora", ...empty },
 ];
 
 export function demoProfessional(slug: string): Professional | null {

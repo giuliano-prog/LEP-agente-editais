@@ -25,6 +25,7 @@ export default async function CurrentProductionPage({
       title={production.title}
       stage={production.stage}
       isDemo
+      navigation="blocks"
       basePath={`/producoes-atuais/${production.slug}`}
       area={area}
       back={{ href: "/producoes-atuais", label: "Produções Atuais" }}

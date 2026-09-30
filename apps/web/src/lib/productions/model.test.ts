@@ -44,7 +44,15 @@ describe("modelo da produção", () => {
     expect(normalizeTitle("A Conspiração  Condor!")).toBe("a conspiracao condor");
     expect(mediaForProduction("A Conspiração Condor")?.youtubeId).toBe("TJXg83kcFMA");
     expect(mediaForProduction("Conspiração Condor")?.youtubeId).toBe("TJXg83kcFMA");
+    expect(mediaForProduction("A CONSPIRAÇÃO CONDOR (documentário)")?.youtubeId).toBe(
+      "TJXg83kcFMA",
+    );
+    expect(mediaForProduction("A Conspiração Condor — longa-metragem")?.youtubeId).toBe(
+      "TJXg83kcFMA",
+    );
+    expect(mediaForProduction("A Conspiração do Condor")?.youtubeId).toBe("TJXg83kcFMA");
     expect(mediaForProduction("Outra produção")).toBeNull();
+    expect(mediaForProduction("Condor")).toBeNull();
     expect(youtubeUrls("TJXg83kcFMA")).toEqual({
       embed: "https://www.youtube-nocookie.com/embed/TJXg83kcFMA?rel=0",
       watch: "https://www.youtube.com/watch?v=TJXg83kcFMA",
