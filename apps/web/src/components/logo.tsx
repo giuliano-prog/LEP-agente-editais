@@ -5,13 +5,13 @@ import { useState } from "react";
 import { LEP_LOGO } from "@/lib/brand";
 
 /*
- * Logomarca oficial em alta resolução (public/brand/lep-logo.png, fundo transparente).
+ * Logomarca oficial em alta resolução (public/brand/lep-filmes-logo.png, fundo transparente).
  * Só a altura é fixada; a largura segue a proporção original (sem recorte, sem distorção).
  * `sizes` informa a largura exibida para o Next gerar versões otimizadas (inclusive 2x/3x).
  */
 const SIZES = {
-  sm: { className: "h-9 sm:h-11", sizes: "(min-width: 640px) 57px, 47px" },
-  lg: { className: "h-20 sm:h-24", sizes: "(min-width: 640px) 123px, 103px" },
+  sm: { className: "h-9 sm:h-11", sizes: "(min-width: 640px) 50px, 41px" },
+  lg: { className: "h-20 sm:h-24", sizes: "(min-width: 640px) 108px, 90px" },
 } as const;
 
 export function Logo({ size = "sm" }: { size?: keyof typeof SIZES }) {

@@ -267,12 +267,13 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
   aparece uma vez por login, sem banco e sem mudar a autenticação.
 - Botão "Pular abertura" visível desde o início; fim do vídeo, erro, bloqueio de autoplay, timeout de 4 s para
   iniciar, teto de 15 s, Esc e fallback CSS de 16 s liberam a plataforma.
-- Marca: os PNGs de `assets/brand/` têm fundo embutido (opacos) — não aplicados; logo atual mantido até haver
-  versões transparentes.
+- Marca (2026-10-14, após merge da `main` `522dc22`): nova logomarca `assets/brand/LEP Filmes Logo on Transparency.png`
+  aplicada via `public/brand/lep-filmes-logo.png` (só a margem transparente recortada; cores/proporção originais) em
+  `lib/brand.ts`/`components/logo.tsx` — login, sidebar e cabeçalho mobile, sem caixa; conferida em capturas
+  desktop/mobile. Logos antigos mantidos em `public/` só para reversão.
 - Testes: E2E da abertura 20/20 (mock); regressão e2e-v1/v1b/membros sem falhas; `pnpm build` ok; `pnpm check`
   com 1 falha pré-existente (também na `main`): `src/lib/monitor/run.test.ts` "retificação prorroga o prazo"
   (dependente da data atual). Não verificado em navegador real com H.264 (Chromium de teste não tem H.264).
-
 
 **Ajustes da V1 após o Preview (2026-09-30)** — trailer como bloco de apresentação da Condor, Produções Atuais com
 navegação em blocos, Beatriz Reis (exemplo) na Equipe, e Membros com troca de perfil de acesso e exclusão de
