@@ -1117,6 +1117,264 @@ export type Database = {
           },
         ];
       };
+      org_documents: {
+        Row: {
+          category: string;
+          created_at: string;
+          created_by: string | null;
+          external_url: string | null;
+          file_name: string | null;
+          file_path: string | null;
+          id: string;
+          mime_type: string | null;
+          notes: string | null;
+          org_id: string;
+          projeto_id: string | null;
+          scope: string;
+          sha256: string | null;
+          size_bytes: number | null;
+          title: string;
+          updated_at: string;
+          valid_until: string | null;
+        };
+        Insert: {
+          category?: string;
+          created_at?: string;
+          created_by?: string | null;
+          external_url?: string | null;
+          file_name?: string | null;
+          file_path?: string | null;
+          id?: string;
+          mime_type?: string | null;
+          notes?: string | null;
+          org_id: string;
+          projeto_id?: string | null;
+          scope?: string;
+          sha256?: string | null;
+          size_bytes?: number | null;
+          title: string;
+          updated_at?: string;
+          valid_until?: string | null;
+        };
+        Update: {
+          category?: string;
+          created_at?: string;
+          created_by?: string | null;
+          external_url?: string | null;
+          file_name?: string | null;
+          file_path?: string | null;
+          id?: string;
+          mime_type?: string | null;
+          notes?: string | null;
+          org_id?: string;
+          projeto_id?: string | null;
+          scope?: string;
+          sha256?: string | null;
+          size_bytes?: number | null;
+          title?: string;
+          updated_at?: string;
+          valid_until?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "org_documents_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "org_documents_projeto_id_fkey";
+            columns: ["projeto_id"];
+            isOneToOne: false;
+            referencedRelation: "projetos";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      edital_workspaces: {
+        Row: {
+          counterpart_amount: number | null;
+          created_at: string;
+          created_by: string | null;
+          edital_id: string;
+          id: string;
+          notes: string | null;
+          org_id: string;
+          projeto_id: string | null;
+          requested_amount: number | null;
+          rules: Json;
+          rules_extracted_at: string | null;
+          rules_source: string | null;
+          status: string;
+          total_budget: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          counterpart_amount?: number | null;
+          created_at?: string;
+          created_by?: string | null;
+          edital_id: string;
+          id?: string;
+          notes?: string | null;
+          org_id: string;
+          projeto_id?: string | null;
+          requested_amount?: number | null;
+          rules?: Json;
+          rules_extracted_at?: string | null;
+          rules_source?: string | null;
+          status?: string;
+          total_budget?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          counterpart_amount?: number | null;
+          created_at?: string;
+          created_by?: string | null;
+          edital_id?: string;
+          id?: string;
+          notes?: string | null;
+          org_id?: string;
+          projeto_id?: string | null;
+          requested_amount?: number | null;
+          rules?: Json;
+          rules_extracted_at?: string | null;
+          rules_source?: string | null;
+          status?: string;
+          total_budget?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "edital_workspaces_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_workspaces_edital_id_fkey";
+            columns: ["edital_id"];
+            isOneToOne: false;
+            referencedRelation: "editais";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_workspaces_projeto_id_fkey";
+            columns: ["projeto_id"];
+            isOneToOne: false;
+            referencedRelation: "projetos";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      edital_workspace_items: {
+        Row: {
+          category: string;
+          char_limit: number | null;
+          content: string | null;
+          created_at: string;
+          description: string | null;
+          due_date: string | null;
+          evidence: string | null;
+          id: string;
+          notes: string | null;
+          org_document_id: string | null;
+          org_id: string;
+          origin: string;
+          page_limit: number | null;
+          position: number;
+          requirement: string;
+          responsible_id: string | null;
+          source_key: string | null;
+          status: string;
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+          word_limit: number | null;
+          workspace_id: string;
+        };
+        Insert: {
+          category?: string;
+          char_limit?: number | null;
+          content?: string | null;
+          created_at?: string;
+          description?: string | null;
+          due_date?: string | null;
+          evidence?: string | null;
+          id?: string;
+          notes?: string | null;
+          org_document_id?: string | null;
+          org_id: string;
+          origin?: string;
+          page_limit?: number | null;
+          position?: number;
+          requirement?: string;
+          responsible_id?: string | null;
+          source_key?: string | null;
+          status?: string;
+          title: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          word_limit?: number | null;
+          workspace_id: string;
+        };
+        Update: {
+          category?: string;
+          char_limit?: number | null;
+          content?: string | null;
+          created_at?: string;
+          description?: string | null;
+          due_date?: string | null;
+          evidence?: string | null;
+          id?: string;
+          notes?: string | null;
+          org_document_id?: string | null;
+          org_id?: string;
+          origin?: string;
+          page_limit?: number | null;
+          position?: number;
+          requirement?: string;
+          responsible_id?: string | null;
+          source_key?: string | null;
+          status?: string;
+          title?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          word_limit?: number | null;
+          workspace_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "edital_workspace_items_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_workspace_items_workspace_id_fkey";
+            columns: ["workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_workspaces";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_workspace_items_responsible_id_fkey";
+            columns: ["responsible_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_workspace_items_org_document_id_fkey";
+            columns: ["org_document_id"];
+            isOneToOne: false;
+            referencedRelation: "org_documents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
