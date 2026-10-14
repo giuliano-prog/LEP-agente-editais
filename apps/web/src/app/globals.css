@@ -35,3 +35,15 @@ body {
 ::selection {
   @apply bg-brand text-surface;
 }
+
+/* Abertura após o login: se o JavaScript não rodar, a camada some sozinha (nunca bloqueia). */
+@keyframes lep-intro-fallback {
+  to {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+.lep-intro {
+  animation: lep-intro-fallback 0.4s ease 16s forwards;
+}
