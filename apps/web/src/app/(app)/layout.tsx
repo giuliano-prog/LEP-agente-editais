@@ -1,5 +1,8 @@
+import { cookies } from "next/headers";
 import { AppShell } from "@/components/app-shell";
+import { IntroOverlay } from "@/components/intro-overlay";
 import { requireMembership } from "@/lib/auth/session";
+import { INTRO_COOKIE } from "@/lib/intro/constants";
 import { navigationFor } from "@/lib/navigation";
 
 /**
@@ -9,14 +12,18 @@ import { navigationFor } from "@/lib/navigation";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { fullName, avatarUrl, membership } = await requireMembership();
+  const showIntro = (await cookies()).get(INTRO_COOKIE)?.value === "1";
   return (
-    <AppShell
-      items={navigationFor(membership.role)}
-      // Nome e foto (URL assinada); sem foto, iniciais. O e-mail não aparece no menu.
-      user={{ name: fullName, avatarUrl }}
-      orgName={membership.orgName}
-    >
-      {children}
-    </AppShell>
+    <>
+      {showIntro && <IntroOverlay />}
+      <AppShell
+        items={navigationFor(membership.role)}
+        // Nome e foto (URL assinada); sem foto, iniciais. O e-mail não aparece no menu.
+        user={{ name: fullName, avatarUrl }}
+        orgName={membership.orgName}
+      >
+        {children}
+      </AppShell>
+    </>
   );
 }

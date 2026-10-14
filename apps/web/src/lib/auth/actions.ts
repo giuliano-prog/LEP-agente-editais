@@ -1,8 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { passwordSchema } from "@/lib/auth/password";
+import { INTRO_COOKIE, INTRO_COOKIE_MAX_AGE } from "@/lib/intro/constants";
 import { createClient } from "@/lib/supabase/server";
 
 export type FormState = { error?: string };
@@ -24,6 +26,13 @@ export async function signIn(_prev: FormState, formData: FormData): Promise<Form
   // Mensagem genérica: não revela se o e-mail existe.
   if (error) return { error: "E-mail ou senha incorretos." };
 
+  // Abertura institucional: só um aviso de interface (sem dados), lido pela área autenticada.
+  (await cookies()).set(INTRO_COOKIE, "1", {
+    path: "/",
+    sameSite: "lax",
+    maxAge: INTRO_COOKIE_MAX_AGE,
+    secure: process.env.NODE_ENV === "production",
+  });
   redirect("/");
 }
 
