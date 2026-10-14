@@ -236,6 +236,12 @@ export default async function EditalPage({
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{edital.title}</h1>
         {edital.agency && <p className="text-muted">{edital.agency}</p>}
+        <Link
+          href={`/editais/${edital.id}/trabalho`}
+          className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong"
+        >
+          Área de Trabalho da inscrição →
+        </Link>
         {isAutomaticOrigin(edital.origin) && (
           <p className="text-xs text-muted">
             {edital.origin === "web_discovery"
@@ -294,6 +300,12 @@ export default async function EditalPage({
         className="-mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 text-sm"
         aria-label="Seções do edital"
       >
+        <Link
+          href={`/editais/${edital.id}/trabalho`}
+          className="-mb-px whitespace-nowrap border-b-2 border-transparent px-3 py-2 font-medium text-brand transition hover:border-brand"
+        >
+          Área de Trabalho →
+        </Link>
         {(Object.keys(TABS) as TabKey[]).map((key) => (
           <Link
             key={key}
