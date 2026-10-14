@@ -1,5 +1,10 @@
 # Status da Plataforma LEP — estado atual oficial
 
+> **Atualização mais recente:** 2026-10-14 — branch `feature/editais-ux-permissions` (Área de Trabalho do Edital,
+> §19; commit de referência `43bfad1` + commit desta atualização). **Branch principal:** `main` em `262e5e3`
+> (inclui o PR #1: logomarca + abertura em vídeo). Migração `20261011120000` **não aplicada** em produção.
+> As linhas abaixo descrevem o estado registrado até 2026-09-30 e foram mantidas como histórico.
+>
 > **Atualizado em:** 2026-09-30 (ajustes da V1 após o Preview, §18; fechamento da V1 para apresentação, §17); 2026-09-30 (criação direta de membros, Minha conta e foto de perfil, §16; fechamento da versão atual: navegação, Home, Buscar Editais, Membros e plantas, §15); 2026-09-29 (estratégia e limites de custo da descoberta web, §14.2; 1º teste real preparado, §14.1; descoberta web e favoritas, §14; auditoria pré-merge §4.1; staging §13) · **Branch:** `claude/melhorias-editais` (etapas 1–12
 > do plano de melhorias) · **Commit de referência:** descoberta web `81af51e` (+ commit de documentação; auditoria em `83f8444`) · **Produção:** ainda na versão
 > anterior às etapas (branch não integrado; `claude/epic-cerf-abwkc1` em `d6b5af1`, não alterado)
@@ -261,6 +266,8 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 ## 4. Última alteração implementada
 
 ### Área de Trabalho do Edital (branch `feature/editais-ux-permissions`, 2026-10-14) — ADR-0026
+
+> Registro consolidado e completo desta branch: **§19**.
 
 - Base: `main` `262e5e3`. Branch isolada da modernização visual (`feature/ui-modernization`, em revisão).
 - **Migração nova, NÃO aplicada em produção**: `supabase/migrations/20261011120000_area_trabalho_edital.sql`
@@ -561,6 +568,17 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 7. IA: `EditalAnalyzer` pronto (etapa 12); falta a LEP escolher o fornecedor para implementar um `AiProvider`.
 8. Alertas por e-mail.
 
+**Acrescentadas em 2026-10-14 (§19):**
+
+9. **Aplicar a migração `20261011120000_area_trabalho_edital.sql`** (Área de Trabalho + acervo) — só com aprovação da
+   LEP e pelo workflow `supabase-migrations.yml`; de preferência primeiro no Supabase de TESTE (staging, §13).
+10. Revisar e decidir o merge de `feature/ui-modernization` (visual) e de `feature/editais-ux-permissions` (funcional);
+    se ambos forem integrados, trocar as classes de `components/workspace/styles.ts` pelas do design system.
+11. Teste pré-existente falhando na `main`: `apps/web/src/lib/monitor/run.test.ts` (“retificação prorroga o prazo…”),
+    provável dependência da data atual — não corrigido (fora do escopo das branches de 2026-10-14).
+12. Área de Trabalho: ficha técnica da produção (depende da tabela de profissionais da Equipe Audiovisual), orçamento
+    por rubrica, acervo só aceita PDF, revisão por IA (decisão da LEP sobre fornecedor e envio de textos sigilosos).
+
 **Decididas (2026-09-28):** classificação visível de restrição territorial (etapa 5); Diretoria = `editor`, Equipe =
 `viewer`; ordem das etapas 1–12 do plano de melhorias.
 
@@ -587,29 +605,33 @@ futuro (hoje só lê).
 10. 🟡 Novas fontes por configuração (etapa 11): catálogo + "Testar fonte"; **falta** colar os endereços oficiais e
     testar no site real (depende do administrador em produção).
 11. ✅ IA atrás de uma interface única de análise (`EditalAnalyzer`) em `packages/ai`, sem fornecedor (etapa 12).
+12. ✅ (branch `feature/editais-ux-permissions`, 2026-10-14) Área de Trabalho do Edital + Acervo de documentos
+    (ADR-0026). ⬜ aplicar a migração no staging → validar no Preview → aprovar → produção (§19.9).
 
 ---
 
 ## 12. Estado do Git
 
-| Item                       | Valor                                                                                                                                                                                                                         |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repositório                | `giuliano-prog/LEP-agente-editais`                                                                                                                                                                                            |
-| Branch de trabalho         | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                                                                                                                                                 |
-| Branch de produção         | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                                                                                                                                                           |
-| Commits (um por etapa)     | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·                                                                                                                                          |
-|                            | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                                                                                                                                                     |
-|                            | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·                                                                                                                                       |
-|                            | `013dcef` EditalAnalyzer                                                                                                                                                                                                      |
-|                            | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização                                                                                                                                        |
-|                            | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) · `b9cbce6` disparo (conexão recusada) · `f1f4cd2` disparo (✅ 13 migrações no teste) |
-| Remoto (2026-09-29)        | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                                                                                                              |
-|                            | Descoberta web: `ad9d6a3` lógica pura · `45b64ac` migração · `52322e3` pipeline reutilizável · `0c7ef95` orquestração · `81af51e` interface · commit de documentação                                                          |
-|                            | Descoberta web — limites: `f47dad9` contador mensal · `e9281ff` busca/triagem/limites · commit de documentação                                                                                                                |
-|                            | Fechamento da versão (2026-09-30): `66f6b7c` navegação+Home · `aeb72d5` Editais/Buscar Editais · `f7119d1` Produções + plantas · `61554e6` Equipe Audiovisual · `4f8a6e6` Membros/permissões · commit de documentação         |
-|                            | Criação direta de membros/foto (2026-09-30): commits desta tarefa (migração + app + docs)                                                                                                                                     |
-| Alterações não commitadas  | nenhuma após o commit desta auditoria                                                                                                                                                                                         |
-| Migrações novas (produção) | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                                                                              |
+| Item                                                | Valor                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repositório                                         | `giuliano-prog/LEP-agente-editais`                                                                                                                                                                                                                                                                            |
+| Branch de trabalho                                  | `claude/melhorias-editais` (base `d6b5af1`), enviado ao remoto; **sem merge**                                                                                                                                                                                                                                 |
+| Branch de produção                                  | não alterado nesta tarefa; `claude/epic-cerf-abwkc1` não foi tocado                                                                                                                                                                                                                                           |
+| Commits (um por etapa)                              | `f28c329` logo · `1372d51` fontes/resumo · `3d9a375` membros · `c8a5953` benchmark ·                                                                                                                                                                                                                          |
+|                                                     | `e9e8f29` taxonomia · `ac4c20f` classificador · `cd39a47` evidência/PDF ·                                                                                                                                                                                                                                     |
+|                                                     | `9516843` deduplicação · `a29f0ad` Match v2 · `3f2ef74` alterações · `e0a19ac` fontes ·                                                                                                                                                                                                                       |
+|                                                     | `013dcef` EditalAnalyzer                                                                                                                                                                                                                                                                                      |
+|                                                     | `37a684f` STATUS · `83f8444` correção de acesso (auditoria) · commit desta atualização                                                                                                                                                                                                                        |
+|                                                     | `7168853` plano de staging · `721378d` workflow de staging · `5ba040f` disparo (jobs pulados) · `b7ba880` disparo (trava recusou a URL) · `b9cbce6` disparo (conexão recusada) · `f1f4cd2` disparo (✅ 13 migrações no teste)                                                                                 |
+| Remoto (2026-09-29)                                 | `claude/epic-cerf-abwkc1` = `d6b5af1` (HEAD padrão, intocado); não existe `main`                                                                                                                                                                                                                              |
+|                                                     | Descoberta web: `ad9d6a3` lógica pura · `45b64ac` migração · `52322e3` pipeline reutilizável · `0c7ef95` orquestração · `81af51e` interface · commit de documentação                                                                                                                                          |
+|                                                     | Descoberta web — limites: `f47dad9` contador mensal · `e9281ff` busca/triagem/limites · commit de documentação                                                                                                                                                                                                |
+|                                                     | Fechamento da versão (2026-09-30): `66f6b7c` navegação+Home · `aeb72d5` Editais/Buscar Editais · `f7119d1` Produções + plantas · `61554e6` Equipe Audiovisual · `4f8a6e6` Membros/permissões · commit de documentação                                                                                         |
+|                                                     | Criação direta de membros/foto (2026-09-30): commits desta tarefa (migração + app + docs)                                                                                                                                                                                                                     |
+| Alterações não commitadas                           | nenhuma após o commit desta auditoria                                                                                                                                                                                                                                                                         |
+| Migrações novas (produção)                          | nenhuma aplicada manualmente; entram pelo workflow quando o branch for integrado                                                                                                                                                                                                                              |
+| Remoto (2026-10-14, verificado com `git ls-remote`) | `main` = `262e5e3` (merge do PR #1) · `feature/ui-modernization` = `b47553c` · `feature/editais-ux-permissions` = `43bfad1` (+ commit desta atualização) · tag `v1.0.0` = `d2c581f`; as branches `claude/epic-cerf-abwkc1`, `claude/melhorias-editais` e `feature/lep-brand-intro` não existem mais no remoto |
+| Branch atual (2026-10-14)                           | `feature/editais-ux-permissions` (base `main` `262e5e3`): `ff728fc` banco · `9cd85b5` motor/IA · `54d658a` telas · `43bfad1` docs · commit desta atualização; **sem merge**, sem alterações não commitadas                                                                                                    |
 
 ---
 
@@ -1268,3 +1290,146 @@ nenhuma alteração no Supabase de produção, nenhuma migração/seed, nenhum u
   (confirmação, autoexclusão, último ADM, remoção com/sem outra organização); não-ADM não exclui nem altera perfil.
 - **Não verificado:** Supabase Auth/Storage reais (exclusão real de conta) e o player do YouTube (sem internet no
   ambiente de teste) — conferir no Preview.
+
+---
+
+## 19. Área de Trabalho do Edital (2026-10-14) — ✅ na branch `feature/editais-ux-permissions`; aguardando revisão
+
+**Data da atualização:** 2026-10-14 · **Branch atual:** `feature/editais-ux-permissions` (criada da `main` `262e5e3`;
+repositório `giuliano-prog/LEP-agente-editais`) · **ADR:** 0026.
+
+### 19.1 Contexto desde §18 (cronologia de 2026-10-14)
+
+- **Publicação (informado pela equipe; verificado só o que está marcado):** tag `v1.0.0` → `d2c581f` (✅ verificada no
+  remoto); branch `main` criada; ambiente `production` no GitHub com revisor obrigatório e regra de branch `main`;
+  variável `SUPABASE_MIGRATIONS_BRANCH=main` e segredo `SUPABASE_DB_URL` no ambiente de produção (não verificados por
+  este assistente). A execução de "Migrações Supabase (produção)" depende de autorização da LEP e **não foi feita**
+  pelo assistente.
+- **PR #1 (`feature/lep-brand-intro`) integrado à `main`** (✅ `262e5e3` contém o merge): nova logomarca
+  (`public/brand/lep-filmes-logo.png`) e abertura em vídeo pós-login (detalhes no §4).
+- **`feature/ui-modernization`** (`b47553c`, branch paralela, só visual, aguardando revisão no Preview): design
+  system (tokens, `card`/`btn`/`control`/`chip`), sidebar, Home, login e telas. O registro detalhado dessa branch
+  está no STATUS **daquela branch** (não integrado aqui de propósito, para manter as branches isoladas).
+
+### 19.2 Objetivo da branch
+
+Evoluir Editais de busca/listagem para uma **Área de Trabalho do Edital**: preparar a inscrição de uma produção real,
+organizando e cruzando regras do edital, documentos da produtora e da produção, textos, orçamento, equipe, direitos,
+anexos e pendências, e respondendo "o que falta para inscrever?".
+
+### 19.3 Funcionalidades implementadas
+
+- **Área de Trabalho por edital** (`/editais/[id]/trabalho`) com as 13 seções: resumo do edital · produção
+  relacionada · checklist da inscrição · documentos exigidos · pendências · textos exigidos · orçamento · equipe e
+  responsáveis · direitos e autorizações · critérios de avaliação · inconsistências · próximas ações · status geral de
+  prontidão.
+- **Checklist gerado do edital**: lê os documentos guardados (regulamento, retificações, anexos — PDF/HTML; sem
+  documento legível, usa o cadastro) e extrai, **sempre com o trecho**: textos exigidos e limites (caracteres,
+  palavras, páginas/laudas), documentos, critérios com pontuação, pontuação adicional, direitos/cessões, exigências
+  de equipe, regras de orçamento (contrapartida mínima %, teto de despesas administrativas %). Regerar **só
+  acrescenta** (`source_key`) e não duplica cláusulas entre categorias; itens manuais são permitidos.
+- **Cruzamentos determinísticos** (`assessWorkspace`): Match v2 da produção vinculada; teto por projeto, faixa de
+  orçamento, solicitado × total, contrapartida; textos acima do limite (contador ao vivo); documento do acervo
+  vencido ou vencendo antes do prazo; item concluído sem documento; prazos internos; retificações não revisadas;
+  restrição territorial como **impedimento a confirmar pela equipe**; prazo próximo.
+- **Prontidão**: % de obrigatórios concluídos (N/A não conta), níveis Bloqueada / Não iniciada / Em preparação /
+  Quase pronta / Pronta; **próximas ações** priorizadas; **respostas rápidas** às 11 perguntas operacionais.
+- **Acervo de documentos** (`/editais/acervo`): documentos da LEP e das produções, com validade; PDF no bucket privado
+  ou link externo; reutilizados em qualquer edital.
+- **IA**: ponto de integração `WorkspaceReviewer` (`@lep/ai`) **desligado** (`NoopWorkspaceReviewer`), com validação
+  (sem trecho do edital = descartado; sem afirmação de aprovação). Sem adaptador de fornecedor: textos da LEP são
+  sigilosos e ligar exige decisão da LEP.
+
+### 19.4 Mudanças de UX/UI
+
+- Edital: botão "Área de Trabalho da inscrição →" no cabeçalho e item "Área de Trabalho →" na navegação de abas.
+- Lista de Editais: botão "Acervo de documentos".
+- Área de Trabalho: cartão de prontidão (barra de progresso acessível), destaque da próxima ação, respostas rápidas,
+  navegação por âncoras, checklist agrupado por categoria com status rápido (Em andamento / Concluir / Não se aplica)
+  e edição em linha (sem JavaScript obrigatório), editor de texto com contagem ao vivo, verificações de orçamento
+  ✓ / ✕ / ?. Responsivo (sem rolagem horizontal em 390 px). Visual no padrão atual da `main` (classes centralizadas
+  em `components/workspace/styles.ts` para a futura integração com o design system).
+
+### 19.5 Mudanças de permissões
+
+- Nenhuma alteração em `roles.ts`/`permissions.ts`. Regras novas: **Equipe** consulta; **Diretoria e ADM** trabalham
+  (criar área, checklist, textos, valores, acervo); **excluir a área de trabalho inteira: só ADM**.
+  **Diagnóstico continua exclusivo do ADM** (inalterado). Server Actions com `requireMembership("editor")`
+  (exclusão: `"admin"` + confirmação "EXCLUIR"); o banco reforça tudo por RLS.
+
+### 19.6 Migration criada (NÃO aplicada em produção)
+
+- `supabase/migrations/20261011120000_area_trabalho_edital.sql` — idempotente (ADR-0014); `edital_id` com o tipo de
+  `core.editais.id` (uuid/bigint).
+
+### 19.7 Tabelas e relacionamentos novos
+
+| Tabela                        | Relacionamentos                                                                                         | Regras                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `core.org_documents` (acervo) | `organizations` (cascade), `projetos` (cascade), `profiles` (`created_by`, set null)                    | escopo produtora/produção (produção exige `projeto_id`); arquivo só em `<org_id>/acervo/`; link só http(s); SHA-256; validade |
+| `core.edital_workspaces`      | `organizations` (cascade), `editais` (cascade, **único por edital**), `projetos` (set null), `profiles` | status `preparing/ready/submitted/archived`; valores ≥ 0; `rules` jsonb (objeto)                                              |
+| `core.edital_workspace_items` | `edital_workspaces` (cascade), `profiles` (responsável/autor, set null), `org_documents` (set null)     | categoria, exigência, status; limites > 0; texto ≤ 50.000; único parcial `(workspace_id, source_key)`                         |
+
+Triggers: `updated_at`, autoria (`core.stamp_workspace_item_author`) e auditoria (`core.audit_row_change`).
+Tipos atualizados em `packages/db/src/database.types.ts`.
+
+### 19.8 Policies / RLS
+
+- SELECT: `core.has_role(org_id, 'viewer')` nas três tabelas.
+- INSERT/UPDATE: `editor`, com coerência de organização — edital e produção da mesma org (área); produção da mesma org
+  (acervo); área de trabalho, **responsável membro ativo** e documento do acervo da mesma org (itens, via
+  `core.workspace_item_refs_ok`, security definer, `search_path = ''`).
+- DELETE: itens e acervo `editor`; área de trabalho **só `admin`**.
+- Grants explícitos por coluna (`workspace_id`/`edital_id`/`org_id` não editáveis após criar); `service_role` total.
+- Storage: sem política nova — reaproveita as do bucket `edital-documents` (pasta da organização).
+
+### 19.9 O que foi testado (resultados reais, 2026-10-14)
+
+- `pnpm check`: formatação, lint e tipos ✅; testes **425/426** — única falha é a **pré-existente** em
+  `apps/web/src/lib/monitor/run.test.ts` (também falha na `main`). Novos: `@lep/funding` workspace (22), `@lep/ai`
+  workspace-reviewer (2), `workspace-form` (7).
+- Banco (PostgreSQL 16 local **descartável**, `DB_TEST_SHIM=1`, migrações aplicadas 2x): **17 arquivos ✅, 284
+  verificações**, incluindo `017_area_trabalho_rls.sql` (31); cenário `remoto-parcial` ✅.
+- E2E (Supabase **simulado**): Área de Trabalho ADM 39/39, Diretoria 39/39, Equipe 5/5 (consulta, sem ações);
+  regressão v1 ADM 59/0, v1b 32/0, membros 27/0, abertura 20/0; v1 Diretoria/Equipe com 2 e 1 verificações rotuladas
+  `[admin]` que falham **igualmente na `main`** (dependem do papel — não é regressão). Revisão visual desktop e mobile.
+- Defeitos encontrados e corrigidos durante os testes: cláusula duplicada (documento × direito/orçamento) e
+  mensagem de sucesso do Acervo que sumia ao salvar.
+- **Não verificado:** Supabase real (teste ou produção) e Preview da Vercel desta branch.
+
+### 19.10 Resultado do build
+
+- `pnpm build` ✅ (rotas novas `/editais/[id]/trabalho` e `/editais/acervo`).
+
+### 19.11 Pendências conhecidas
+
+- Migração não aplicada (staging e produção); sem ela, a página mostra o `DbErrorNotice` (causa + correção).
+- Se o Preview usar o Supabase de produção, a funcionalidade só poderá ser usada depois da migração.
+- Ficha técnica da produção (depende da tabela de profissionais), orçamento por rubrica, acervo só PDF, páginas de
+  texto estimadas (~500 palavras/página), revisão por IA (decisão da LEP).
+- Teste pré-existente de `run.test.ts` (fora do escopo).
+
+### 19.12 Ainda NÃO aplicado em produção
+
+- Migração `20261011120000_area_trabalho_edital.sql` (3 tabelas, função, políticas, grants).
+- Todo o código desta branch (sem merge) e o da `feature/ui-modernization` (sem merge).
+
+### 19.13 Commits principais
+
+`ff728fc` banco (migração, teste SQL, tipos) · `9cd85b5` motor + `WorkspaceReviewer` · `54d658a` telas e Server
+Actions · `43bfad1` ADR-0026, CLAUDE.md, STATUS · commit desta atualização do STATUS.
+
+### 19.14 Status atual da branch
+
+✅ Implementada, testada e enviada ao GitHub; **sem merge na `main`**, sem deploy, sem migração aplicada; aguardando
+revisão humana (código e Preview) e aprovação da migração.
+
+### 19.15 Próximos passos recomendados
+
+1. Revisar o código e o Preview desta branch (e decidir a ordem de integração com `feature/ui-modernization`).
+2. Aplicar a migração no **Supabase de TESTE** pelo workflow de staging (§13) e validar o fluxo completo no Preview
+   com um edital fictício.
+3. Com aprovação, abrir PR para a `main`; aplicar a migração em produção **só** pelo workflow
+   `supabase-migrations.yml` (ambiente `production`, com revisor), antes ou junto do deploy.
+4. Testar com um edital real da LEP (sem registrar dados reais em logs/fixtures) e ajustar as regras de extração.
+5. Depois: tabela de profissionais (ficha técnica), orçamento por rubrica e decisão sobre IA (`WorkspaceReviewer`).
