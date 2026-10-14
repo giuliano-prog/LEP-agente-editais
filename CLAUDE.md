@@ -36,6 +36,9 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 - Descoberta web (ADR-0024): `lib/discovery/` reaproveita `importOpportunity` (nunca um pipeline paralelo); decide
   audiovisual pelo OBJETO, não pelo tema (`classifyAudiovisualRelevance`); não audiovisual/encerrado fica só em
   `core.discovery_candidates` (sem vitrine de descartados). Provedor de busca só via `SearchProvider` + env do servidor.
+- Área de Trabalho do Edital (ADR-0026): motor em `packages/modules/funding/src/workspace/` (regras com trecho,
+  sem IA); vocabulário de `workspace/model.ts` = CHECK da migração. Regerar o checklist só acrescenta (`source_key`),
+  nunca apaga o trabalho da equipe. Acervo em `edital-documents` `<org_id>/acervo/`. IA só via `WorkspaceReviewer`.
 - Erros do banco na UI: use `DbErrorNotice` (causa + correção), nunca mensagem genérica.
 - Tema: use tokens de `globals.css` (`bg-surface`, `bg-card`, `text-fg`, `text-muted`, `text-brand`), nunca cores soltas.
 - Dados da LEP são sigilosos: nada de dados reais em seeds, fixtures ou logs.

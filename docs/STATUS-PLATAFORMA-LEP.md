@@ -260,6 +260,36 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 
 ## 4. Última alteração implementada
 
+### Área de Trabalho do Edital (branch `feature/editais-ux-permissions`, 2026-10-14) — ADR-0026
+
+- Base: `main` `262e5e3`. Branch isolada da modernização visual (`feature/ui-modernization`, em revisão).
+- **Migração nova, NÃO aplicada em produção**: `supabase/migrations/20261011120000_area_trabalho_edital.sql`
+  (aguarda aprovação; aplicar só pelo workflow `supabase-migrations.yml`). Tabelas:
+  - `core.org_documents` (acervo da produtora/produções; FK `organizations`, `projetos` cascade, `profiles`);
+  - `core.edital_workspaces` (1 por edital — índice único `edital_id`; FK `organizations`, `editais` cascade,
+    `projetos` set null);
+  - `core.edital_workspace_items` (checklist; FK `edital_workspaces` cascade, `profiles` set null,
+    `org_documents` set null; único parcial `(workspace_id, source_key)`).
+  - Políticas: select `viewer`; insert/update `editor` (Diretoria/ADM) com coerência de organização (edital,
+    produção, responsável **ativo**, documento — função `core.workspace_item_refs_ok`); delete de itens/acervo
+    `editor`; delete da área de trabalho só `admin`. Grants por coluna; triggers `updated_at`, autoria
+    (`updated_by`) e auditoria. Storage: reaproveita o bucket `edital-documents` (`<org_id>/acervo/`).
+- Motor sem IA em `@lep/funding` (`workspace/`): regras com trecho (textos e limites, critérios/pontos, bônus,
+  direitos, equipe, orçamento, contrapartida %), checklist sem duplicar, prontidão, inconsistências, próximas
+  ações e respostas às perguntas operacionais. IA: `WorkspaceReviewer` (desligado, sem fornecedor).
+- Telas: `/editais/[id]/trabalho` (13 seções) e `/editais/acervo`; acesso pelo edital e pela lista de Editais.
+- Testes (resultados reais desta sessão):
+  - `pnpm check`: formatação, lint e tipos ok; testes 425/426 — única falha é a pré-existente em
+    `apps/web/src/lib/monitor/run.test.ts` (“retificação prorroga o prazo…”, também falha na `main`).
+  - Banco (PostgreSQL 16 local descartável, `DB_TEST_SHIM=1`, migrações aplicadas 2x): 17 arquivos de teste ok
+    (284 verificações), incluindo `017_area_trabalho_rls.sql` (31); cenário `remoto-parcial` alinhado.
+  - E2E com Supabase simulado: Área de Trabalho ADM 39/39, Diretoria 39/39, Equipe 5/5 (consulta);
+    regressão v1 ADM 59/0, v1b 32/0, membros 27/0, abertura 20/0; v1 Diretoria/Equipe com 2 e 1 verificações
+    rotuladas `[admin]` que falham igualmente na `main` (dependem do papel).
+  - `pnpm build` ok. Não verificado: Supabase real e Preview da Vercel.
+- Pendências: aplicar a migração (com aprovação) antes de usar em produção; equipe da produção depende da tabela
+  de profissionais; orçamento por rubrica; revisão por IA (decisão da LEP sobre fornecedor e dados).
+
 ### Abertura em vídeo pós-login (branch `feature/lep-brand-intro`, 2026-10-14)
 
 - Após login bem-sucedido, `signIn` grava o cookie curto `lep_intro` (10 min, não httpOnly); o layout `(app)` exibe
