@@ -1,7 +1,7 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualização mais recente:** 2026-10-14 — branch `feature/editais-ux-permissions` (Área de Trabalho do Edital,
-> §19; commit de referência `43bfad1` + commit desta atualização). **Branch principal:** `main` em `262e5e3`
+> **Atualização mais recente:** 2026-10-14 — branch `feature/editais-ux-permissions`: migração da Área de Trabalho
+> ✅ aplicada **só no Supabase de TESTE** (§20); Área de Trabalho do Edital (§19). **Branch principal:** `main` em `262e5e3`
 > (inclui o PR #1: logomarca + abertura em vídeo). Migração `20261011120000` **não aplicada** em produção.
 > As linhas abaixo descrevem o estado registrado até 2026-09-30 e foram mantidas como histórico.
 >
@@ -570,13 +570,15 @@ humana. Nenhum SDK de IA adicionado. Nenhuma migração nova nesta etapa.
 
 **Acrescentadas em 2026-10-14 (§19):**
 
-9. **Aplicar a migração `20261011120000_area_trabalho_edital.sql`** (Área de Trabalho + acervo) — só com aprovação da
-   LEP e pelo workflow `supabase-migrations.yml`; de preferência primeiro no Supabase de TESTE (staging, §13).
-10. Revisar e decidir o merge de `feature/ui-modernization` (visual) e de `feature/editais-ux-permissions` (funcional);
+9. **Aplicar a migração `20261011120000_area_trabalho_edital.sql` em PRODUÇÃO** (Área de Trabalho + acervo) — só com
+   aprovação da LEP e pelo workflow `supabase-migrations.yml`. ✅ Já aplicada no Supabase de TESTE (§20).
+10. Conferir na Vercel se as variáveis do Supabase do ambiente **Preview** valem para o branch
+    `feature/editais-ux-permissions` e apontam para o projeto de **TESTE** (§20.4) — não verificável pelo assistente.
+11. Revisar e decidir o merge de `feature/ui-modernization` (visual) e de `feature/editais-ux-permissions` (funcional);
     se ambos forem integrados, trocar as classes de `components/workspace/styles.ts` pelas do design system.
-11. Teste pré-existente falhando na `main`: `apps/web/src/lib/monitor/run.test.ts` (“retificação prorroga o prazo…”),
+12. Teste pré-existente falhando na `main`: `apps/web/src/lib/monitor/run.test.ts` (“retificação prorroga o prazo…”),
     provável dependência da data atual — não corrigido (fora do escopo das branches de 2026-10-14).
-12. Área de Trabalho: ficha técnica da produção (depende da tabela de profissionais da Equipe Audiovisual), orçamento
+13. Área de Trabalho: ficha técnica da produção (depende da tabela de profissionais da Equipe Audiovisual), orçamento
     por rubrica, acervo só aceita PDF, revisão por IA (decisão da LEP sobre fornecedor e envio de textos sigilosos).
 
 **Decididas (2026-09-28):** classificação visível de restrição territorial (etapa 5); Diretoria = `editor`, Equipe =
@@ -606,7 +608,7 @@ futuro (hoje só lê).
     testar no site real (depende do administrador em produção).
 11. ✅ IA atrás de uma interface única de análise (`EditalAnalyzer`) em `packages/ai`, sem fornecedor (etapa 12).
 12. ✅ (branch `feature/editais-ux-permissions`, 2026-10-14) Área de Trabalho do Edital + Acervo de documentos
-    (ADR-0026). ⬜ aplicar a migração no staging → validar no Preview → aprovar → produção (§19.9).
+    (ADR-0026). ✅ migração no staging (§20) → ⬜ validar no Preview → aprovar → produção.
 
 ---
 
@@ -1433,3 +1435,61 @@ revisão humana (código e Preview) e aprovação da migração.
    `supabase-migrations.yml` (ambiente `production`, com revisor), antes ou junto do deploy.
 4. Testar com um edital real da LEP (sem registrar dados reais em logs/fixtures) e ajustar as regras de extração.
 5. Depois: tabela de profissionais (ficha técnica), orçamento por rubrica e decisão sobre IA (`WorkspaceReviewer`).
+
+---
+
+## 20. Migração da Área de Trabalho no Supabase de TESTE (2026-10-14) — ✅ aplicada; produção intocada
+
+**Branch:** `feature/editais-ux-permissions`. Sem merge na `main`; nenhuma ação em produção; nenhum segredo alterado;
+nenhum usuário ou dado real criado/alterado.
+
+### 20.1 Conferências antes de aplicar
+
+- Workflow usado: **`supabase-migrations-staging.yml`** ("Migrações Supabase (TESTE / staging)"). Job de aplicação com
+  `environment: staging` e **somente** o segredo `STAGING_SUPABASE_DB_URL` (o arquivo não lê `SUPABASE_DB_URL`).
+- Trava `scripts/check-staging-db-url.py` **inalterada**; reexecutada localmente com URLs fictícias: recusou produção
+  (pooler e host direto) e segredo ausente; aceitou só o projeto de teste.
+- Interruptor `STAGING_MIGRATIONS_ENABLED` mantido. Configurações dos ambientes do GitHub (regras de branch) não puderam
+  ser lidas pela sessão (HTTP 403 no proxy) — não verificadas.
+- O gatilho do workflow só aceitava `claude/melhorias-editais` (branch já removida do remoto). Ajuste mínimo (commit
+  `01274c9`): **acrescentar** `feature/editais-ux-permissions` à lista do `push` e às condições dos dois jobs; nada mais
+  mudou. O push não altera `supabase/migrations/`, então o workflow de produção não foi disparado.
+- Verificado também: o push anterior (`43bfad1`, que trouxe a migração) disparou o workflow de **produção** (execução
+  `38647378396`), mas **os dois jobs foram pulados** (`skipped`; o job só roda na `main`) — nada executado em produção.
+
+### 20.2 Resultado do GitHub Actions
+
+- Execução nº 9, id **`38656774416`** (commit `01274c9`) — **✅ success**:
+  - Job "Testar migrações (banco descartável)": ✅ (17 migrações do zero 2x + testes de permissão + cenário parcial).
+  - Job "Aplicar no Supabase de TESTE": ✅ trava ("Connection string de TESTE válida e diferente da produção") →
+    simulação listou **só** `20261011120000_area_trabalho_edital.sql` → aplicada ("Applying migration … Finished") →
+    `supabase migration list`: **Local = Remote nas 17 migrações** (`20260925120000` … `20261011120000`).
+- Supabase afetado: **somente o projeto de TESTE** (staging). Produção: **não afetada**.
+
+### 20.3 Preview da Vercel
+
+- Deploy de Preview do commit `01274c9`: ✅ "Deployment has completed" (painel:
+  `https://vercel.com/giuliano-4565/lep-plataforma/2dbjGMQPcDDLEmdMMoAzWRvsBxX5`).
+- URL do branch (informada pelo bot da Vercel): **`https://lep-plataforma-git-feature-editais-ux-permissions-giuliano-4565.vercel.app`**.
+- **Não verificado:** a rede desta sessão bloqueia `*.vercel.app` (403), então não foi possível abrir o Preview nem
+  confirmar qual Supabase ele usa.
+
+### 20.4 ⚠ Risco a conferir antes de usar o Preview
+
+No staging de 2026-09-29 (§13.3, passo 7) as variáveis do Supabase de TESTE foram recomendadas **só para o branch
+`claude/melhorias-editais`**. Se foram cadastradas assim, o Preview deste branch usa as variáveis genéricas de Preview —
+que podem ser as de **produção**. Conferir em Vercel → Settings → Environment Variables (ambiente Preview): as 3 chaves
+(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`) precisam valer para
+`feature/editais-ux-permissions` (ou para todo o Preview) com o projeto de **TESTE**; depois, **Redeploy**. Confirmação
+rápida: no Preview, Diagnóstico (ADM) deve listar as 17 migrações; a Área de Trabalho deve abrir sem o aviso de
+"tabela inexistente". Até confirmar, **não usar login de produção nesse Preview**.
+
+### 20.5 Pendências restantes
+
+- LEP: conferir/ajustar as variáveis do Preview (§20.4) e, se preciso, a Site URL/Redirect URLs do Supabase de TESTE
+  para o endereço deste Preview (login por senha não depende delas).
+- Validar no Preview com dados fictícios: criar Área de Trabalho, anexar PDF fictício, gerar checklist, acervo, textos,
+  orçamento, permissões (ADM/Diretoria/Equipe).
+- Produção: migração `20261011120000` **não aplicada**; só pelo workflow de produção, após aprovação e merge.
+
+**Commits:** `01274c9` (workflow de staging) · commit desta atualização.
