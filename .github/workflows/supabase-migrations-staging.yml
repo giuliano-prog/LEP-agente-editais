@@ -1,11 +1,12 @@
 name: Migrações Supabase (TESTE / staging)
 
-# Aplica as migrações de supabase/migrations/ SOMENTE no banco Supabase de TESTE usado pelo
-# Preview do branch claude/melhorias-editais (plano em docs/STATUS-PLATAFORMA-LEP.md §13).
+# Aplica as migrações de supabase/migrations/ SOMENTE no banco Supabase de TESTE usado pelos
+# Previews dos branches de validação (plano em docs/STATUS-PLATAFORMA-LEP.md §13 e §20).
 # NÃO substitui nem usa o workflow de produção (supabase-migrations.yml) e nunca lê o segredo
 # SUPABASE_DB_URL de produção.
 #
-# Quando roda: apenas em push no branch claude/melhorias-editais que altere supabase/migrations/
+# Quando roda: apenas em push nos branches de validação listados abaixo (claude/melhorias-editais,
+# hoje removido do remoto, e feature/editais-ux-permissions) que altere supabase/migrations/
 # ou este arquivo, E somente se a variável de repositório STAGING_MIGRATIONS_ENABLED = "true"
 # (enquanto não existir, os jobs ficam como "skipped" e nada é executado). Sem execução manual.
 #
@@ -22,11 +23,12 @@ name: Migrações Supabase (TESTE / staging)
 # faltar, se o projeto não puder ser identificado ou se for o de produção. Sem seed.
 #
 # Para disparar de novo sem alterar migrações: edite só estes comentários e faça push
-# (último disparo: 2026-09-29, após colocar a URL real do projeto de teste no segredo).
+# (último disparo: 2026-10-14, migração 20261011120000_area_trabalho_edital no banco de TESTE,
+# branch feature/editais-ux-permissions).
 
 on:
   push:
-    branches: [claude/melhorias-editais]
+    branches: [claude/melhorias-editais, feature/editais-ux-permissions]
     paths:
       - "supabase/migrations/**"
       - ".github/workflows/supabase-migrations-staging.yml"
@@ -42,7 +44,7 @@ concurrency:
 jobs:
   verify:
     name: Testar migrações (banco descartável)
-    if: github.ref_name == 'claude/melhorias-editais' && vars.STAGING_MIGRATIONS_ENABLED == 'true'
+    if: (github.ref_name == 'claude/melhorias-editais' || github.ref_name == 'feature/editais-ux-permissions') && vars.STAGING_MIGRATIONS_ENABLED == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -64,7 +66,7 @@ jobs:
   deploy:
     name: Aplicar no Supabase de TESTE
     needs: verify
-    if: github.ref_name == 'claude/melhorias-editais' && vars.STAGING_MIGRATIONS_ENABLED == 'true'
+    if: (github.ref_name == 'claude/melhorias-editais' || github.ref_name == 'feature/editais-ux-permissions') && vars.STAGING_MIGRATIONS_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: staging
     env:
