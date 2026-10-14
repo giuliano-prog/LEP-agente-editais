@@ -73,7 +73,7 @@ export interface EditalAnalyzer {
   analyze(input: EditalAnalysisInput): Promise<EditalAnalysis>;
 }
 
-const APPROVAL_CLAIM =
+export const APPROVAL_CLAIM =
   /\b(ser[aá] aprovad|ser[aá] selecionad|ser[aá] contemplad|aprova[cç][aã]o (garantida|certa|prov[aá]vel)|chances? (de|alta|boa|grande)[^.]{0,30}(aprova|sele[cç]|ganhar|vencer)|vai (ganhar|vencer|ser aprovad)|garantid[oa] (a|o) (aprova|sele))/i;
 
 const squash = (text: string) => text.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();

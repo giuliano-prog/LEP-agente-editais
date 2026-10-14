@@ -12,3 +12,4 @@ export * from "./dedup";
 export * from "./changes";
 export * from "./discovery";
 export * from "./highlights";
+export * from "./workspace";
