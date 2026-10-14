@@ -178,17 +178,11 @@ export default async function EditaisPage({
         }
       >
         <div className="flex flex-wrap gap-2">
-          <Link
-            href="/editais/fontes"
-            className="rounded-md border border-line px-4 py-2 text-sm hover:border-brand hover:text-brand"
-          >
+          <Link href="/editais/fontes" className="btn btn-secondary">
             Buscar Editais
           </Link>
           {canEdit && (
-            <Link
-              href="/editais/analisar"
-              className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong"
-            >
+            <Link href="/editais/analisar" className="btn btn-primary">
               Analisar Edital
             </Link>
           )}
@@ -212,7 +206,7 @@ export default async function EditaisPage({
             <Link
               key={kpi.label}
               href={kpi.href}
-              className="min-w-0 rounded-xl border border-line bg-card p-4 transition hover:border-brand/60 sm:p-5"
+              className="card card-interactive min-w-0 p-4 sm:p-5"
             >
               <span className="block text-2xl font-semibold tabular-nums text-brand sm:text-3xl">
                 {kpi.value}
@@ -293,9 +287,9 @@ export default async function EditaisPage({
               />
             ))}
           </div>
-          <div className="hidden overflow-x-auto rounded-xl border border-line bg-card md:block">
+          <div className="card hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase tracking-wider text-muted">
+              <thead className="border-b border-line bg-card-raised/40 text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle">
                 <tr>
                   <th className="px-4 py-3 font-medium">Oportunidade</th>
                   <th className="px-4 py-3 font-medium">Instituição</th>

@@ -47,10 +47,8 @@ function Fieldset({
   children: React.ReactNode;
 }) {
   return (
-    <fieldset className="space-y-4 rounded-xl border border-line bg-card p-6">
-      <legend className="px-1 text-sm font-semibold uppercase tracking-wider text-muted">
-        {legend}
-      </legend>
+    <fieldset className="card space-y-4 p-6">
+      <legend className="px-1 eyebrow">{legend}</legend>
       {description && <p className="-mt-2 text-sm text-muted">{description}</p>}
       {children}
     </fieldset>
@@ -75,7 +73,7 @@ function CheckboxGroup({
         {Object.entries(options).map(([value, text]) => (
           <label
             key={value}
-            className="flex cursor-pointer items-center gap-2 rounded-md border border-line bg-card-raised px-3 py-1.5 text-sm has-[:checked]:border-brand has-[:checked]:text-brand"
+            className="flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-card-raised px-3 py-1.5 text-sm has-[:checked]:border-brand has-[:checked]:text-brand"
           >
             <input
               type="checkbox"

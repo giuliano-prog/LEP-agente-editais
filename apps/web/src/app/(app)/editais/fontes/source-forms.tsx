@@ -228,10 +228,7 @@ function SearchAction({
   primary?: boolean;
 }) {
   return (
-    <form
-      action={action}
-      className="flex flex-col justify-between gap-4 rounded-xl border border-line bg-card p-5"
-    >
+    <form action={action} className="card flex flex-col justify-between gap-4 p-5">
       <div className="space-y-1">
         <h2 className="font-semibold">{title}</h2>
         <p className="text-sm text-muted">{text}</p>
@@ -284,7 +281,7 @@ export function RunSummary({ summary }: { summary: MonitorSummary }) {
       </p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="border-b border-line text-xs uppercase tracking-wider text-muted">
+          <thead className="border-b border-line text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle">
             <tr>
               <th className="py-2 pr-3 font-medium">Fonte</th>
               {COLUMNS.map(([, label]) => (
@@ -490,18 +487,10 @@ export function CatalogSourceForm({ entry }: { entry: CatalogEntry }) {
         listHint="Cole o endereço oficial da listagem de editais."
       />
       <div className="flex flex-wrap gap-2">
-        <button
-          formAction={test}
-          disabled={testing}
-          className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand disabled:opacity-60"
-        >
+        <button formAction={test} disabled={testing} className="btn btn-sm btn-secondary">
           {testing ? "Testando…" : "Testar"}
         </button>
-        <button
-          formAction={add}
-          disabled={adding}
-          className="rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-surface hover:bg-brand-strong disabled:opacity-60"
-        >
+        <button formAction={add} disabled={adding} className="btn btn-sm btn-primary">
           Cadastrar fonte
         </button>
       </div>
@@ -520,11 +509,7 @@ export function TestSourceButton({ sourceId }: { sourceId: string }) {
   );
   return (
     <form action={action} className="w-full space-y-2">
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md border border-line px-3 py-1 text-xs hover:border-brand hover:text-brand disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn btn-xs btn-secondary">
         {pending ? "Testando… (até 30 s)" : "Testar fonte"}
       </button>
       <FormError message={state.error} />

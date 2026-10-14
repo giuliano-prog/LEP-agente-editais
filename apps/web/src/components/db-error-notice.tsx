@@ -19,7 +19,7 @@ export function DbErrorNotice({
   return (
     <div
       role="alert"
-      className="space-y-1 rounded-md border border-bad/40 bg-bad/10 px-4 py-3 text-sm"
+      className="space-y-1 rounded-lg border border-bad/40 bg-bad/10 px-4 py-3 text-sm"
     >
       <p className="font-medium text-bad">
         Não foi possível carregar {context}. {problem.title}

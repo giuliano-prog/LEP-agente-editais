@@ -93,13 +93,11 @@ export function ChangesPanel({ changes, canEdit }: { changes: EditalChange[]; ca
                   <div className="flex flex-wrap gap-2">
                     {items.length > 0 && (
                       <form action={resolveEditalChange.bind(null, change.id, "applied")}>
-                        <button className="rounded-md bg-brand px-3 py-1 text-xs font-semibold text-surface hover:bg-brand-strong">
-                          Aplicar valores novos
-                        </button>
+                        <button className="btn btn-xs btn-primary">Aplicar valores novos</button>
                       </form>
                     )}
                     <form action={resolveEditalChange.bind(null, change.id, "dismissed")}>
-                      <button className="rounded-md border border-line px-3 py-1 text-xs hover:border-brand hover:text-brand">
+                      <button className="btn btn-xs btn-secondary">
                         {items.length > 0 ? "Ignorar" : "Marcar como revisada"}
                       </button>
                     </form>

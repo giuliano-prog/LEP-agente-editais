@@ -22,10 +22,7 @@ export default async function EquipeAudiovisualPage() {
         description="Banco de profissionais que trabalham nas produções da LEP."
       >
         {can(membership.role, "content.edit") && (
-          <Link
-            href="/equipe-audiovisual/novo"
-            className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong"
-          >
+          <Link href="/equipe-audiovisual/novo" className="btn btn-primary">
             + Cadastrar Profissional
           </Link>
         )}

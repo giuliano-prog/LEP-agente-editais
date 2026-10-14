@@ -10,7 +10,8 @@ import { LEP_LOGO } from "@/lib/brand";
  * `sizes` informa a largura exibida para o Next gerar versões otimizadas (inclusive 2x/3x).
  */
 const SIZES = {
-  sm: { className: "h-9 sm:h-11", sizes: "(min-width: 640px) 50px, 41px" },
+  sm: { className: "h-9 sm:h-10", sizes: "(min-width: 640px) 46px, 41px" },
+  md: { className: "h-14", sizes: "64px" },
   lg: { className: "h-20 sm:h-24", sizes: "(min-width: 640px) 108px, 90px" },
 } as const;
 

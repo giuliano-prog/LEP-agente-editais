@@ -118,7 +118,7 @@ export function DocumentsSection({
                 href={`/editais/documentos/${document.id}`}
                 target="_blank"
                 rel="noopener"
-                className="shrink-0 rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand"
+                className="btn btn-sm btn-secondary shrink-0"
               >
                 {document.mime_type === "text/html" ? "Baixar cópia" : "Abrir PDF"}
               </a>

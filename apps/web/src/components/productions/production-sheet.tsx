@@ -29,29 +29,37 @@ export function LifecycleSteps({ current }: { current?: ProductionStage | null }
           <li
             key={step.key}
             aria-current={state === "current" ? "step" : undefined}
-            className={`relative min-w-0 rounded-xl border p-3 ${
+            className={`relative min-w-0 overflow-hidden rounded-xl border p-3.5 pt-4 ${
               state === "current"
-                ? "border-brand bg-brand/10"
+                ? "border-brand/60 bg-brand/[0.07]"
                 : state === "done"
-                  ? "border-brand/30 bg-card"
-                  : "border-line bg-card"
+                  ? "border-line bg-card"
+                  : "border-line bg-card/60"
             }`}
           >
-            <p className="text-xs text-muted">
+            <span
+              aria-hidden
+              className={`absolute inset-x-0 top-0 h-0.5 ${
+                state === "current"
+                  ? "bg-brand"
+                  : state === "done"
+                    ? "bg-brand/40"
+                    : "bg-line-strong/60"
+              }`}
+            />
+            <p className="text-xs tabular-nums text-subtle">
               {index + 1}
               {state === "current" && " · etapa atual"}
               {state === "done" && " · concluída"}
             </p>
-            <p className={`font-medium ${state === "current" ? "text-brand" : ""}`}>{step.label}</p>
-            <p className="mt-1 text-xs text-muted">{step.description}</p>
-            {index < PRODUCTION_LIFECYCLE.length - 1 && (
-              <span
-                aria-hidden
-                className="absolute -right-2 top-1/2 hidden -translate-y-1/2 text-muted sm:block"
-              >
-                →
-              </span>
-            )}
+            <p
+              className={`mt-0.5 font-medium ${
+                state === "current" ? "text-brand" : state === "next" ? "text-fg/80" : "text-fg"
+              }`}
+            >
+              {step.label}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">{step.description}</p>
           </li>
         );
       })}
@@ -74,10 +82,7 @@ export function ProductionCard({
   children?: ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      className="group flex min-w-0 flex-col gap-3 rounded-xl border border-line bg-card p-5 transition hover:border-brand/60 hover:bg-card-raised"
-    >
+    <Link href={href} className="card card-interactive group flex min-w-0 flex-col gap-3 p-5">
       <span className="flex flex-wrap items-center gap-2">
         <Badge tone={stage === "finished" || stage === "archived" ? "ok" : "brand"}>
           {STAGE_LABELS[stage]}
@@ -86,7 +91,9 @@ export function ProductionCard({
       </span>
       <span className="break-words text-lg font-semibold group-hover:text-brand">{title}</span>
       {children}
-      <span className="mt-auto text-sm text-muted group-hover:text-brand">Abrir ficha →</span>
+      <span className="mt-auto text-sm text-muted transition-colors group-hover:text-brand">
+        Abrir ficha →
+      </span>
     </Link>
   );
 }
@@ -131,7 +138,10 @@ export function ProductionSheet({
   const active = productionArea(area);
   return (
     <div className="space-y-6">
-      <Link href={back.href} className="inline-block text-sm text-muted hover:text-brand">
+      <Link
+        href={back.href}
+        className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-brand"
+      >
         ← {back.label}
       </Link>
 
@@ -155,11 +165,12 @@ export function ProductionSheet({
                 <Link
                   href={`${item.key === "visao-geral" ? basePath : `${basePath}?area=${item.key}`}#area-atual`}
                   aria-current={item.key === active.key ? "page" : undefined}
-                  className={`flex h-full min-h-20 flex-col justify-center rounded-xl border p-4 text-sm font-medium leading-snug transition ${
+                  className={`flex h-full min-h-20 flex-col justify-center rounded-xl border p-4 text-sm font-medium leading-snug transition-[border-color,background-color,color] duration-200 active:translate-y-px ${
                     item.key === active.key
-                      ? "border-brand bg-brand/10 text-brand"
-                      : "border-line bg-card hover:border-brand/60 hover:bg-card-raised"
+                      ? "border-brand/70 bg-brand/[0.08] text-brand"
+                      : "border-line bg-card text-fg hover:border-brand/50 hover:bg-card-raised"
                   }`}
+                  style={{ boxShadow: "var(--shadow-card)" }}
                 >
                   {item.label}
                 </Link>
@@ -176,7 +187,7 @@ export function ProductionSheet({
                   href={item.key === "visao-geral" ? basePath : `${basePath}?area=${item.key}`}
                   aria-current={item.key === active.key ? "page" : undefined}
                   scroll={false}
-                  className={`block whitespace-nowrap border-b-2 px-3 py-2 text-sm transition ${
+                  className={`-mb-px block whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors ${
                     item.key === active.key
                       ? "border-brand text-brand"
                       : "border-transparent text-muted hover:text-fg"
@@ -207,19 +218,17 @@ export function ProductionSheet({
             {media && <TrailerCard media={media} />}
             <div className="grid gap-4 lg:grid-cols-3">
               <div className="space-y-4 lg:col-span-2">
-                <div className="rounded-xl border border-line bg-card p-5">
-                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
-                    Sinopse
-                  </h3>
-                  <p className="whitespace-pre-line text-sm">
+                <div className="card p-5">
+                  <h3 className="eyebrow mb-3">Sinopse</h3>
+                  <p className="whitespace-pre-line text-sm leading-relaxed">
                     {synopsis?.trim() || <span className="text-muted">Sinopse não informada.</span>}
                   </p>
                 </div>
               </div>
-              <dl className="space-y-3 rounded-xl border border-line bg-card p-5 text-sm">
+              <dl className="card space-y-3 p-5 text-sm">
                 {facts.map((fact) => (
                   <div key={fact.label}>
-                    <dt className="text-xs uppercase tracking-wider text-muted">{fact.label}</dt>
+                    <dt className="eyebrow">{fact.label}</dt>
                     <dd className="mt-0.5">{fact.value}</dd>
                   </div>
                 ))}
@@ -227,13 +236,15 @@ export function ProductionSheet({
             </div>
           </div>
         ) : active.key === "orcamento" && budget ? (
-          <div className="rounded-xl border border-line bg-card p-5 text-sm">
-            <p className="text-xs uppercase tracking-wider text-muted">Orçamento total informado</p>
-            <p className="mt-1 text-2xl font-semibold text-brand">{budget}</p>
+          <div className="card p-5 text-sm">
+            <p className="eyebrow">Orçamento total informado</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-brand">
+              {budget}
+            </p>
             <p className="mt-3 text-muted">Nenhum detalhamento por rubrica registrado.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-line bg-card/50 p-8 text-center text-sm text-muted">
+          <div className="rounded-xl border border-dashed border-line-strong bg-card/40 px-6 py-10 text-center text-sm text-muted">
             {active.empty}
           </div>
         )}
@@ -246,8 +257,8 @@ export function ProductionSheet({
 function TrailerCard({ media }: { media: ProductionMedia }) {
   const urls = youtubeUrls(media.youtubeId);
   return (
-    <section className="space-y-3 rounded-xl border border-line bg-card p-4 sm:p-5">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">Trailer / Mídia</h3>
+    <section className="card space-y-3 p-4 sm:p-5">
+      <h3 className="eyebrow">Trailer / Mídia</h3>
       <div className="relative mx-auto aspect-video w-full max-w-4xl overflow-hidden rounded-lg border border-line bg-black">
         <iframe
           src={urls.embed}

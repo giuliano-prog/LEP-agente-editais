@@ -121,10 +121,7 @@ export default async function MembersPage() {
         <>
           <ul className="space-y-3 md:hidden">
             {members.map((member) => (
-              <li
-                key={member.id}
-                className="flex min-w-0 flex-col gap-3 rounded-xl border border-line bg-card p-4"
-              >
+              <li key={member.id} className="card flex min-w-0 flex-col gap-3 p-4">
                 <div className="flex min-w-0 items-center gap-3">
                   <Avatar name={member.name ?? member.email} src={member.avatarUrl} />
                   <div className="min-w-0">
@@ -178,9 +175,9 @@ export default async function MembersPage() {
             ))}
           </ul>
 
-          <div className="hidden overflow-x-auto rounded-xl border border-line bg-card md:block">
+          <div className="card hidden overflow-x-auto md:block">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase text-muted">
+              <thead className="border-b border-line bg-card-raised/40 text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle">
                 <tr>
                   <th className="w-14 px-4 py-3">
                     <span className="sr-only">Foto</span>

@@ -27,7 +27,7 @@ export default async function ProfessionalPage({ params }: { params: Promise<{ s
         ← Equipe Audiovisual
       </Link>
 
-      <header className="flex flex-wrap items-center gap-4 rounded-xl border border-line bg-card p-5">
+      <header className="card flex flex-wrap items-center gap-4 p-5">
         <Avatar name={professional.name} src={professional.photoUrl} size="lg" />
         <div className="min-w-0 flex-1 space-y-1">
           <h1 className="break-words text-2xl font-semibold tracking-tight">{professional.name}</h1>
@@ -47,8 +47,8 @@ export default async function ProfessionalPage({ params }: { params: Promise<{ s
         {PROFESSIONAL_FIELDS.map((field) => {
           const value = display(professional[field.key]);
           return (
-            <div key={field.key} className="min-w-0 rounded-xl border border-line bg-card p-4">
-              <dt className="text-xs uppercase tracking-wider text-muted">{field.label}</dt>
+            <div key={field.key} className="card min-w-0 p-4">
+              <dt className="eyebrow">{field.label}</dt>
               <dd className={`mt-1 break-words text-sm ${value ? "" : "text-muted"}`}>
                 {value ?? "Não informado"}
               </dd>

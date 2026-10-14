@@ -199,7 +199,7 @@ export default async function EditalPage({
       </Link>
 
       {salvo && (
-        <p className="rounded-md border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok">
+        <p className="rounded-lg border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok">
           Edital salvo.
         </p>
       )}
@@ -220,15 +220,12 @@ export default async function EditalPage({
                   edital.reviewStatus === "discarded" ? "pending" : "discarded",
                 )}
               >
-                <button className="rounded-md border border-line px-3 py-1.5 text-sm text-muted hover:border-brand hover:text-brand">
+                <button className="btn btn-sm btn-secondary text-muted">
                   {edital.reviewStatus === "discarded" ? "Restaurar" : "Descartar"}
                 </button>
               </form>
               {edital.officialUrl && <CheckChangesButton editalId={edital.id} />}
-              <Link
-                href={`/editais/${edital.id}/editar`}
-                className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand"
-              >
+              <Link href={`/editais/${edital.id}/editar`} className="btn btn-sm btn-secondary">
                 {edital.reviewStatus === "validated" ? "Editar" : "Editar e revisar"}
               </Link>
             </div>
@@ -247,7 +244,7 @@ export default async function EditalPage({
           </p>
         )}
         {pendingChanges > 0 && (
-          <p className="rounded-md border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <p className="rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
             {pendingChanges} alteração(ões)/retificação(ões) detectada(s) aguardando revisão.{" "}
             <Link href={`/editais/${edital.id}?aba=historico`} className="font-medium underline">
               Ver no Histórico
@@ -255,7 +252,7 @@ export default async function EditalPage({
           </p>
         )}
         {original && edital.reviewStatus !== "discarded" && (
-          <div className="space-y-2 rounded-md border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <div className="space-y-2 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
             <p>
               Possível duplicado de{" "}
               <Link href={`/editais/${original.id}`} className="font-medium underline">
@@ -266,14 +263,10 @@ export default async function EditalPage({
             {canEdit && (
               <div className="flex flex-wrap gap-2">
                 <form action={resolveDuplicate.bind(null, edital.id, "not_duplicate")}>
-                  <button className="rounded-md border border-line px-3 py-1 text-xs text-fg hover:border-brand hover:text-brand">
-                    Não é duplicado
-                  </button>
+                  <button className="btn btn-xs btn-secondary">Não é duplicado</button>
                 </form>
                 <form action={resolveDuplicate.bind(null, edital.id, "duplicate")}>
-                  <button className="rounded-md border border-line px-3 py-1 text-xs text-fg hover:border-bad hover:text-bad">
-                    É duplicado — descartar este
-                  </button>
+                  <button className="btn btn-xs btn-danger">É duplicado — descartar este</button>
                 </form>
               </div>
             )}
@@ -444,9 +437,7 @@ export default async function EditalPage({
             )}
             {!discovery?.error && (discovery?.data ?? []).length > 0 && (
               <div className="mt-4 space-y-3 border-t border-line pt-4 text-sm">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted">
-                  Descoberta web (referências)
-                </p>
+                <p className="eyebrow">Descoberta web (referências)</p>
                 {(discovery?.data ?? []).map((item) => (
                   <dl key={item.id} className="space-y-1 text-xs text-muted">
                     <div>
@@ -503,13 +494,11 @@ export default async function EditalPage({
               {ELIGIBILITY_DESCRIPTIONS[edital.eligibilityStatus]}
             </p>
             <div className="space-y-1">
-              <p className="text-xs uppercase tracking-wider text-muted">Motivo</p>
+              <p className="eyebrow">Motivo</p>
               <p>{edital.eligibilityReason ?? "Ainda não avaliado."}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs uppercase tracking-wider text-muted">
-                Evidência (trecho do edital)
-              </p>
+              <p className="eyebrow">Evidência (trecho do edital)</p>
               {edital.eligibilityEvidence ? (
                 <blockquote className="border-l-2 border-brand/60 pl-3 text-sm italic">
                   “{edital.eligibilityEvidence}”
@@ -519,9 +508,7 @@ export default async function EditalPage({
               )}
             </div>
             <div className="space-y-1">
-              <p className="text-xs uppercase tracking-wider text-muted">
-                Territórios identificados
-              </p>
+              <p className="eyebrow">Territórios identificados</p>
               <p className="text-sm">
                 {edital.eligibleTerritories.length > 0
                   ? edital.eligibleTerritories.map(territoryLabel).join(", ")
@@ -551,7 +538,7 @@ export default async function EditalPage({
       {tab === "match" && (
         <div className="space-y-3">
           {!savedMatches?.error && (matches.length > 0 || saved.length > 0) && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-card px-4 py-3 text-sm text-muted">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-card px-4 py-3 text-sm text-muted">
               <span>
                 {lastSaved
                   ? `Match v2 gravado em ${new Date(lastSaved).toLocaleString("pt-BR", {
@@ -563,9 +550,7 @@ export default async function EditalPage({
               </span>
               {canEdit && !upToDate && (
                 <form action={recalculateMatches.bind(null, edital.id)}>
-                  <button className="rounded-md border border-line px-3 py-1 text-xs text-fg hover:border-brand hover:text-brand">
-                    Recalcular e gravar
-                  </button>
+                  <button className="btn btn-xs btn-secondary">Recalcular e gravar</button>
                 </form>
               )}
             </div>
@@ -601,8 +586,8 @@ export default async function EditalPage({
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-line bg-card p-4">
-      <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
+    <div className="card p-4">
+      <p className="eyebrow">{label}</p>
       <p className="mt-1 font-medium tabular-nums">{children}</p>
     </div>
   );

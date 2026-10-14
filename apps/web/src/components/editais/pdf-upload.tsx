@@ -72,7 +72,7 @@ export function PdfUpload({
           type="file"
           accept="application/pdf,.pdf"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          className="block w-full cursor-pointer rounded-md border border-line bg-card-raised text-sm text-muted file:mr-3 file:cursor-pointer file:border-0 file:bg-brand/15 file:px-3 file:py-2 file:text-brand hover:file:bg-brand/25"
+          className="block w-full cursor-pointer rounded-lg border border-line bg-card-raised text-sm text-muted file:mr-3 file:cursor-pointer file:border-0 file:bg-brand/15 file:px-3 file:py-2 file:text-brand hover:file:bg-brand/25"
         />
         <span className="block text-xs text-muted">
           Até 25 MB. O arquivo original é guardado sem alterações.
@@ -80,11 +80,7 @@ export function PdfUpload({
       </label>
       {withKind && <KindSelect defaultValue={kind} onChange={setKind} />}
       <ActionFeedback state={state} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary w-full">
         {pending ? "Enviando e validando…" : submitLabel}
       </button>
     </form>

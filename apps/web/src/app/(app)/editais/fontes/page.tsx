@@ -100,7 +100,7 @@ function ExternalLink({ href, children }: { href: string | null; children: React
       href={safe}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 rounded-md border border-line px-3 py-1 text-xs hover:border-brand hover:text-brand"
+      className="btn btn-xs btn-secondary inline-flex items-center gap-1"
     >
       {children} <NavIcon name="external" className="h-3 w-3" />
       <span className="sr-only">(abre em nova aba)</span>
@@ -318,9 +318,7 @@ export default async function SourcesPage({
                     </button>
                   </form>
                   <form action={dismissDiscoveryCandidate.bind(null, item.id)}>
-                    <button className="rounded-md border border-line px-3 py-1 text-muted hover:border-bad hover:text-bad">
-                      Descartar
-                    </button>
+                    <button className="btn btn-xs btn-danger">Descartar</button>
                   </form>
                 </div>
               </li>
@@ -348,11 +346,7 @@ export default async function SourcesPage({
                 key={key}
                 href={key === "todas" ? "/editais/fontes" : `/editais/fontes?filtro=${key}`}
                 aria-current={filter === key ? "page" : undefined}
-                className={`rounded-full border px-3 py-1 ${
-                  filter === key
-                    ? "border-brand bg-brand/10 text-brand"
-                    : "border-line text-muted hover:border-brand hover:text-brand"
-                }`}
+                className={`chip ${filter === key ? "chip-active" : ""}`}
               >
                 {SOURCE_FILTERS[key].label}
               </Link>
@@ -449,14 +443,12 @@ export default async function SourcesPage({
                       <>
                         <div className="flex flex-wrap gap-2 pt-1">
                           <form action={toggleSource.bind(null, source.id, !source.active)}>
-                            <button className="rounded-md border border-line px-3 py-1 text-fg hover:border-brand hover:text-brand">
+                            <button className="btn btn-xs btn-secondary">
                               {source.active ? "Pausar" : "Reativar"}
                             </button>
                           </form>
                           <form action={deleteSource.bind(null, source.id)}>
-                            <button className="rounded-md border border-line px-3 py-1 hover:border-bad hover:text-bad">
-                              Remover
-                            </button>
+                            <button className="btn btn-xs btn-danger">Remover</button>
                           </form>
                           <TestSourceButton sourceId={source.id} />
                         </div>
@@ -509,7 +501,7 @@ export default async function SourcesPage({
               )}
               {missingSuggestions.length > 1 && (
                 <form action={addSuggestedSources} className="mb-4">
-                  <button className="w-full rounded-md border border-line px-4 py-2 text-xs text-muted hover:border-brand hover:text-brand">
+                  <button className="btn btn-secondary w-full text-muted">
                     Cadastrar todas as sugeridas ({missingSuggestions.length})
                   </button>
                 </form>
@@ -587,7 +579,7 @@ export default async function SourcesPage({
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[720px] text-left text-xs">
-                  <thead className="border-b border-line uppercase tracking-wider text-muted">
+                  <thead className="border-b border-line text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle">
                     <tr>
                       <th className="py-2 pr-3 font-medium">Quando</th>
                       <th className="py-2 pr-3 font-medium">Origem</th>
@@ -648,7 +640,7 @@ export default async function SourcesPage({
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[860px] text-left text-sm">
-                <thead className="border-b border-line text-xs uppercase tracking-wider text-muted">
+                <thead className="border-b border-line text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle">
                   <tr>
                     <th className="py-2 pr-4 font-medium">Quando</th>
                     <th className="py-2 pr-4 font-medium">Fonte</th>
@@ -735,9 +727,7 @@ export default async function SourcesPage({
                     <ExternalLink href={item.url}>Acessar página</ExternalLink>
                     {isAdmin && (
                       <form action={forgetIgnoredUrl.bind(null, item.id)}>
-                        <button className="rounded-md border border-line px-3 py-1 text-xs hover:border-brand hover:text-brand">
-                          Reavaliar
-                        </button>
+                        <button className="btn btn-xs btn-secondary">Reavaliar</button>
                       </form>
                     )}
                   </div>

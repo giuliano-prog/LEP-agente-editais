@@ -45,7 +45,7 @@ export function TeamDirectory({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Buscar profissional por nome ou função"
-          className="w-full rounded-md border border-line bg-card-raised px-3 py-2 text-sm text-fg outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-1 focus:ring-brand"
+          className="control"
         />
       </label>
 
@@ -78,7 +78,7 @@ export function TeamDirectory({
               <li key={professional.slug}>
                 <Link
                   href={`/equipe-audiovisual/${professional.slug}`}
-                  className="group flex min-w-0 items-center gap-3 rounded-xl border border-line bg-card p-4 transition hover:border-brand/60 hover:bg-card-raised"
+                  className="card card-interactive group flex min-w-0 items-center gap-3 p-4"
                 >
                   <Avatar name={professional.name} src={professional.photoUrl} />
                   <span className="min-w-0 flex-1">
@@ -116,11 +116,7 @@ function CategoryChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-full border px-3 py-1 transition ${
-        active
-          ? "border-brand bg-brand/10 text-brand"
-          : "border-line text-muted hover:border-brand hover:text-brand"
-      }`}
+      className={`chip ${active ? "chip-active" : ""}`}
     >
       {children}
     </button>
