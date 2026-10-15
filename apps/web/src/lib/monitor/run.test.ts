@@ -365,7 +365,12 @@ describe("runMonitor (varredura)", () => {
   it("não reimporta o que já é conhecido na execução seguinte", async () => {
     const { runMonitor } = await import("./run");
     const { createAdminClient } = await import("@/lib/supabase/admin");
-    const results = await runMonitor(createAdminClient(), { trigger: "manual" });
+    // Data fixa (entre a 1ª varredura e a retificação): sem ela o relógio real marca a
+    // verificação no "futuro" do teste seguinte e ele deixa de rodar após 05/10/2026.
+    const results = await runMonitor(createAdminClient(), {
+      trigger: "manual",
+      now: new Date("2026-09-27T12:00:00-03:00"),
+    });
     expect(results.find((result) => result.sourceId === "fonte-1")).toMatchObject({
       status: "ok",
       imported: 0,

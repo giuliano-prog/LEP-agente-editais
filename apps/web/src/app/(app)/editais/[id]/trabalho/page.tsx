@@ -14,22 +14,24 @@ import {
   parseWorkspaceRules,
   toEdital,
   toOrgDocument,
-  toWorkspaceItem,
   VERDICT_LABELS,
   WORKSPACE_STATUS_LABELS,
   WORKSPACE_STATUSES,
   isWorkspaceStatus,
   type Finding,
   type ItemCategory,
-  type WorkspaceItem,
 } from "@lep/funding";
 import { labelOf, PROJECT_FORMATS, PROJECT_GENRES, PROJECT_STAGES } from "@lep/projects";
 import { DbErrorNotice } from "@/components/db-error-notice";
 import { Deadline, EditalStatusBadge, EligibilityBadge } from "@/components/edital-badges";
 import { Badge, type BadgeTone } from "@/components/ui";
-import { ItemRow, type Member } from "@/components/workspace/item-row";
+import { AssistantPanel } from "@/components/workspace/assistant-panel";
+import { FindingList } from "@/components/workspace/finding-list";
+import { ItemRow, type Member, type RowItem } from "@/components/workspace/item-row";
 import { S } from "@/components/workspace/styles";
 import { TextDraft } from "@/components/workspace/text-draft";
+import { loadAssistantPanel } from "@/lib/assistant/panel-data";
+import { toAssistantItem } from "@/lib/assistant/supabase-store";
 import { requireMembership } from "@/lib/auth/session";
 import { formatBRL, formatDate, toMoneyInput } from "@/lib/format";
 import { loadProponent } from "@/lib/proponent";
@@ -42,13 +44,21 @@ import {
   saveItem,
   saveWorkspace,
 } from "./actions";
+import { decideSuggestion } from "./assistant-actions";
 
 export const metadata: Metadata = { title: "Área de Trabalho do Edital" };
+
+/**
+ * Cada passo do Assistente LEP (server action desta página) é uma chamada ao Claude + as
+ * ferramentas pedidas: precisa de folga além do padrão da Vercel (ADR-0027).
+ */
+export const maxDuration = 300;
 
 const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
 const SECTIONS = [
   ["prontidao", "Prontidão"],
+  ["assistente", "Assistente LEP"],
   ["resumo", "Resumo"],
   ["producao", "Produção"],
   ["checklist", "Checklist"],
@@ -224,13 +234,23 @@ export default async function WorkspacePage({
     );
   }
 
-  const items = await supabase
-    .from("edital_workspace_items")
-    .select("*")
-    .eq("workspace_id", workspaceRow.id)
-    .eq("org_id", membership.orgId)
-    .order("position", { ascending: true });
-  const allItems: WorkspaceItem[] = (items.data ?? []).map((row) => toWorkspaceItem(row));
+  const [items, assistant] = await Promise.all([
+    supabase
+      .from("edital_workspace_items")
+      .select("*")
+      .eq("workspace_id", workspaceRow.id)
+      .eq("org_id", membership.orgId)
+      .order("position", { ascending: true }),
+    loadAssistantPanel(supabase, membership.orgId, workspaceRow.id, isAdmin),
+  ]);
+  const allItems: RowItem[] = (items.data ?? []).map((row) => toAssistantItem(row));
+  const aiFindings = (kinds: string[]) =>
+    assistant.findings
+      .filter((finding) => kinds.includes(finding.kind))
+      .sort((a, b) => Number(a.status !== "open") - Number(b.status !== "open"));
+  const decisions = aiFindings(["pending_decision"]);
+  const issues = aiFindings(["inconsistency", "risk", "observation", "recommendation"]);
+  const criteriaFindings = aiFindings(["evaluation_criterion", "scoring_opportunity"]);
   const rules = parseWorkspaceRules(workspaceRow.rules);
   const production = projects.find((project) => project.id === workspaceRow.projeto_id) ?? null;
   const now = new Date();
@@ -368,6 +388,25 @@ export default async function WorkspacePage({
           </dl>
           <p className="text-xs text-muted">{MATCH_DISCLAIMER}</p>
         </div>
+      </section>
+
+      {/* ASSISTENTE LEP — agente de IA operacional da inscrição (ADR-0027) */}
+      <section id="assistente" aria-labelledby="assistente-titulo" className="scroll-mt-24">
+        {assistant.available ? (
+          <AssistantPanel
+            editalId={edital.id}
+            canEdit={canEdit}
+            configured={assistant.configured}
+            notConfiguredReason={assistant.notConfiguredReason}
+            modelLabel={assistant.model}
+            messages={assistant.messages}
+            activeRun={assistant.activeRun}
+            lastRun={assistant.lastRun}
+            proposals={assistant.proposals}
+          />
+        ) : (
+          <DbErrorNotice error={assistant.error} isAdmin={isAdmin} context="o Assistente LEP" />
+        )}
       </section>
 
       <nav aria-label="Seções da área de trabalho" className="-mx-4 overflow-x-auto px-4">
@@ -731,6 +770,49 @@ export default async function WorkspacePage({
                       “{item.evidence}”
                     </blockquote>
                   )}
+                  {item.updatedVia === "assistant" && (
+                    <p className="text-xs text-brand">
+                      ✦ Alterado pelo Assistente LEP — revise antes de usar.
+                    </p>
+                  )}
+                  {item.aiSuggestion && (
+                    <div className="space-y-2 rounded-lg border border-brand/40 bg-brand/5 p-3">
+                      <p className="text-xs font-semibold text-brand">
+                        ✦ Sugestão do Assistente (não substitui o texto da equipe sem você aplicar)
+                      </p>
+                      <p className="whitespace-pre-line text-sm leading-relaxed">
+                        {item.aiSuggestion}
+                      </p>
+                      {canEdit && (
+                        <div className="flex flex-wrap gap-1.5">
+                          <form
+                            action={decideSuggestion.bind(
+                              null,
+                              edital.id,
+                              item.id,
+                              "apply",
+                              `texto-${item.id}`,
+                            )}
+                          >
+                            <button className={S.small.replace("border-line", "border-ok/40")}>
+                              Aplicar sugestão
+                            </button>
+                          </form>
+                          <form
+                            action={decideSuggestion.bind(
+                              null,
+                              edital.id,
+                              item.id,
+                              "discard",
+                              `texto-${item.id}`,
+                            )}
+                          >
+                            <button className={S.danger}>Descartar sugestão</button>
+                          </form>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <form action={saveItem.bind(null, edital.id, item.id)} className="space-y-2">
                     <input type="hidden" name="anchor" value={`texto-${item.id}`} />
                     <TextDraft
@@ -747,9 +829,9 @@ export default async function WorkspacePage({
               );
             })}
             <p className="text-xs text-muted">
-              Páginas são estimadas (≈ 500 palavras por página). Revisão de conteúdo por IA: não
-              configurada — ponto de integração preparado (ADR-0026); nenhum texto da LEP é enviado
-              a serviços externos.
+              Páginas são estimadas (≈ 500 palavras por página). O Assistente LEP prepara rascunhos
+              em textos vazios e deixa sugestões nos demais — o texto da equipe só muda quando você
+              aplica (ADR-0027).
             </p>
           </div>
         )}
@@ -937,10 +1019,48 @@ export default async function WorkspacePage({
             />
           </div>
         </div>
+        {criteriaFindings.length > 0 && (
+          <div className={`${S.card} px-5 pt-3`}>
+            <h3 className={S.eyebrow}>Critérios e oportunidades registrados pelo Assistente</h3>
+            <FindingList
+              findings={criteriaFindings}
+              editalId={edital.id}
+              canEdit={canEdit}
+              anchor="criterios"
+            />
+          </div>
+        )}
       </Section>
 
       {/* 11. Inconsistências encontradas */}
       <Section id="inconsistencias" title="Inconsistências encontradas">
+        <div id="decisoes" className="scroll-mt-24">
+          {decisions.length > 0 && (
+            <div className={`${S.card} border-warn/40 px-5 pt-3`}>
+              <h3 className="text-sm font-semibold text-warn">Decisões que dependem da equipe</h3>
+              <FindingList
+                findings={decisions}
+                editalId={edital.id}
+                canEdit={canEdit}
+                anchor="decisoes"
+              />
+            </div>
+          )}
+        </div>
+        {issues.length > 0 && (
+          <div className={`${S.card} px-5 pt-3`}>
+            <h3 className={S.eyebrow}>Encontradas pelo Assistente LEP</h3>
+            <FindingList
+              findings={issues}
+              editalId={edital.id}
+              canEdit={canEdit}
+              anchor="inconsistencias"
+            />
+          </div>
+        )}
+        {assessment.findings.length > 0 && (issues.length > 0 || decisions.length > 0) && (
+          <h3 className={`${S.eyebrow} pt-1`}>Verificações automáticas (regras)</h3>
+        )}
         {assessment.findings.length === 0 ? (
           <Empty>Nenhuma inconsistência encontrada pelas regras.</Empty>
         ) : (
@@ -1097,7 +1217,7 @@ function CategoryList({
   bare = false,
   ...rowProps
 }: {
-  items: WorkspaceItem[];
+  items: RowItem[];
   empty: string;
   bare?: boolean;
 } & Omit<Parameters<typeof ItemRow>[0], "item" | "anchorId" | "compact">) {

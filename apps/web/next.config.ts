@@ -10,7 +10,14 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Pacotes internos do monorepo são TypeScript puro e compilados pelo Next.
-  transpilePackages: ["@lep/core", "@lep/db", "@lep/funding", "@lep/ingestion", "@lep/projects"],
+  transpilePackages: [
+    "@lep/ai",
+    "@lep/core",
+    "@lep/db",
+    "@lep/funding",
+    "@lep/ingestion",
+    "@lep/projects",
+  ],
   // pdfjs-dist (texto de PDF, etapa 7) roda no Node sem ser empacotado.
   serverExternalPackages: ["pdfjs-dist"],
   // Foto de perfil (até 2 MB) enviada por Server Action; folga para o multipart.

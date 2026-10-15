@@ -11,11 +11,17 @@ import {
 } from "@lep/funding";
 import { deleteItem, saveItem, setItemStatus } from "@/app/(app)/editais/[id]/trabalho/actions";
 import { Badge, type BadgeTone } from "@/components/ui";
+import { CONFIDENCE_LABELS, SOURCE_KIND_LABELS } from "@/lib/assistant/evidence";
+import type { AssistantItem } from "@/lib/assistant/store";
 import { formatDate } from "@/lib/format";
+import { CONFIDENCE_TONES } from "./finding-list";
 import { OpenDocument } from "./open-document";
 import { S } from "./styles";
 
 export type Member = { id: string; name: string };
+
+/** Item do checklist; os campos do Assistente LEP são opcionais (telas sem IA). */
+export type RowItem = WorkspaceItem & Partial<Omit<AssistantItem, keyof WorkspaceItem>>;
 
 export const STATUS_TONES: Record<ItemStatus, BadgeTone> = {
   pending: "warn",
@@ -41,7 +47,7 @@ export function ItemRow({
   anchorId,
   compact = false,
 }: {
-  item: WorkspaceItem;
+  item: RowItem;
   editalId: string;
   canEdit: boolean;
   members: Member[];
@@ -71,6 +77,14 @@ export function ItemRow({
             )}
             {!compact && <Badge>{ITEM_CATEGORY_LABELS[item.category]}</Badge>}
             {item.origin === "manual" && <Badge>Manual</Badge>}
+            {item.confidence && (
+              <Badge tone={CONFIDENCE_TONES[item.confidence]}>
+                {CONFIDENCE_LABELS[item.confidence]}
+              </Badge>
+            )}
+            {item.updatedVia === "assistant" && (
+              <Badge tone="brand">✦ Alterado pelo Assistente</Badge>
+            )}
             <span className="text-muted">
               {responsible ? `Responsável: ${responsible.name}` : "Sem responsável"}
               {item.dueDate && ` · prazo interno ${formatDate(item.dueDate)}`}
@@ -85,12 +99,28 @@ export function ItemRow({
             </p>
           )}
           {item.notes && <p className="text-xs text-muted">Obs.: {item.notes}</p>}
-          {item.evidence && (
+          {(item.evidence || item.evidenceDocument || item.sourceKind) && (
             <details className="text-xs text-muted">
-              <summary className="cursor-pointer hover:text-brand">Trecho do edital</summary>
-              <blockquote className="mt-1 border-l-2 border-brand/60 pl-3 italic">
-                “{item.evidence}”
-              </blockquote>
+              <summary className="cursor-pointer hover:text-brand">
+                {item.updatedVia === "assistant"
+                  ? "Por que a IA concluiu isso?"
+                  : "Trecho do edital"}
+              </summary>
+              <div className="mt-1 space-y-1 border-l-2 border-brand/60 pl-3">
+                {(item.sourceKind || item.evidenceDocument) && (
+                  <p>
+                    {item.sourceKind && SOURCE_KIND_LABELS[item.sourceKind]}
+                    {item.evidenceDocument && ` · ${item.evidenceDocument}`}
+                    {item.evidencePage ? `, p. ${item.evidencePage}` : ""}
+                    {item.evidenceSection ? ` · ${item.evidenceSection}` : ""}
+                  </p>
+                )}
+                {item.evidence ? (
+                  <blockquote className="italic">“{item.evidence}”</blockquote>
+                ) : (
+                  <p>Sem trecho literal do documento.</p>
+                )}
+              </div>
             </details>
           )}
         </div>
