@@ -1270,6 +1270,15 @@ export type Database = {
       };
       edital_workspace_items: {
         Row: {
+          ai_suggestion: string | null;
+          ai_suggestion_at: string | null;
+          analyzed_at: string | null;
+          confidence: string | null;
+          evidence_document: string | null;
+          evidence_page: number | null;
+          evidence_section: string | null;
+          source_kind: string | null;
+          updated_via: string;
           category: string;
           char_limit: number | null;
           content: string | null;
@@ -1295,6 +1304,15 @@ export type Database = {
           workspace_id: string;
         };
         Insert: {
+          ai_suggestion?: string | null;
+          ai_suggestion_at?: string | null;
+          analyzed_at?: string | null;
+          confidence?: string | null;
+          evidence_document?: string | null;
+          evidence_page?: number | null;
+          evidence_section?: string | null;
+          source_kind?: string | null;
+          updated_via?: string;
           category?: string;
           char_limit?: number | null;
           content?: string | null;
@@ -1320,6 +1338,15 @@ export type Database = {
           workspace_id: string;
         };
         Update: {
+          ai_suggestion?: string | null;
+          ai_suggestion_at?: string | null;
+          analyzed_at?: string | null;
+          confidence?: string | null;
+          evidence_document?: string | null;
+          evidence_page?: number | null;
+          evidence_section?: string | null;
+          source_kind?: string | null;
+          updated_via?: string;
           category?: string;
           char_limit?: number | null;
           content?: string | null;
@@ -1371,6 +1398,489 @@ export type Database = {
             columns: ["org_document_id"];
             isOneToOne: false;
             referencedRelation: "org_documents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      edital_texts: {
+        Row: {
+          char_count: number;
+          document_id: string | null;
+          edital_id: string;
+          extracted_at: string;
+          id: string;
+          label: string;
+          org_id: string;
+          page_count: number;
+          pages: Json;
+          sha256: string | null;
+          source: string;
+          truncated: boolean;
+        };
+        Insert: {
+          char_count?: number;
+          document_id?: string | null;
+          edital_id: string;
+          extracted_at?: string;
+          id?: string;
+          label: string;
+          org_id: string;
+          page_count?: number;
+          pages?: Json;
+          sha256?: string | null;
+          source: string;
+          truncated?: boolean;
+        };
+        Update: {
+          char_count?: number;
+          document_id?: string | null;
+          edital_id?: string;
+          extracted_at?: string;
+          id?: string;
+          label?: string;
+          org_id?: string;
+          page_count?: number;
+          pages?: Json;
+          sha256?: string | null;
+          source?: string;
+          truncated?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "edital_texts_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_texts_edital_id_fkey";
+            columns: ["edital_id"];
+            isOneToOne: false;
+            referencedRelation: "editais";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "edital_texts_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_documents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      assistant_conversations: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          org_id: string;
+          summary: string | null;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          org_id: string;
+          summary?: string | null;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          org_id?: string;
+          summary?: string | null;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "assistant_conversations_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assistant_conversations_workspace_id_fkey";
+            columns: ["workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_workspaces";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      agent_runs: {
+        Row: {
+          attempts: number;
+          cache_read_tokens: number;
+          cache_write_tokens: number;
+          conversation_id: string;
+          cost_usd: number;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input_tokens: number;
+          kind: string;
+          lease_until: string | null;
+          max_steps: number;
+          model: string | null;
+          org_id: string;
+          output_tokens: number;
+          phase: string | null;
+          provider: string | null;
+          request: string;
+          result: Json;
+          started_at: string;
+          started_by: string | null;
+          status: string;
+          step_count: number;
+          tool_calls: number;
+          transcript: Json;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          cache_read_tokens?: number;
+          cache_write_tokens?: number;
+          conversation_id: string;
+          cost_usd?: number;
+          error?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          input_tokens?: number;
+          kind?: string;
+          lease_until?: string | null;
+          max_steps?: number;
+          model?: string | null;
+          org_id: string;
+          output_tokens?: number;
+          phase?: string | null;
+          provider?: string | null;
+          request: string;
+          result?: Json;
+          started_at?: string;
+          started_by?: string | null;
+          status?: string;
+          step_count?: number;
+          tool_calls?: number;
+          transcript?: Json;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          attempts?: number;
+          cache_read_tokens?: number;
+          cache_write_tokens?: number;
+          conversation_id?: string;
+          cost_usd?: number;
+          error?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          input_tokens?: number;
+          kind?: string;
+          lease_until?: string | null;
+          max_steps?: number;
+          model?: string | null;
+          org_id?: string;
+          output_tokens?: number;
+          phase?: string | null;
+          provider?: string | null;
+          request?: string;
+          result?: Json;
+          started_at?: string;
+          started_by?: string | null;
+          status?: string;
+          step_count?: number;
+          tool_calls?: number;
+          transcript?: Json;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_runs_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "assistant_conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_runs_workspace_id_fkey";
+            columns: ["workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_workspaces";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      assistant_messages: {
+        Row: {
+          author_id: string | null;
+          content: string;
+          conversation_id: string;
+          created_at: string;
+          id: string;
+          metadata: Json;
+          org_id: string;
+          role: string;
+          run_id: string | null;
+        };
+        Insert: {
+          author_id?: string | null;
+          content: string;
+          conversation_id: string;
+          created_at?: string;
+          id?: string;
+          metadata?: Json;
+          org_id: string;
+          role: string;
+          run_id?: string | null;
+        };
+        Update: {
+          author_id?: string | null;
+          content?: string;
+          conversation_id?: string;
+          created_at?: string;
+          id?: string;
+          metadata?: Json;
+          org_id?: string;
+          role?: string;
+          run_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "assistant_messages_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assistant_messages_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "assistant_conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assistant_messages_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_runs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      workspace_findings: {
+        Row: {
+          confidence: string;
+          created_at: string;
+          created_by: string | null;
+          created_via: string;
+          dedupe_key: string;
+          detail: string | null;
+          evidence: Json;
+          id: string;
+          item_id: string | null;
+          kind: string;
+          org_id: string;
+          points: number | null;
+          resolution: string | null;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          run_id: string | null;
+          severity: string;
+          source_kind: string;
+          status: string;
+          title: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          confidence?: string;
+          created_at?: string;
+          created_by?: string | null;
+          created_via?: string;
+          dedupe_key: string;
+          detail?: string | null;
+          evidence?: Json;
+          id?: string;
+          item_id?: string | null;
+          kind: string;
+          org_id: string;
+          points?: number | null;
+          resolution?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          run_id?: string | null;
+          severity?: string;
+          source_kind?: string;
+          status?: string;
+          title: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          confidence?: string;
+          created_at?: string;
+          created_by?: string | null;
+          created_via?: string;
+          dedupe_key?: string;
+          detail?: string | null;
+          evidence?: Json;
+          id?: string;
+          item_id?: string | null;
+          kind?: string;
+          org_id?: string;
+          points?: number | null;
+          resolution?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          run_id?: string | null;
+          severity?: string;
+          source_kind?: string;
+          status?: string;
+          title?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workspace_findings_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workspace_findings_workspace_id_fkey";
+            columns: ["workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_workspaces";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workspace_findings_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_workspace_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workspace_findings_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_runs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      agent_actions: {
+        Row: {
+          after_data: Json | null;
+          before_data: Json | null;
+          confidence: string | null;
+          created_at: string;
+          created_by: string | null;
+          decided_at: string | null;
+          decided_by: string | null;
+          error: string | null;
+          evidence: Json | null;
+          id: string;
+          input: Json;
+          kind: string;
+          org_id: string;
+          proposal: Json | null;
+          run_id: string;
+          status: string;
+          step: number;
+          summary: string | null;
+          target_id: string | null;
+          target_table: string | null;
+          tool: string;
+          workspace_id: string;
+        };
+        Insert: {
+          after_data?: Json | null;
+          before_data?: Json | null;
+          confidence?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          error?: string | null;
+          evidence?: Json | null;
+          id?: string;
+          input?: Json;
+          kind: string;
+          org_id: string;
+          proposal?: Json | null;
+          run_id: string;
+          status: string;
+          step?: number;
+          summary?: string | null;
+          target_id?: string | null;
+          target_table?: string | null;
+          tool: string;
+          workspace_id: string;
+        };
+        Update: {
+          after_data?: Json | null;
+          before_data?: Json | null;
+          confidence?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          error?: string | null;
+          evidence?: Json | null;
+          id?: string;
+          input?: Json;
+          kind?: string;
+          org_id?: string;
+          proposal?: Json | null;
+          run_id?: string;
+          status?: string;
+          step?: number;
+          summary?: string | null;
+          target_id?: string | null;
+          target_table?: string | null;
+          tool?: string;
+          workspace_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_actions_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_actions_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_actions_workspace_id_fkey";
+            columns: ["workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "edital_workspaces";
             referencedColumns: ["id"];
           },
         ];
