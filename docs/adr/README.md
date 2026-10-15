@@ -31,5 +31,6 @@ Decisões não são apagadas; quando mudam, um novo ADR "substitui" o anterior.
 | 0024 | [Descoberta web de oportunidades audiovisuais](0024-descoberta-web.md)                         | Aceita   |
 | 0025 | [Criação direta de membros e foto de perfil](0025-criacao-direta-membros-e-foto.md)            | Aceita   |
 | 0026 | [Área de Trabalho do Edital](0026-area-de-trabalho-do-edital.md)                               | Proposta |
+| 0027 | [Assistente LEP — agente de IA operacional](0027-assistente-lep.md)                            | Proposta |
 
 Modelo para novos ADRs: copie um existente e mantenha as seções.

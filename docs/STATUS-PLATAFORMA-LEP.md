@@ -1,6 +1,8 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualização mais recente:** 2026-10-14 — branch `feature/editais-ux-permissions`: migração da Área de Trabalho
+> **Atualização mais recente:** 2026-10-15 — branch `feature/editais-ux-permissions`: **Assistente LEP** (agente de IA
+> operacional na Área de Trabalho, Claude/Anthropic, ADR-0027) — §21; migração `20261012120000` só no TESTE.
+> 2026-10-14 — migração da Área de Trabalho
 > ✅ aplicada **só no Supabase de TESTE** (§20); Área de Trabalho do Edital (§19). **Branch principal:** `main` em `262e5e3`
 > (inclui o PR #1: logomarca + abertura em vídeo). Migração `20261011120000` **não aplicada** em produção.
 > As linhas abaixo descrevem o estado registrado até 2026-09-30 e foram mantidas como histórico.
@@ -264,6 +266,10 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 ---
 
 ## 4. Última alteração implementada
+
+### Assistente LEP — agente de IA operacional (branch `feature/editais-ux-permissions`, 2026-10-15) — ADR-0027
+
+> Registro completo: **§21** (arquitetura, ferramentas, tabelas, RLS, autonomia, custos, variáveis, testes, riscos).
 
 ### Área de Trabalho do Edital (branch `feature/editais-ux-permissions`, 2026-10-14) — ADR-0026
 
@@ -1493,3 +1499,215 @@ rápida: no Preview, Diagnóstico (ADM) deve listar as 17 migrações; a Área d
 - Produção: migração `20261011120000` **não aplicada**; só pelo workflow de produção, após aprovação e merge.
 
 **Commits:** `01274c9` (workflow de staging) · commit desta atualização.
+
+---
+
+## 21. Assistente LEP — agente de IA operacional (2026-10-15) — ✅ na branch `feature/editais-ux-permissions`; aguardando revisão
+
+**ADR:** `docs/adr/0027-assistente-lep.md`. **Branch:** `feature/editais-ux-permissions` (sem merge na `main`, sem
+deploy de produção). **Migração nova:** `20261012120000_assistente_lep.sql` — aplicada **só no TESTE** pelo workflow
+de staging (resultado em §21.14); **produção não alterada**. Nenhum dado real usado em testes, seeds ou logs.
+
+### 21.1 O que foi implementado
+
+- Painel **ASSISTENTE LEP** na Área de Trabalho (`/editais/[id]/trabalho#assistente`, logo abaixo da prontidão):
+  conversa persistida por inscrição (sobrevive a recarregar), caixa de mensagem (Enter envia), botão
+  **“Analisar inscrição com IA”**, status da execução (Aguardando / Processando / Concluída / Parcial / Falhou /
+  Cancelada), fase legível (“IA analisando…”, “Consultando edital…”, “Atualizando checklist…”, “Verificando
+  documentos…”, “Encontrando inconsistências…”, “Revisando textos…”, “Recalculando prontidão…”), passo x/y,
+  ferramentas usadas e custo estimado; botão Cancelar.
+- Resposta final com **resumo em contagens** (requisitos identificados, itens adicionados, documentos do acervo,
+  inconsistências, riscos, textos, critérios, oportunidades, responsáveis, decisões da equipe, ações aguardando
+  confirmação) — cada contagem é link para a seção. O resumo vem da **auditoria** (`agent_actions`), não do texto do
+  modelo.
+- **Propostas** (“Aguardando sua confirmação”): Aprovar / Recusar; aprovação executa código determinístico
+  (`lib/assistant/proposals.ts`) após revalidar o estado; a decisão vira aviso na conversa.
+- Achados da IA nas seções **Inconsistências** (bloco “Decisões que dependem da equipe” + “Encontradas pelo
+  Assistente LEP”) e **Critérios**; cada um com confiança, origem e **“Por que a IA concluiu isso?”** (documento,
+  página, seção, trecho, data); Resolver / Registrar decisão / Descartar / Reabrir (Diretoria/ADM).
+- Itens do checklist com selo de confiança, “✦ Alterado pelo Assistente” e evidência (documento/página/seção).
+  Textos: rascunho só em item vazio; no resto, **sugestão** com “Aplicar sugestão” / “Descartar sugestão”.
+- Sem chave da Anthropic: painel mostra “Assistente indisponível” (motivo com o nome da variável só para o ADM),
+  botões desabilitados; o resto da Área de Trabalho funciona.
+
+### 21.2 Arquitetura
+
+```
+Navegador (AssistantPanel, client)
+  └─ server actions (trabalho/assistant-actions.ts; requireMembership("editor"))
+       ├─ startRun   → cria conversa (se preciso) + agent_runs (queued) + 1ª mensagem com contexto mínimo
+       └─ advanceRun → trava de passo (lease) → runAgentStep (@lep/ai) → 1 chamada ao Claude
+                         → ferramentas (lib/assistant/tools.ts) com a sessão do usuário (RLS)
+                         → agent_actions (auditoria) → contadores/custo → próximo passo ou finalize
+packages/ai: agent/{types,config,step,schema}.ts + providers/anthropic.ts (único lugar com SDK de IA)
+```
+
+- Sem fila/worker: um passo por requisição; o navegador encadeia os passos e chama `router.refresh()` a cada passo
+  (a Área de Trabalho atualiza durante a análise). `maxDuration = 300` na página.
+- Execução retomável (recarregar continua), trava contra passos simultâneos, finalização à prova de corrida (só
+  quem grava o estado final escreve a mensagem), cancelamento durante um passo preserva o custo do passo.
+
+### 21.3 Integração com a Anthropic
+
+- SDK oficial `@anthropic-ai/sdk` **0.134.0**, só em `packages/ai`. `client.beta.messages.create` com thinking
+  adaptativo, `output_config.effort` (análise `high`, chat `medium`), ferramentas `strict: true`, `tool_choice: auto`,
+  prompt de sistema fixo com `cache_control`, cache automático, fallback de recusa do servidor
+  (`server-side-fallback-2026-07-01`). Tratamento de `refusal`, `max_tokens` e `pause_turn`.
+- Erros classificados (`classifyAnthropicError`): autenticação/permissão, limite de taxa, timeout, sobrecarga/5xx,
+  requisição inválida, rede. Timeout por chamada 170 s; 1 retentativa do SDK + até 3 tentativas por passo.
+- **Não verificado com a API real**: não há chave nesta sessão (e ela não deve ser pedida pelo chat). Validado com
+  testes unitários do adaptador e E2E contra um servidor local que imita `/v1/messages` (§21.12).
+
+### 21.4 Fluxo (primeiro fluxo pedido)
+
+Login → Editais → edital → Área de Trabalho → painel Assistente → “Analisar inscrição com IA” (ou escrever
+“Analise completamente este edital e organize a inscrição.”) → o agente consulta a área de trabalho, gera o
+checklist base, lê/busca no edital, registra requisitos com evidência, cruza com o acervo, registra
+inconsistências/riscos/decisões/critérios, sugere responsáveis e textos, recalcula a prontidão → resposta com
+resumo → recarregar mantém tudo → conversa de continuação funciona.
+
+### 21.5 Ferramentas (20)
+
+- Leitura: `consultar_area_trabalho`, `consultar_edital`, `ler_documento_edital` (até 8 páginas por chamada,
+  delimitado como dado), `buscar_no_edital`, `consultar_producao`, `consultar_acervo` (metadados: título, categoria,
+  validade, observação — não o PDF), `consultar_item`, `consultar_equipe`, `consultar_historico`.
+- Escrita: `gerar_checklist_base`, `registrar_requisito`, `atualizar_item`, `vincular_documento_acervo`,
+  `registrar_achado`, `resolver_achado`, `registrar_texto`, `definir_responsavel`, `preencher_dados_inscricao`.
+- Outras: `recalcular_prontidao`, `solicitar_confirmacao` (proposta).
+
+### 21.6 Modelo
+
+- Padrão `claude-opus-5-5`; `LEP_ASSISTANT_MODEL` opcional (aceitos: `claude-opus-5-5`, `claude-opus-5`,
+  `claude-sonnet-5-5`, `claude-fable-5-1`; outro valor volta ao padrão). Configuração centralizada em
+  `packages/ai/src/agent/config.ts` (perfis de execução, limites, preços para estimativa).
+
+### 21.7 Tabelas, migração e RLS
+
+- Migração `supabase/migrations/20261012120000_assistente_lep.sql` (idempotente; testada 2x e em banco parcial):
+  - `core.edital_texts` (texto extraído por documento, páginas em jsonb, SHA-256; cache de leitura);
+  - `core.assistant_conversations` (1 por área de trabalho; resumo ≤ 8000);
+  - `core.agent_runs` (tipo, status, fase, pedido, modelo, transcrição, passos, ferramentas, tokens, custo, tentativas,
+    erro, resultado, trava, quem iniciou);
+  - `core.assistant_messages` (somente inserção; autor = quem está logado ou nulo);
+  - `core.agent_actions` (auditoria de cada ferramenta + propostas; só `status` atualizável, e só de pendente para
+    decidida; gatilho registra quem decidiu e quando);
+  - `core.workspace_findings` (achados com deduplicação tipo + chave; gatilho registra quem resolveu);
+  - colunas novas em `core.edital_workspace_items` (confiança, origem, documento/página/seção, `analyzed_at`,
+    `updated_via`, `ai_suggestion`).
+- RLS com `core.has_role`: leitura `viewer`; escrita `editor` (Diretoria/ADM) com coerência de organização, área de
+  trabalho e execução; excluir achados só `admin`. Grants por coluna; auditoria em `core.audit_log`.
+- `core.ai_usage` **continua sem inserção pela sessão** (custo não forjável); o servidor grava com o cliente admin.
+- Teste `supabase/tests/018_assistente_lep_rls.sql` (38 verificações).
+
+### 21.8 Autonomia e confirmações
+
+- Faz sozinho (interno, reversível, com evidência): checklist, requisitos, vínculos com acervo, achados, textos
+  (rascunho em item vazio / sugestão), responsável em item sem responsável (membro ativo), dados vazios da inscrição,
+  prontidão. Regras no código: idempotência por chave, só preenche vazio, não reabre item concluído pela equipe,
+  concluir exige documento válido, texto dentro do limite ou justificativa; decisão pendente não é resolvida pela IA.
+- Pede confirmação: marcar como enviada, arquivar, substituir texto/documento, desvincular documento, alterar valor
+  preenchido, “não se aplica” em item da equipe. Não existe ferramenta para e-mail, site externo ou pagamento
+  (pedido assim volta como erro e o agente explica).
+
+### 21.9 Evidências, auditoria e prompt injection
+
+- Confiança: Confirmado / Inferido / Não encontrado / Precisa de confirmação humana; origem: edital / LEP / produção /
+  inferência da IA / equipe. “Confirmado” do edital só com trecho literal localizado (documento e página reais).
+- Auditoria: toda ferramenta (inclusive rejeitada ou com erro) em `agent_actions` com entrada, antes/depois, evidência
+  e confiança; itens/achados com `updated_via`/`created_via`; decisões humanas com autor e data.
+- Conteúdo de documentos/conversa/ferramentas entra delimitado como `<documento_*>`; o prompt de sistema manda tratar
+  como dado; e as regras de autonomia estão no servidor (uma instrução maliciosa no PDF só geraria proposta pendente).
+
+### 21.10 Custos e observabilidade
+
+- Por execução: tokens (entrada, saída, leitura/escrita de cache), custo estimado, passos, ferramentas, duração,
+  tentativas e erro em `agent_runs`. Por chamada: `core.ai_usage` (finalidade `assistente.full_analysis`/`chat`,
+  modelo, tokens, custo, duração, status, `run_id`/passo).
+- Abrir a página só lê o banco — **nunca chama a IA** (verificado no E2E). Limites: análise 30 passos/120
+  ferramentas; chat 14/50; 16 000 tokens de saída por chamada.
+
+### 21.11 Variáveis de ambiente
+
+| Variável              | Onde                                                                         | Ambiente                                                                                        | Obrigatória                                                               |
+| --------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`   | Vercel → Project → Settings → Environment Variables (**sem** `NEXT_PUBLIC_`) | **Preview** (deste branch ou de todo o Preview) para validar; Production só depois da aprovação | Sim, para o Assistente funcionar                                          |
+| `LEP_ASSISTANT_MODEL` | idem                                                                         | idem                                                                                            | Não (padrão `claude-opus-5-5`)                                            |
+| `SUPABASE_SECRET_KEY` | já existente                                                                 | Preview/Production                                                                              | Sim para gravar `core.ai_usage` (sem ela o custo fica só em `agent_runs`) |
+
+Local: `apps/web/.env.local` (opcional, só para testar o Assistente na máquina; documentado em `.env.example`).
+Depois de cadastrar a chave na Vercel: **Redeploy** do Preview.
+
+### 21.12 Testes executados (resultados reais, 2026-10-15)
+
+- `pnpm check` ✅: formatação, lint, tipos e **487/487 testes** (core 9, projects 3, ai 26, ingestion 54, funding 203,
+  web 192). Novos no web: ferramentas 24, execuções 19, server actions 6. A falha antiga de
+  `apps/web/src/lib/monitor/run.test.ts` foi **corrigida**: o teste dependia do relógio real (um teste anterior rodava a
+  varredura sem data fixa e, após 05/10/2026, o seguinte deixava de rodar) — agora com data fixa; nenhum código de
+  produção mudou.
+- Cobertura pedida: autenticação/autorização (Equipe não aciona; Diretoria/ADM sim), schemas estritos, isolamento
+  (outra organização/área de trabalho), idempotência e reexecução sem duplicar, persistência, confirmação humana,
+  ações proibidas, evidência (trecho inexistente → inferido), erro de API (auth), timeout (3 tentativas → falhou),
+  erro de ferramenta (volta como erro e a execução continua), chave ausente, evidência ausente, prompt injection,
+  recusa/truncamento → parcial, limite de passos, cancelamento (inclusive durante um passo).
+- Banco (PostgreSQL 16 local descartável, `DB_TEST_SHIM=1`, migrações aplicadas 2x): **18 arquivos ✅, 322
+  verificações**, incluindo `018_assistente_lep_rls.sql` (38); cenário `remoto-parcial` ✅.
+- E2E (Supabase **simulado** + servidor local que imita a API da Anthropic, dados fictícios): ADM 29/29,
+  Diretoria 29/29, sem chave 4/4, Equipe 8/8 (só leitura). Verificado: abrir a página não chama a IA; fases;
+  checklist/achados/propostas atualizados; recarregar mantém; chat de continuação; recusar proposta não marca como
+  enviada; registrar decisão; 20 ferramentas estritas, prompt fixo em cache, esforço alto/médio; ferramenta inexistente
+  (e-mail) volta como erro; sem rolagem horizontal no celular; **a chave nunca aparece em nenhuma resposta ao
+  navegador**. Regressão da Área de Trabalho: ADM 39/39, Diretoria 39/39, Equipe 5/5.
+- `pnpm build` ✅; o pacote do navegador (`.next/static`) não contém o SDK nem o nome da variável da Anthropic.
+- **Não verificado:** chamada real à API da Anthropic (sem chave nesta sessão) e o Preview da Vercel (rede da sessão
+  bloqueia `*.vercel.app`).
+
+### 21.13 Como testar no Preview
+
+1. Conferir §20.4: o Preview deste branch precisa apontar para o Supabase de **TESTE** (nunca o de produção).
+2. Cadastrar `ANTHROPIC_API_KEY` no ambiente **Preview** da Vercel e fazer Redeploy.
+3. Entrar como ADM ou Diretoria → Editais → um edital **fictício** → Área de Trabalho (criar, se preciso; anexar um
+   PDF fictício na aba Documentos do edital ajuda a ter evidência literal).
+4. Painel Assistente → “Analisar inscrição com IA”. Acompanhar a fase; ao concluir, conferir checklist, Documentos,
+   Inconsistências/Decisões, Critérios, Textos e a prontidão; abrir “Por que a IA concluiu isso?”.
+5. Recarregar a página (tudo deve continuar) e perguntar no chat “O que ainda falta?”.
+6. Aprovar/recusar uma proposta; entrar como Equipe e conferir que só lê.
+
+### 21.14 Staging (TESTE)
+
+- Push desta entrega dispara `supabase-migrations-staging.yml` (só TESTE). Resultado registrado no commit seguinte
+  desta seção.
+
+### 21.15 Limitações conhecidas
+
+- O navegador precisa ficar aberto para a execução avançar (sem worker); fechar e reabrir retoma.
+- Leitura do edital depende de documento legível guardado (PDF com texto/HTML); PDF escaneado sem texto não é lido.
+- O agente vê metadados do acervo, não o conteúdo dos PDFs da LEP.
+- Custo estimado pela tabela de preços em `agent/config.ts` (conferir com a fatura da Anthropic).
+- Sem streaming de texto: a resposta aparece ao fim de cada passo.
+
+### 21.16 Riscos
+
+- Dados da inscrição são enviados à API da Anthropic durante uma execução pedida por Diretoria/ADM — conferir a
+  política de retenção da conta usada.
+- Preview apontando para produção (§20.4) — conferir antes de qualquer teste.
+- Custo: limites por execução existem, mas não há teto mensal por organização (ao contrário da descoberta web).
+
+### 21.17 Próximos passos
+
+1. Revisar código e Preview; cadastrar a chave no Preview; testar o fluxo de §21.13 com edital fictício.
+2. Ajustar o prompt/limites com os primeiros resultados reais (custos em `agent_runs`/`ai_usage`).
+3. Teto mensal de custo por organização (como o da descoberta web) antes de liberar em produção.
+4. Com aprovação: PR para a `main`; migração em produção **só** pelo workflow `supabase-migrations.yml`; chave no
+   ambiente Production.
+5. Worker/fila (execução sem o navegador aberto) e streaming, se o uso pedir.
+
+### 21.18 Preparação para memória institucional (não implementada)
+
+Base já gravada: resumo por conversa, auditoria completa de ações, achados resolvidos com decisão registrada e
+autor. Uma memória da LEP (padrões por instituição, decisões recorrentes) exigirá tabela própria por organização,
+curadoria humana e regra explícita do que pode ser reaproveitado entre inscrições (ADR-0027).
+
+### 21.19 Estado do Git
+
+- Branch `feature/editais-ux-permissions`; base desta entrega `aae337b`. Commits desta entrega e do resultado do
+  staging registrados no fim do relatório da tarefa e em §21.14.

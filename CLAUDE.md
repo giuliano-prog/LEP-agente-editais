@@ -31,7 +31,7 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 - Tabelas `core.editais`/`core.projetos` (ADR-0010). Vocabulário de projetos em `packages/modules/projects/src/vocabulary.ts` = CHECK constraints da migração.
 - Match (`packages/modules/funding`): regras determinísticas; nunca afirmar aprovação (`MATCH_DISCLAIMER`).
 - Documentos de editais: bucket privado `edital-documents` (`<org_id>/...`), `core.edital_documents` com SHA-256 imutável (ADR-0011). Buscar URLs externas só via `safeFetch` de `@lep/ingestion` (anti-SSRF).
-- Varredura (ADR-0012): `lib/monitor/run.ts` com cliente admin (`lib/supabase/admin.ts`) — uso restrito a varredura/cron/diagnóstico e convites de membros (ADR-0015, só após `requireMembership("admin")`), sempre filtrando `org_id`. Importados entram com revisão pendente.
+- Varredura (ADR-0012): `lib/monitor/run.ts` com cliente admin (`lib/supabase/admin.ts`) — uso restrito a varredura/cron/diagnóstico, convites de membros (ADR-0015, só após `requireMembership("admin")`) e registro de custo de IA em `core.ai_usage` (ADR-0027), sempre filtrando `org_id`. Importados entram com revisão pendente.
 - Membros (ADR-0015): só `memberships.status = 'active'` dá acesso; perfis Administrador/Diretoria/Equipe = admin/editor/viewer. Nunca guardar senhas; a única senha pedida é a inicial do ADM na criação direta, enviada só ao Supabase Auth pelo servidor (ADR-0025). Foto de perfil: bucket privado `avatars` (`<user_id>/...`).
 - Descoberta web (ADR-0024): `lib/discovery/` reaproveita `importOpportunity` (nunca um pipeline paralelo); decide
   audiovisual pelo OBJETO, não pelo tema (`classifyAudiovisualRelevance`); não audiovisual/encerrado fica só em
@@ -39,6 +39,13 @@ Monorepo pnpm (Node 22). Leia `docs/arquitetura.md` e `docs/adr/` antes de mudan
 - Área de Trabalho do Edital (ADR-0026): motor em `packages/modules/funding/src/workspace/` (regras com trecho,
   sem IA); vocabulário de `workspace/model.ts` = CHECK da migração. Regerar o checklist só acrescenta (`source_key`),
   nunca apaga o trabalho da equipe. Acervo em `edital-documents` `<org_id>/acervo/`. IA só via `WorkspaceReviewer`.
+- Assistente LEP (ADR-0027): Claude só via `@lep/ai` (`createAnthropicAgentModel`, modelo em `agent/config.ts`);
+  ferramentas em `apps/web/src/lib/assistant/tools.ts` ligadas a UMA área de trabalho, com Zod, sessão do usuário,
+  auditoria em `core.agent_actions` e regras de autonomia no código (nunca só no prompt). Ação sensível = proposta
+  (`solicitar_confirmacao`) executada por `proposals.ts` após aprovação; nada externo (e-mail, sites, pagamento).
+  "Confirmado" do edital exige trecho literal (`checkEvidence`). Prompt de sistema fixo; dados variáveis só na
+  1ª mensagem, delimitados como `<documento_*>`. `ANTHROPIC_API_KEY` só no servidor; abrir página nunca chama IA.
+  Custo por chamada em `core.ai_usage` só pelo servidor (cliente admin, insert com `org_id`).
 - Erros do banco na UI: use `DbErrorNotice` (causa + correção), nunca mensagem genérica.
 - Tema: use tokens de `globals.css` (`bg-surface`, `bg-card`, `text-fg`, `text-muted`, `text-brand`), nunca cores soltas.
 - Dados da LEP são sigilosos: nada de dados reais em seeds, fixtures ou logs.
