@@ -15,6 +15,8 @@ export type PdfText = {
   pages: number;
   /** Páginas efetivamente lidas (limite `maxPages`). */
   pagesRead: number;
+  /** Texto de cada página lida, na ordem (página 1 = índice 0) — base das evidências por página. */
+  pageTexts: string[];
   /** Quase sem texto: provavelmente digitalizado (imagem) — não há OCR. */
   scanned: boolean;
   truncated: boolean;
@@ -99,6 +101,7 @@ export async function extractPdfText(
       text,
       pages: document.numPages,
       pagesRead,
+      pageTexts: parts,
       // Menos de ~40 letras por página lida: camada de texto ausente (imagem).
       scanned: letters < 40 * Math.max(1, pagesRead),
       truncated: joined.length > maxChars || document.numPages > pagesRead,

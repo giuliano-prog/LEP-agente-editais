@@ -13,6 +13,7 @@
     "members:invite": "node --env-file-if-exists=.env.local --import tsx scripts/invite-member.ts"
   },
   "dependencies": {
+    "@lep/ai": "workspace:*",
     "@lep/core": "workspace:*",
     "@lep/db": "workspace:*",
     "@lep/funding": "workspace:*",

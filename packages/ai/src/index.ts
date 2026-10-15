@@ -3,3 +3,5 @@ export { withUsageTracking } from "./with-usage-tracking";
 export * from "./edital-analyzer";
 export * from "./edital-questions";
 export * from "./workspace-reviewer";
+export * from "./agent";
+export { createAnthropicAgentModel, classifyAnthropicError } from "./providers/anthropic";
