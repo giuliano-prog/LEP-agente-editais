@@ -1672,10 +1672,19 @@ Depois de cadastrar a chave na Vercel: **Redeploy** do Preview.
 5. Recarregar a página (tudo deve continuar) e perguntar no chat “O que ainda falta?”.
 6. Aprovar/recusar uma proposta; entrar como Equipe e conferir que só lê.
 
-### 21.14 Staging (TESTE)
+### 21.14 Staging (TESTE) — ✅ migração aplicada só no Supabase de TESTE; produção intocada
 
-- Push desta entrega dispara `supabase-migrations-staging.yml` (só TESTE). Resultado registrado no commit seguinte
-  desta seção.
+- Push de `e0bd725` disparou os dois workflows:
+  - **Produção** (`supabase-migrations.yml`, execução nº 19, id `38678558743`): **skipped** — o job só roda na `main`.
+    Nada executado em produção.
+  - **TESTE** (`supabase-migrations-staging.yml`, execução nº 10, id **`38678558709`**): **✅ success**.
+    - "Testar migrações (banco descartável)" ✅.
+    - "Aplicar no Supabase de TESTE" ✅: a simulação listou **só** `20261012120000_assistente_lep.sql` →
+      "Applying migration 20261012120000_assistente_lep.sql… Finished" → `supabase migration list`:
+      **Local = Remote nas 18 migrações** (`20260925120000` … `20261012120000`).
+- Supabase afetado: **somente o projeto de TESTE**. Nenhum segredo, usuário ou dado foi alterado.
+- **Não verificado:** o Preview da Vercel deste commit (a rede da sessão bloqueia `*.vercel.app`), nem se ele usa o
+  Supabase de TESTE (§20.4).
 
 ### 21.15 Limitações conhecidas
 
@@ -1709,5 +1718,8 @@ curadoria humana e regra explícita do que pode ser reaproveitado entre inscriç
 
 ### 21.19 Estado do Git
 
-- Branch `feature/editais-ux-permissions`; base desta entrega `aae337b`. Commits desta entrega e do resultado do
-  staging registrados no fim do relatório da tarefa e em §21.14.
+- Branch `feature/editais-ux-permissions` (enviada ao GitHub; **sem merge na `main`**). Base desta entrega `aae337b`.
+- Commits: `cd9637e` banco (migração, teste SQL, tipos) · `ade04aa` `@lep/ai` (agente, config, adaptador Anthropic) ·
+  `ae54f34` web (ferramentas, execuções, painel, propostas, evidências; correção do teste da varredura) · `e0bd725`
+  docs (ADR-0027, CLAUDE.md, STATUS) · commit desta atualização (resultado do staging).
+- Alterações não commitadas: nenhuma (além deste registro, commitado em seguida).
