@@ -17,7 +17,10 @@ export default async function NoAccessPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-md space-y-4 rounded-xl border border-line bg-card p-8 text-center shadow-2xl shadow-black/40">
+      <div
+        style={{ boxShadow: "var(--shadow-pop)" }}
+        className="card w-full max-w-md space-y-4 p-8 text-center"
+      >
         <h1 className="text-lg font-semibold">
           {lackingPermission
             ? "Permissão insuficiente"
@@ -34,17 +37,12 @@ export default async function NoAccessPage({
         </p>
         <div className="flex justify-center gap-3 text-sm">
           {lackingPermission && (
-            <Link
-              href="/"
-              className="rounded-md border border-line px-4 py-2 hover:border-brand hover:text-brand"
-            >
+            <Link href="/" className="btn btn-secondary">
               Voltar ao início
             </Link>
           )}
           <form action={signOut}>
-            <button className="rounded-md bg-brand px-4 py-2 font-semibold text-surface hover:bg-brand-strong">
-              Sair
-            </button>
+            <button className="btn btn-primary">Sair</button>
           </form>
         </div>
       </div>

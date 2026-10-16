@@ -92,7 +92,7 @@ export function AppShell({
         aria-label="Menu principal"
         className={`${
           desktopOpen ? "lg:flex" : "lg:hidden"
-        } sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-card`}
+        } sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-card/70`}
       >
         {sidebar}
       </aside>
@@ -101,17 +101,18 @@ export function AppShell({
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
           <button
             aria-label="Fechar menu"
-            className="absolute inset-0 bg-black/60"
+            className="lep-fade-in absolute inset-0 bg-black/65 backdrop-blur-[2px]"
             onClick={closeMobile}
           />
           <aside
             aria-label="Menu principal"
-            className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-line bg-card shadow-2xl shadow-black/60"
+            className="lep-drawer-in absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-line bg-card"
+            style={{ boxShadow: "var(--shadow-pop)" }}
           >
             <button
               onClick={closeMobile}
               aria-label="Fechar menu"
-              className="absolute right-3 top-3 rounded-md p-2 text-muted hover:text-fg"
+              className="btn-icon absolute right-3 top-4 transition-colors"
             >
               <NavIcon name="close" />
             </button>
@@ -121,18 +122,18 @@ export function AppShell({
       )}
 
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
+        <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur-md">
           <div
-            className="h-0.5 bg-gradient-to-r from-brand via-brand/60 to-transparent"
+            className="h-px bg-gradient-to-r from-brand-red via-brand/70 to-transparent"
             aria-hidden
           />
-          <div className="flex items-center gap-3 px-4 py-2">
+          <div className="flex h-14 items-center gap-3 px-3 sm:px-5">
             <button
               onClick={toggle}
               aria-label="Abrir ou fechar o menu"
               aria-controls="lep-sidebar"
               aria-expanded={mobileOpen || undefined}
-              className="rounded-md p-2 text-muted transition hover:bg-card-raised hover:text-fg"
+              className="btn-icon transition-colors"
             >
               <NavIcon name="menu" />
             </button>
@@ -145,7 +146,7 @@ export function AppShell({
             </Link>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8">{children}</main>
       </div>
     </div>
   );
@@ -165,24 +166,24 @@ function SidebarContent({
   const main = items.filter((item) => item.section === "main");
   const admin = items.filter((item) => item.section === "admin");
   return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
-      <Link href="/" aria-label="Início — LEP Filmes" className="inline-flex">
-        <Logo />
+    <div className="flex h-full flex-col gap-6 overflow-y-auto px-4 pb-4 pt-6">
+      <Link href="/" aria-label="Início — LEP Filmes" className="inline-flex self-start px-2">
+        <Logo size="md" />
       </Link>
       <MemberMenu user={user} />
-      <nav aria-label="Módulos" className="flex flex-1 flex-col gap-1 text-sm">
+      <nav aria-label="Módulos" className="flex flex-1 flex-col gap-0.5 text-sm">
         {main.map((item) => (
           <NavItem key={item.key} item={item} active={isActiveHref(item.href, pathname)} />
         ))}
         {admin.length > 0 && (
-          <div className="mt-auto border-t border-line pt-3">
+          <div className="mt-auto border-t border-line pt-4">
             {admin.map((item) => (
               <NavItem key={item.key} item={item} active={isActiveHref(item.href, pathname)} />
             ))}
           </div>
         )}
       </nav>
-      <p className="truncate text-xs text-muted">{orgName}</p>
+      <p className="truncate px-3 text-xs text-subtle">{orgName}</p>
     </div>
   );
 }
@@ -192,13 +193,24 @@ function NavItem({ item, active }: { item: NavigationItem; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-3 rounded-md px-3 py-2.5 transition ${
+      className={`group relative flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 ${
         active
-          ? "bg-brand/10 font-medium text-brand"
-          : "text-muted hover:bg-card-raised hover:text-fg"
+          ? "bg-brand/[0.09] font-medium text-fg"
+          : "text-muted hover:bg-white/[0.035] hover:text-fg"
       }`}
     >
-      <NavIcon name={item.icon} />
+      <span
+        aria-hidden
+        className={`absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand transition-opacity ${
+          active ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <NavIcon
+        name={item.icon}
+        className={`h-[18px] w-[18px] shrink-0 transition-colors ${
+          active ? "text-brand" : "text-subtle group-hover:text-fg"
+        }`}
+      />
       <span className="flex-1">{item.label}</span>
     </Link>
   );
@@ -229,33 +241,37 @@ function MemberMenu({ user }: { user: ShellUser }) {
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex w-full items-center gap-3 rounded-lg border border-line bg-card-raised/50 p-2 text-left transition hover:border-brand/60"
+        className="flex w-full items-center gap-3 rounded-xl border border-line bg-card-raised/40 p-2 text-left transition-colors hover:border-line-strong hover:bg-card-raised"
       >
         <Avatar name={user.name} src={user.avatarUrl} />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {user.name ?? "Minha conta"}
         </span>
-        <span aria-hidden className="text-xs text-muted">
+        <span
+          aria-hidden
+          className={`pr-1 text-xs text-subtle transition-transform ${open ? "rotate-180" : ""}`}
+        >
           ▾
         </span>
       </button>
       {open && (
         <div
           role="menu"
-          className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-line bg-card shadow-xl shadow-black/40"
+          className="lep-pop-in absolute inset-x-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-line-strong bg-card p-1"
+          style={{ boxShadow: "var(--shadow-pop)" }}
         >
           <Link
             href="/conta"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className="block px-4 py-2.5 text-sm hover:bg-card-raised hover:text-brand"
+            className="block rounded-lg px-3 py-2.5 text-sm transition-colors hover:bg-card-raised hover:text-brand"
           >
             Minha conta
           </Link>
           <form action={signOut}>
             <button
               role="menuitem"
-              className="block w-full px-4 py-2.5 text-left text-sm text-muted hover:bg-card-raised hover:text-bad"
+              className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-muted transition-colors hover:bg-card-raised hover:text-bad"
             >
               Sair
             </button>

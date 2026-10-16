@@ -27,7 +27,7 @@ export function EvidencePanel({ edital }: { edital: Edital }) {
     <Card>
       <SectionTitle>Evidências da extração automática</SectionTitle>
       {edital.extractionNotes.length > 0 && (
-        <ul className="mb-4 space-y-1 rounded-md border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+        <ul className="mb-4 space-y-1 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
           {edital.extractionNotes.map((note) => (
             <li key={note}>⚠ {note}</li>
           ))}

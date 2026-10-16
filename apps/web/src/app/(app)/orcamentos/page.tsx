@@ -33,7 +33,7 @@ export default async function OrcamentosPage() {
         </SectionTitle>
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {BUDGET_SECTIONS.map((section) => (
-            <li key={section.key} className="rounded-xl border border-line bg-card p-4">
+            <li key={section.key} className="card p-4">
               <p className="font-medium">{section.label}</p>
               <p className="mt-1 text-sm text-muted">{section.description}</p>
             </li>

@@ -48,7 +48,7 @@ function FactorsTable({ result }: { result: MatchResult }) {
       )}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] text-left text-sm">
-          <thead className="text-xs uppercase tracking-wider text-muted">
+          <thead className="eyebrow">
             <tr>
               <th className="py-1 pr-3 font-medium">Fator</th>
               <th className="py-1 pr-3 text-right font-medium">Peso</th>
@@ -149,7 +149,7 @@ export function MatchPanel({ results }: { results: MatchResult[] }) {
         </h2>
         <p
           role="note"
-          className="rounded-md border border-brand/30 bg-brand/5 px-4 py-3 text-sm text-muted"
+          className="rounded-lg border border-brand/30 bg-brand/5 px-4 py-3 text-sm text-muted"
         >
           <span className="font-medium text-brand">Importante: </span>
           {MATCH_DISCLAIMER}

@@ -137,7 +137,7 @@ export function DeleteMemberForm({ userId, name }: { userId: string; name: strin
           event.preventDefault();
         }
       }}
-      className="mt-3 space-y-3 rounded-md border border-bad/40 bg-bad/5 p-3"
+      className="mt-3 space-y-3 rounded-lg border border-bad/40 bg-bad/5 p-3"
     >
       <input type="hidden" name="user_id" value={userId} />
       <p className="text-xs text-bad">
@@ -155,7 +155,7 @@ export function DeleteMemberForm({ userId, name }: { userId: string; name: strin
       <button
         type="submit"
         disabled={pending || typed.trim().toUpperCase() !== "EXCLUIR"}
-        className="w-full rounded-md border border-bad px-3 py-2 text-sm font-semibold text-bad transition hover:bg-bad/10 disabled:opacity-40"
+        className="btn btn-danger w-full"
       >
         {pending ? "Excluindo…" : "Excluir usuário"}
       </button>
@@ -198,8 +198,7 @@ export function InviteForm() {
   );
 }
 
-const buttonClass =
-  "rounded-md border border-line px-2.5 py-1 text-xs hover:border-brand hover:text-brand disabled:opacity-60";
+const buttonClass = "btn btn-xs btn-secondary";
 
 /** Ações por linha: reenviar convite, suspender, reativar. */
 export function MemberActions({

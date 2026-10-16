@@ -45,7 +45,7 @@ export default async function DiagnosticsPage() {
 
       <ul className="space-y-3">
         {checks.map((check) => (
-          <li key={check.label} className="rounded-xl border border-line bg-card p-4">
+          <li key={check.label} className="card p-4">
             <p className="font-medium">
               <span className={ICON[check.status].tone}>{ICON[check.status].symbol}</span>{" "}
               {check.label}

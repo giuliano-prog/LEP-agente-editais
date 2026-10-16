@@ -102,7 +102,7 @@ export function AnalyzeEdital({ orgId }: { orgId: string }) {
   return (
     <div className="space-y-6">
       {!analysis && (
-        <form onSubmit={analyze} className="space-y-4 rounded-xl border border-line bg-card p-5">
+        <form onSubmit={analyze} className="card space-y-4 p-5">
           <label className="block space-y-1">
             <span className="text-sm font-medium">PDF do edital</span>
             <input
@@ -111,18 +111,14 @@ export function AnalyzeEdital({ orgId }: { orgId: string }) {
               name="edital"
               accept="application/pdf,.pdf"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              className="block w-full cursor-pointer rounded-md border border-line bg-card-raised text-sm text-muted file:mr-3 file:cursor-pointer file:border-0 file:bg-brand/15 file:px-3 file:py-2 file:text-brand hover:file:bg-brand/25"
+              className="block w-full cursor-pointer rounded-lg border border-line bg-card-raised text-sm text-muted file:mr-3 file:cursor-pointer file:border-0 file:bg-brand/15 file:px-3 file:py-2 file:text-brand hover:file:bg-brand/25"
             />
             <span className="block text-xs text-muted">
               Até 25 MB. A análise não cadastra o edital: você decide depois.
             </span>
           </label>
           <FormError message={error ?? undefined} />
-          <button
-            type="submit"
-            disabled={analyzing}
-            className="w-full rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong disabled:opacity-60 sm:w-auto"
-          >
+          <button type="submit" disabled={analyzing} className="btn btn-primary w-full sm:w-auto">
             {analyzing ? "Analisando o edital…" : "Analisar edital"}
           </button>
         </form>
@@ -135,28 +131,19 @@ export function AnalyzeEdital({ orgId }: { orgId: string }) {
             <ActionFeedback state={addState} />
             <div className="flex flex-col gap-2 sm:flex-row">
               {!analysis.duplicate && (
-                <button
-                  type="button"
-                  onClick={add}
-                  disabled={adding}
-                  className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong disabled:opacity-60"
-                >
+                <button type="button" onClick={add} disabled={adding} className="btn btn-primary">
                   {adding ? "Adicionando…" : "Adicionar aos Editais"}
                 </button>
               )}
               {analysis.duplicate && (
                 <Link
                   href={`/editais/${analysis.duplicate.editalId}`}
-                  className="rounded-md bg-brand px-4 py-2 text-center text-sm font-semibold text-surface transition hover:bg-brand-strong"
+                  className="btn btn-primary text-center"
                 >
                   Abrir edital já cadastrado
                 </Link>
               )}
-              <button
-                type="button"
-                onClick={reset}
-                className="rounded-md border border-line px-4 py-2 text-sm hover:border-brand hover:text-brand"
-              >
+              <button type="button" onClick={reset} className="btn btn-secondary">
                 Analisar outro edital
               </button>
             </div>
@@ -182,7 +169,7 @@ function Source({ evidence }: { evidence: Evidence | null | undefined }) {
 function Info({ label, item }: { label: string; item: SourcedValue | null }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs uppercase tracking-wider text-muted">{label}</dt>
+      <dt className="eyebrow">{label}</dt>
       <dd className="mt-0.5 break-words">
         {item ? item.value : <span className="text-muted">Não identificado</span>}
         <Source evidence={item?.evidence} />
@@ -193,8 +180,8 @@ function Info({ label, item }: { label: string; item: SourcedValue | null }) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3 rounded-xl border border-line bg-card p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">{title}</h2>
+    <section className="card space-y-3 p-5">
+      <h2 className="eyebrow">{title}</h2>
       {children}
     </section>
   );
@@ -304,7 +291,7 @@ export function AnalysisReport({ analysis }: { analysis: EditalAnalysisView }) {
                 : ""}
             </Badge>
             <div>
-              <p className="mb-1 text-xs uppercase tracking-wider text-muted">
+              <p className="mb-1 eyebrow">
                 Produções compatíveis ({analysis.compatible.length}/{adherence.totalProjects})
               </p>
               {analysis.compatible.length > 0 ? (

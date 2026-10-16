@@ -11,11 +11,7 @@ export function CheckChangesButton({ editalId }: { editalId: string }) {
   );
   return (
     <form action={action} className="space-y-1">
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brand hover:text-brand disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn btn-sm btn-secondary">
         {pending ? "Verificando…" : "Verificar alterações agora"}
       </button>
       {state.error && (

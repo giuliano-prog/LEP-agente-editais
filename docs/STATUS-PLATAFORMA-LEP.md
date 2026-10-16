@@ -304,6 +304,26 @@ instituição (ex.: RioFilme). Parceiras/coprodutoras não contam (LEP é sempre
 - Pendências: aplicar a migração (com aprovação) antes de usar em produção; equipe da produção depende da tabela
   de profissionais; orçamento por rubrica; revisão por IA (decisão da LEP sobre fornecedor e dados).
 
+### Modernização visual (branch `feature/ui-modernization`, 2026-10-14) — só UI/UX
+
+- Base: `main` `262e5e3` (merge do PR #1: logomarca + abertura em vídeo, preservadas sem mudança de lógica).
+- Design system em `apps/web/src/app/globals.css`: tokens refinados (superfícies em camadas, `line-strong`,
+  `subtle`, `brand-red`, sombras sutis `--shadow-card`/`--shadow-pop`); base global (foco visível, cursor,
+  `prefers-reduced-motion`, upload, tabelas, rolagem); classes `card`, `card-interactive`, `btn` (+ `btn-primary`,
+  `btn-secondary`, `btn-ghost`, `btn-danger`, `btn-icon`, `btn-sm`, `btn-xs`), `control`, `chip`, `eyebrow`;
+  microinterações curtas (`lep-fade-in`, `lep-pop-in`, `lep-drawer-in`, `lep-rise-in`).
+- Componentes: `ui.tsx` (PageHeader, SectionTitle, EmptyState, Badge), `form.tsx`, `app-shell.tsx` (sidebar,
+  gaveta mobile, cabeçalho, menu do membro), `logo.tsx` (tamanho `md` na sidebar), `production-sheet.tsx`;
+  telas: Home (indicadores em painel), login, Editais, Buscar Editais, Analisar, Produções, Equipe, Membros etc.
+  (classes repetidas convertidas para o design system).
+- Sem mudanças em banco, Supabase, Auth, permissões, APIs, regras de negócio, rotas, nomes ou dados.
+- Testes (ambiente simulado): E2E v1 admin 59/0, v1b 32/0, membros 27/0, abertura 20/0; v1 editor/viewer com 2 e 1
+  verificações rotuladas `[admin]` que falham igualmente na `main` (dependem do papel — não é regressão);
+  capturas desktop/tablet/mobile de 16 telas sem overflow horizontal nem erro de página; gaveta, menu e foco por
+  teclado conferidos. `pnpm check`: formatação, lint e tipos ok; testes 395/396 — falha pré-existente em
+  `src/lib/monitor/run.test.ts` (“retificação prorroga o prazo…”, também na `main`, não corrigida aqui).
+  `pnpm build` ok. Não verificado em navegador real/Preview pela sessão.
+
 ### Abertura em vídeo pós-login (branch `feature/lep-brand-intro`, 2026-10-14)
 
 - Após login bem-sucedido, `signIn` grava o cookie curto `lep_intro` (10 min, não httpOnly); o layout `(app)` exibe

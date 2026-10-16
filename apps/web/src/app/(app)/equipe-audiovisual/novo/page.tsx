@@ -7,7 +7,7 @@ import { TEAM_ROLES } from "@/lib/team/model";
 export const metadata: Metadata = { title: "Cadastrar Profissional" };
 
 const control =
-  "w-full rounded-md border border-line bg-card-raised px-3 py-2 text-sm text-fg outline-none placeholder:text-muted/70 focus:border-brand focus:ring-1 focus:ring-brand";
+  "w-full rounded-lg border border-line bg-card-raised px-3 py-2 text-sm text-fg outline-none placeholder:text-muted/70 focus:border-brand focus:ring-1 focus:ring-brand";
 
 /**
  * Cadastro de profissional (V1). O banco de profissionais ainda não existe: o formulário
@@ -56,11 +56,7 @@ export default async function NewProfessionalPage() {
           <p id="aviso-cadastro" className="text-xs text-muted">
             Nesta versão o cadastro de profissionais ainda não grava dados.
           </p>
-          <button
-            type="button"
-            disabled
-            className="w-full rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface opacity-50"
-          >
+          <button type="button" disabled className="btn btn-primary w-full opacity-50">
             Salvar profissional
           </button>
         </form>

@@ -37,10 +37,7 @@ export default async function ProjetosPage() {
         description="Histórico e biblioteca das produções da LEP. Também usadas no Match com os editais."
       >
         {canEdit && (
-          <Link
-            href="/projetos/nova"
-            className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-surface transition hover:bg-brand-strong"
-          >
+          <Link href="/projetos/nova" className="btn btn-primary">
             + Adicionar Produção Concluída
           </Link>
         )}

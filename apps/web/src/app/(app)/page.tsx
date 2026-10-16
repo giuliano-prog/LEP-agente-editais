@@ -67,15 +67,23 @@ export default async function HomePage({
   const name = firstName(fullName);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       {senha === "atualizada" && (
-        <p className="rounded-md border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok">
+        <p
+          role="status"
+          className="rounded-lg border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok"
+        >
           Senha atualizada com sucesso.
         </p>
       )}
 
-      <section className="space-y-3">
-        <p className="text-sm text-muted">
+      <section className="lep-rise-in relative space-y-4">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-24 -top-24 -z-10 h-64 w-[28rem] max-w-full bg-[radial-gradient(closest-side,rgb(245_130_31/0.10),transparent)]"
+        />
+        <p className="flex items-center gap-2 text-sm text-muted">
+          <span aria-hidden className="h-px w-6 bg-brand" />
           {name ? (
             `Olá, ${name}`
           ) : (
@@ -87,7 +95,7 @@ export default async function HomePage({
             </>
           )}
         </p>
-        <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+        <h1 className="max-w-3xl text-[2rem] font-semibold leading-[1.1] tracking-tight sm:text-5xl">
           Inteligência e automação para o <span className="text-brand">audiovisual.</span>
         </h1>
       </section>
@@ -97,36 +105,54 @@ export default async function HomePage({
           <Link
             key={item.href}
             href={item.href}
-            className="group flex flex-col gap-3 rounded-xl border border-line bg-card p-5 transition hover:border-brand/60 hover:bg-card-raised"
+            className="card card-interactive group flex flex-col gap-5 p-5"
           >
             <span className="flex items-center justify-between">
-              <span className="rounded-lg border border-brand/30 bg-brand/10 p-2 text-brand">
+              <span className="rounded-lg border border-brand/25 bg-brand/[0.08] p-2 text-brand transition-colors group-hover:border-brand/50">
                 <NavIcon name={item.icon} />
+              </span>
+              <span
+                aria-hidden
+                className="text-subtle transition-[color,transform] duration-200 group-hover:translate-x-0.5 group-hover:text-brand"
+              >
+                →
               </span>
             </span>
             <span>
-              <span className="block font-semibold group-hover:text-brand">{item.title} →</span>
-              <span className="mt-1 block text-sm text-muted">{item.text}</span>
+              <span className="block font-semibold text-fg">{item.title}</span>
+              <span className="mt-1.5 block text-sm leading-relaxed text-muted">{item.text}</span>
             </span>
           </Link>
         ))}
       </section>
 
-      <section aria-labelledby="visao-geral" className="space-y-3">
-        <h2 id="visao-geral" className="text-sm font-semibold uppercase tracking-wider text-muted">
+      <section aria-labelledby="visao-geral" className="space-y-4">
+        <h2
+          id="visao-geral"
+          className="eyebrow flex items-center gap-3 after:h-px after:flex-1 after:bg-line"
+        >
           Visão Geral
         </h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <div
+          className="flex flex-wrap gap-px overflow-hidden rounded-xl border border-line bg-line"
+          style={{ boxShadow: "var(--shadow-card)" }}
+        >
           {metrics.map((metric) => (
             <Link
               key={metric.label}
               href={metric.href}
-              className="rounded-xl border border-line bg-card p-5 transition hover:border-brand/60"
+              className="group flex min-w-0 flex-1 basis-[calc(50%-1px)] flex-col justify-between gap-6 bg-card px-5 py-5 transition-colors hover:bg-card-raised md:basis-[calc(33.333%-1px)] xl:basis-0"
             >
-              <span className="block text-3xl font-semibold tabular-nums text-brand">
+              <span className="text-xs font-medium leading-snug text-muted transition-colors group-hover:text-fg">
+                {metric.label}
+              </span>
+              <span
+                className={`block text-4xl font-semibold leading-none tracking-tight tabular-nums sm:text-[2.75rem] ${
+                  metric.value ? "text-brand" : "text-fg/85"
+                }`}
+              >
                 {metric.value ?? "—"}
               </span>
-              <span className="mt-1 block text-sm text-muted">{metric.label}</span>
             </Link>
           ))}
         </div>

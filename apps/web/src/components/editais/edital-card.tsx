@@ -26,10 +26,7 @@ export function EditalActions({ id, officialUrl }: { id: string; officialUrl: st
           <span className="sr-only">(abre em nova aba)</span>
         </a>
       )}
-      <Link
-        href={`/editais/${id}`}
-        className="rounded-md border border-line px-3 py-1.5 transition hover:border-brand hover:text-brand"
-      >
+      <Link href={`/editais/${id}`} className="btn btn-sm btn-secondary">
         Ver análise
       </Link>
     </div>
@@ -55,7 +52,7 @@ export function EditalCard({
   highlight?: { label: string; tone: "brand" | "neutral" };
 }) {
   return (
-    <article className="space-y-3 rounded-xl border border-line bg-card p-4">
+    <article className="card space-y-3 p-4">
       <div className="flex flex-wrap items-center gap-1.5">
         {highlight && <Badge tone={highlight.tone}>{highlight.label}</Badge>}
         <EditalStatusBadge status={edital.status} />
@@ -69,13 +66,13 @@ export function EditalCard({
       </div>
       <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wider text-muted">Prazo</dt>
+          <dt className="eyebrow">Prazo</dt>
           <dd>
             <Deadline value={edital.deadline} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wider text-muted">Aderência</dt>
+          <dt className="eyebrow">Aderência</dt>
           <dd>
             <AdherenceCell adherence={edital.adherence} />
           </dd>

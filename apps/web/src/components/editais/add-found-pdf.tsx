@@ -15,11 +15,7 @@ export function AddFoundPdfButton({ editalId, url }: { editalId: string; url: st
       <input type="hidden" name="url" value={url} />
       <input type="hidden" name="kind" value="annex" />
       {state.error && <span className="text-xs text-bad">{state.error}</span>}
-      <button
-        type="submit"
-        disabled={pending}
-        className="shrink-0 rounded-md border border-line px-3 py-1 text-xs hover:border-brand hover:text-brand disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn btn-xs btn-secondary shrink-0">
         {pending ? "Adicionando…" : "Adicionar como anexo"}
       </button>
     </form>

@@ -48,7 +48,7 @@ export default async function EditEditalPage({
       <PageHeader title="Editar edital" description={edital.title} />
 
       {novo && (
-        <p className="rounded-md border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok">
+        <p className="rounded-lg border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok">
           Edital criado com revisão pendente. Abra o documento guardado (na página do edital) e
           preencha os campos com base na fonte oficial.
         </p>
