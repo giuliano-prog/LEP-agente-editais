@@ -132,7 +132,7 @@ export function AcervoUpload({
             type="file"
             name="file"
             accept="application/pdf,.pdf"
-            className="block w-full cursor-pointer rounded-md border border-line bg-card-raised text-sm text-muted file:mr-3 file:cursor-pointer file:border-0 file:bg-brand/15 file:px-3 file:py-2 file:text-brand hover:file:bg-brand/25"
+            className="block w-full cursor-pointer rounded-lg border border-line bg-card-raised text-sm text-muted file:mr-3 file:cursor-pointer file:border-0 file:bg-brand/15 file:px-3 file:py-2 file:text-brand hover:file:bg-brand/25"
           />
         </label>
         <label className={S.label}>

@@ -87,7 +87,7 @@ export default async function AcervoPage() {
       )}
 
       {!documentsQuery.error && documents.length === 0 && (
-        <p className="rounded-xl border border-dashed border-line bg-card/50 p-8 text-center text-sm text-muted">
+        <p className="rounded-xl border border-dashed border-line-strong bg-card/40 p-8 text-center text-sm text-muted">
           Nenhum documento no acervo ainda.
         </p>
       )}

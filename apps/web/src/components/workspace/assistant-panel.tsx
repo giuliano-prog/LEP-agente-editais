@@ -326,7 +326,7 @@ export function AssistantPanel({
                       type="button"
                       disabled={deciding !== null}
                       onClick={() => decide(proposal.id, "approve")}
-                      className={S.small.replace("border-line", "border-ok/40")}
+                      className={S.confirm}
                     >
                       Aprovar
                     </button>

@@ -134,13 +134,7 @@ export function ItemRow({
                   key={quick.status}
                   action={setItemStatus.bind(null, editalId, item.id, quick.status, anchor)}
                 >
-                  <button
-                    className={
-                      quick.status === "done"
-                        ? S.small.replace("border-line", "border-ok/40")
-                        : S.small
-                    }
-                  >
+                  <button className={quick.status === "done" ? S.confirm : S.small}>
                     {quick.label}
                   </button>
                 </form>

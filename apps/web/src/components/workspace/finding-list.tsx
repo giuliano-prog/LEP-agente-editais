@@ -136,7 +136,7 @@ export function FindingList({
                       aria-label="Registro da decisão"
                       className={`${S.control} w-56 py-1 text-xs`}
                     />
-                    <button className={S.small.replace("border-line", "border-ok/40")}>
+                    <button className={S.confirm}>
                       {finding.kind === "pending_decision" ? "Registrar decisão" : "Resolver"}
                     </button>
                     <button

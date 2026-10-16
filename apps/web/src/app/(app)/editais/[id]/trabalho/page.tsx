@@ -413,10 +413,7 @@ export default async function WorkspacePage({
         <ul className="flex min-w-max gap-1.5 text-sm">
           {SECTIONS.map(([anchor, label]) => (
             <li key={anchor}>
-              <a
-                href={`#${anchor}`}
-                className="block rounded-full border border-line px-3 py-1 text-muted hover:border-brand hover:text-brand"
-              >
+              <a href={`#${anchor}`} className="chip">
                 {label}
               </a>
             </li>
@@ -794,9 +791,7 @@ export default async function WorkspacePage({
                               `texto-${item.id}`,
                             )}
                           >
-                            <button className={S.small.replace("border-line", "border-ok/40")}>
-                              Aplicar sugestão
-                            </button>
+                            <button className={S.confirm}>Aplicar sugestão</button>
                           </form>
                           <form
                             action={decideSuggestion.bind(
@@ -1189,7 +1184,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-xl border border-dashed border-line bg-card/50 p-6 text-center text-sm text-muted">
+    <p className="rounded-xl border border-dashed border-line-strong bg-card/40 p-6 text-center text-sm text-muted">
       {children}
     </p>
   );
