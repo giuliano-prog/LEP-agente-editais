@@ -1778,6 +1778,14 @@ curadoria humana e regra explícita do que pode ser reaproveitado entre inscriç
     configurado). `CRON_SECRET` só para o cron.
   - Depois de mudar qualquer variável: **Redeploy** do Preview.
 
-### 22.5 Resultado do push
+### 22.5 Resultado do push e do Preview
 
-- Registrado no commit seguinte desta seção.
+- Push de `4631ce8` (permissão de busca) e `a34b41d` (STATUS) para `feature/editais-ux-permissions` ✅.
+- Workflows de migração: **não dispararam** (o push não altera `supabase/migrations/`) — nada aplicado em TESTE nem
+  em produção nesta revisão.
+- Vercel: commit `a34b41d` — **"Deployment has completed"** (painel:
+  `https://vercel.com/giuliano-4565/lep-plataforma/HVoPdzDMNJcbEKvT48YayBdZJutK`). Endereço fixo do branch (aponta
+  sempre para o último deploy do branch): `https://lep-plataforma-git-feature-editais-ux-permissions-giuliano-4565.vercel.app`.
+  O commit desta atualização (só documentação) gera mais um Preview com o mesmo código.
+- **Não verificado:** abrir o Preview e qual Supabase ele usa (rede da sessão bloqueia `*.vercel.app`); variáveis da
+  Vercel (sem acesso). Conferir §22.4 antes de testar.
