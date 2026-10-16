@@ -1,6 +1,7 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualização mais recente:** 2026-10-15 — branch `feature/editais-ux-permissions`: **Assistente LEP** (agente de IA
+> **Atualização mais recente:** 2026-10-16 — revisão final da branch, Diretoria executa buscas e novo Preview (§22).
+> 2026-10-15 — branch `feature/editais-ux-permissions`: **Assistente LEP** (agente de IA
 > operacional na Área de Trabalho, Claude/Anthropic, ADR-0027) — §21; migração `20261012120000` só no TESTE.
 > 2026-10-14 — migração da Área de Trabalho
 > ✅ aplicada **só no Supabase de TESTE** (§20); Área de Trabalho do Edital (§19). **Branch principal:** `main` em `262e5e3`
@@ -1723,3 +1724,60 @@ curadoria humana e regra explícita do que pode ser reaproveitado entre inscriç
   `ae54f34` web (ferramentas, execuções, painel, propostas, evidências; correção do teste da varredura) · `e0bd725`
   docs (ADR-0027, CLAUDE.md, STATUS) · commit desta atualização (resultado do staging).
 - Alterações não commitadas: nenhuma (além deste registro, commitado em seguida).
+
+---
+
+## 22. Revisão final da branch e novo Preview (2026-10-16)
+
+**Branch:** `feature/editais-ux-permissions` (sem merge na `main`; produção e Supabase de produção não alterados).
+
+### 22.1 Revisão
+
+- Git: árvore limpa e igual ao remoto em `c3d69b2` antes da revisão; a `main` (`262e5e3`) não tem commits que faltem
+  na branch (0 atrás, 12 à frente).
+- O código contém as entregas documentadas em §19 (Área de Trabalho) e §21 (Assistente LEP): rotas, server actions,
+  componentes, `lib/assistant/*`, `packages/ai/src/agent/*`, migrações `20261011120000` e `20261012120000`, testes
+  SQL `017` e `018`.
+- Permissões conferidas: Diagnóstico só ADM (`requireMembership("admin")`); Área de Trabalho, Acervo, Analisar
+  Edital e Assistente com `editor` (Diretoria/ADM); Equipe só consulta.
+- **Lacuna encontrada e corrigida:** o pedido do Assistente (§21, "Permissões") diz que a Diretoria deve poder usar
+  **Buscar Editais**. A permissão `editais.search` estava só no ADM, então a Diretoria via a tela mas não executava
+  buscas. Agora `editais.search = editor`: Diretoria e ADM executam "Verificar fontes cadastradas" e "Buscar na web".
+  Os tetos de custo continuam (por execução e mensal no banco, ADR-0024). Cadastrar, editar, pausar ou excluir fontes,
+  o Catálogo e importar candidatos incertos **continuam só do ADM**. Equipe continua sem executar buscas.
+
+### 22.2 Testes (resultados reais desta revisão)
+
+- `pnpm check` ✅ — formatação, lint, tipos e **488/488 testes** (core 10, projects 3, ai 26, ingestion 54,
+  funding 203, web 192), incluindo o teste novo de permissão de busca.
+- Banco (PostgreSQL 16 local descartável, `DB_TEST_SHIM=1`, migrações 2x): **18 arquivos ✅, 322 verificações**;
+  cenário `remoto-parcial` ✅.
+- `pnpm build` ✅; o pacote do navegador não contém o SDK nem o nome da variável da Anthropic.
+- E2E (Supabase simulado + API da Anthropic simulada, dados fictícios): Buscar Editais — ADM 5/5, Diretoria 5/5
+  (executa a busca na web sem ser barrada; sem Nova Fonte/Catálogo), Equipe 3/3 (não executa); Assistente como
+  Diretoria 29/29; Área de Trabalho ADM 39/39, Diretoria 39/39, Equipe 5/5.
+- **Não verificado:** API real da Anthropic (sem chave na sessão) e o Preview aberto no navegador (a rede da sessão
+  bloqueia `*.vercel.app`).
+
+### 22.3 Migrações no TESTE
+
+- Confirmado pelo histórico do workflow `supabase-migrations-staging.yml`, execução nº 10 (`38678558709`, commit
+  `e0bd725`): **Local = Remote nas 18 migrações**, incluindo `20261011120000_area_trabalho_edital` e
+  `20261012120000_assistente_lep`. Nenhuma migração nova nesta revisão (o push não dispara aplicação).
+
+### 22.4 Preview e variáveis
+
+- Commit anterior `c3d69b2`: status "Vercel — Deployment has completed" no GitHub. O Preview desta revisão é o do
+  commit enviado em seguida (resultado em §22.5).
+- Variáveis do ambiente **Preview** na Vercel (conferir — a sessão não tem acesso à Vercel):
+  - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` → do projeto de
+    **TESTE**, valendo para `feature/editais-ux-permissions` (ou todo o Preview). Ver o risco de §20.4.
+  - `ANTHROPIC_API_KEY` → necessária para usar o Assistente com a API real (sem `NEXT_PUBLIC_`).
+  - `LEP_ASSISTANT_MODEL` → opcional (padrão `claude-opus-5-5`).
+  - Para busca: `WEB_SEARCH_PROVIDER`/`WEB_SEARCH_API_KEY` (opcionais; sem elas "Buscar na web" avisa que não está
+    configurado). `CRON_SECRET` só para o cron.
+  - Depois de mudar qualquer variável: **Redeploy** do Preview.
+
+### 22.5 Resultado do push
+
+- Registrado no commit seguinte desta seção.
