@@ -282,8 +282,8 @@ export default async function SourcesPage({
       ) : (
         <Card>
           <p className="text-sm text-muted">
-            As buscas são executadas por quem administra a plataforma. Os editais encontrados
-            aparecem na lista de{" "}
+            As buscas são executadas pela Diretoria e pelo ADM. Os editais encontrados aparecem na
+            lista de{" "}
             <Link href="/editais" className="text-brand hover:underline">
               Editais
             </Link>

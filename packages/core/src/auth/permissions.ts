@@ -22,8 +22,12 @@ export const PERMISSIONS = {
   "members.read": "viewer",
   /** Diagnóstico da configuração (Supabase/Vercel): somente ADM. */
   "diagnostics.view": "admin",
-  /** Executar buscas de editais (fontes cadastradas e web): usa chave de serviço e tem custo. */
-  "editais.search": "admin",
+  /**
+   * Executar buscas de editais (fontes cadastradas e web): Diretoria e ADM (pedido da LEP de 2026-10-15).
+   * Usa a chave de serviço no servidor e tem custo — limitado pelos tetos por execução e mensal (ADR-0024).
+   * Cadastrar/editar/excluir fontes continua só do ADM.
+   */
+  "editais.search": "editor",
 } as const satisfies Record<string, Role>;
 
 export type Permission = keyof typeof PERMISSIONS;

@@ -42,8 +42,13 @@ describe("permissões da navegação", () => {
     expect(can("viewer", "diagnostics.view")).toBe(false);
     expect(can("viewer", "members.read")).toBe(true);
     expect(can("editor", "members.manage")).toBe(false);
-    expect(can("editor", "editais.search")).toBe(false);
     expect(can("admin", "editais.search")).toBe(true);
+  });
+
+  it("Buscar Editais: Diretoria e ADM executam buscas; Equipe só consulta", () => {
+    expect(can("editor", "editais.search")).toBe(true);
+    expect(can("admin", "editais.search")).toBe(true);
+    expect(can("viewer", "editais.search")).toBe(false);
   });
 });
 

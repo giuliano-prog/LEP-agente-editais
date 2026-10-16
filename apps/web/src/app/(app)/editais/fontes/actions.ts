@@ -48,7 +48,7 @@ const sourceSchema = z.object({
   audiovisual_only: z.boolean(),
 });
 
-/** Buscas usam a chave de serviço e têm custo: permissão "editais.search" (hoje só ADM). */
+/** Buscas usam a chave de serviço e têm custo: permissão "editais.search" (Diretoria e ADM). */
 async function requireSearchPermission() {
   const session = await requireMembership();
   if (!can(session.membership.role, "editais.search")) redirect("/sem-acesso?motivo=permissao");
