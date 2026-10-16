@@ -1,6 +1,7 @@
 # Status da Plataforma LEP — estado atual oficial
 
-> **Atualização mais recente:** 2026-10-16 — revisão final da branch, Diretoria executa buscas e novo Preview (§22).
+> **Atualização mais recente:** 2026-10-16 — modernização visual (login novo, sidebar, Home, design system) integrada à branch (§23).
+> 2026-10-16 — revisão final da branch, Diretoria executa buscas e novo Preview (§22).
 > 2026-10-15 — branch `feature/editais-ux-permissions`: **Assistente LEP** (agente de IA
 > operacional na Área de Trabalho, Claude/Anthropic, ADR-0027) — §21; migração `20261012120000` só no TESTE.
 > 2026-10-14 — migração da Área de Trabalho
@@ -1809,3 +1810,46 @@ curadoria humana e regra explícita do que pode ser reaproveitado entre inscriç
   O commit desta atualização (só documentação) gera mais um Preview com o mesmo código.
 - **Não verificado:** abrir o Preview e qual Supabase ele usa (rede da sessão bloqueia `*.vercel.app`); variáveis da
   Vercel (sem acesso). Conferir §22.4 antes de testar.
+
+---
+
+## 23. Modernização visual integrada à branch de Editais (2026-10-16) — ✅ um único Preview com tudo
+
+**Branch:** `feature/editais-ux-permissions` (sem merge na `main`; nada em Production; Supabase de produção intocado).
+
+### 23.1 O que foi integrado
+
+- Merge de `feature/ui-modernization` (`b47553c`: design system, sidebar/gaveta mobile, Home, **login novo**, cards,
+  botões, formulários, Editais, Buscar Editais, Analisar, Produções, Equipe, Membros) — commit de merge `a989754`.
+- Arquivos centrais idênticos aos da modernização: `app/login/page.tsx` e `login-form.tsx` (**login novo aplicado; o
+  antigo não existe mais**), `app-shell.tsx`, Home `(app)/page.tsx`, `globals.css`, `ui.tsx`, `form.tsx`.
+- Conflitos: só de texto no STATUS (mantidos os dois registros em §4). `editais/[id]/page.tsx`, `editais/page.tsx` e
+  `editais/fontes/page.tsx` combinaram sem conflito; revisados à mão: links "Área de Trabalho da inscrição" e
+  "Acervo de documentos" passaram para `btn btn-primary`/`btn btn-secondary`; o texto de busca da Diretoria (§22)
+  foi preservado.
+- Adaptação ao design system (`1b9b9df`): `components/workspace/styles.ts` aponta para `card`, `btn`
+  (`btn-primary`, `btn-sm btn-secondary`, `btn-xs`), `control` e `eyebrow`; `S.confirm` substitui o
+  `S.small.replace(...)`; navegação de seções da Área de Trabalho com `chip`; vazios e upload no padrão novo.
+  Área de Trabalho, Assistente LEP, achados, propostas e Acervo **sem mudança de lógica**.
+
+### 23.2 Testes (resultados reais)
+
+- `pnpm check` ✅ — formatação, lint, tipos e 488/488 testes. `pnpm build` ✅ (sem SDK da Anthropic no navegador).
+- Banco (PostgreSQL local descartável, migrações 2x): 18 arquivos, 322 verificações ✅ (nenhuma migração nova).
+- E2E (Supabase e API da Anthropic simulados, dados fictícios): Assistente ADM 29/29, Diretoria 29/29, sem chave 4/4,
+  Equipe 8/8; Área de Trabalho ADM 39/39, Diretoria 39/39, Equipe 5/5; Buscar Editais 5/5, 5/5, 3/3; regressão v1
+  ADM 59/59, Diretoria 16/16, Equipe 16/16, v1b 32/32, membros 27/27, abertura 20/20.
+- Capturas desktop (1366) e celular (390): login, Home, gaveta, Editais, edital, Área de Trabalho (Assistente,
+  checklist, inconsistências), Acervo — sem rolagem horizontal nem erro de página.
+- **Não verificado:** o Preview aberto no navegador (rede da sessão bloqueia `*.vercel.app`) e a API real da Anthropic.
+
+### 23.3 Pendências
+
+- As mesmas de §22.4: conferir que as variáveis do Preview são do Supabase de **TESTE**; `ANTHROPIC_API_KEY` no
+  Preview para testar o Assistente com a API real.
+- A branch `feature/ui-modernization` continua existindo no GitHub; o conteúdo dela agora também está aqui.
+
+### 23.4 Git e Preview
+
+- Commits: `a989754` (merge), `1b9b9df` (design system na Área de Trabalho) e o desta atualização. Resultado do Preview
+  registrado no fim do relatório da tarefa.
